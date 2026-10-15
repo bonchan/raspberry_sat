@@ -20,6 +20,13 @@ def test_parse_other_line():
     assert parse_line("plain text\n") == ("info", "plain text")
 
 
+def test_live_progress_lines_are_cleaned_and_demoted():
+    raw = "[18:13:20 - 15/10/2026] (I) Progress nan%, SNR : 0.000000dB, Peak SNR: 0.303229dB"
+    assert parse_line(raw) == ("debug", "SNR : 0.000000dB, Peak SNR: 0.303229dB")
+    raw = "[18:13:20 - 15/10/2026] (I) Progress nan%, Viterbi : NOSYNC BER : 0.423584, Deframer : NOSYNC"
+    assert parse_line(raw) == ("debug", "Viterbi : NOSYNC BER : 0.423584, Deframer : NOSYNC")
+
+
 def test_follows_passes_through_satdump_output():
     sup = Supervisor()
     folder = "/home/bon/raspberry_sat_data/passes/2026-10-15_19-21_meteor_m2-x_lrpt_137.9 MHz"

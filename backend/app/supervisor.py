@@ -28,6 +28,11 @@ LEVELS = {"T": "trace", "D": "debug", "I": "info", "W": "warn", "E": "error", "C
 PY_LEVELS = {"trace": logging.DEBUG, "debug": logging.DEBUG, "info": logging.INFO,
              "warn": logging.WARNING, "error": logging.ERROR, "critical": logging.CRITICAL}
 
+# SatDump's demodulators print their stats every 10 s as "Progress nan%, SNR : ..." during a pass: live,
+# there is no file to measure progress against. Drop the prefix, and file the line under debug: the Live
+# page shows the same numbers.
+PROGRESS = re.compile(r"^Progress (?:nan|-?[\d.]+)%, ")
+
 # what SatDump prints when a pass's folder is made (at AOS) and when its images are all written (after LOS)
 PASS_FOLDER = re.compile(r"Generated folder name : (.+)$")
 PASS_DONE = "Pipeline Processing Done!"
@@ -46,9 +51,10 @@ def parse_line(raw: str) -> tuple[str, str]:
     """(level, text) from one line of SatDump output."""
     line = ANSI.sub("", raw).rstrip()
     m = SATDUMP_LINE.match(line)
-    if m:
-        return LEVELS[m.group(1)], m.group(2)
-    return "info", line
+    level, text = (LEVELS[m.group(1)], m.group(2)) if m else ("info", line)
+    if PROGRESS.match(text):
+        return "debug", PROGRESS.sub("", text)
+    return level, text
 
 
 class Supervisor:
