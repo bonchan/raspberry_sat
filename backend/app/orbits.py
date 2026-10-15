@@ -124,7 +124,8 @@ class Schedule:
         if key != self._key or now - self._at > self.TTL:
             tles = load_tles(tle_path)
             missing = [s.name or str(s.norad) for s in config.satellites if s.enabled and s.norad not in tles]
-            self._result = {"passes": predict(config, tles, now), "computed_at": now,
+            passes = predict(config, tles, now, hours=config.display.upcoming_days * 24)
+            self._result = {"passes": passes, "computed_at": now, "days": config.display.upcoming_days,
                             "tle_updated_at": tle_mtime, "missing": missing}
             self._key, self._at = key, now
         else:

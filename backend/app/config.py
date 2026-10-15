@@ -71,6 +71,7 @@ class Storage(BaseModel):
 
 class Display(BaseModel):
     show_low_passes: bool = True           # list passes that stay under the minimum elevation
+    upcoming_days: int = Field(7, ge=1, le=14)    # how far ahead the upcoming passes list goes
     language: Literal["en", "es"] = "en"   # of the web interface
 
 

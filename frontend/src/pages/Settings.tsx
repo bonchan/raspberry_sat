@@ -200,6 +200,8 @@ export default function Settings() {
           <SelectField label={t('settings.language')} value={display.language}
             options={LANGUAGES.map(l => ({ value: l.code, label: l.name }))}
             onChange={v => set('display', 'language', v)} />
+          <NumberField label={t('settings.upcomingDays')} hint={t('settings.upcomingDaysHint')} step="1"
+            value={display.upcoming_days} onChange={v => set('display', 'upcoming_days', v)} />
           <CheckField label={t('settings.showLow')} hint={t('settings.showLowHint')}
             value={display.show_low_passes} onChange={v => set('display', 'show_low_passes', v)} />
         </div>

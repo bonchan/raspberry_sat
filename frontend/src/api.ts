@@ -13,7 +13,7 @@ export interface Tracking { min_elevation: number; stop_sdr_when_idle: boolean }
 export interface Rotator { enabled: boolean; address: string; port: number }
 export interface Discord { enabled: boolean; webhook_url: string; composites: string[]; post_failed: boolean }
 export interface Storage { keep_days: number; max_gb: number; keep_baseband: boolean }
-export interface Display { show_low_passes: boolean; language: 'en' | 'es' }
+export interface Display { show_low_passes: boolean; language: 'en' | 'es'; upcoming_days: number }
 
 export interface Config {
   stations: Station[]; active_station: number   // index of the station SatDump uses
@@ -66,7 +66,7 @@ export interface UpcomingPass {
   aos_az: number; los_az: number; track: [number, number][]; scheduled: boolean
 }
 export interface Schedule {
-  passes: UpcomingPass[]; computed_at: number; tle_updated_at?: number; missing?: string[]; error?: string
+  passes: UpcomingPass[]; computed_at: number; days?: number; tle_updated_at?: number; missing?: string[]; error?: string
 }
 /** one sample per second during a pass; signal fields only while SatDump's pipeline reports them */
 export interface LiveSample {

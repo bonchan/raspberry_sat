@@ -25,6 +25,8 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
   const now = useNow()
   const [selected, setSelected] = useState<string | null>(null)
 
+  const days = data?.days ?? 1
+  const span = days === 1 ? t('up.oneDay') : t('up.manyDays', { n: days })
   const all = data?.passes ?? []
   const passes = showLow ? all : all.filter(p => p.scheduled)
   const key = (p: UpcomingPass) => `${p.norad}-${p.aos}`
@@ -58,7 +60,7 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
 
   return (
     <section>
-      <h2>{station ? t('up.titleAt', { station }) : t('up.title')}</h2>
+      <h2>{station ? t('up.titleAt', { station, span }) : t('up.title', { span })}</h2>
       {error && <p className="error">{error}</p>}
       {data?.error && <p className="hint">{data.error}</p>}
       {data?.missing?.length ? <p className="hint">{t('up.missing', { list: data.missing.join(', ') })}</p> : null}

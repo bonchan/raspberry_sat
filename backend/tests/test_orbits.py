@@ -40,6 +40,26 @@ def test_predict_meteor_passes_over_buenos_aires():
     assert [p["aos"] for p in passes] == sorted(p["aos"] for p in passes)
 
 
+def test_schedule_covers_the_configured_days(tmp_path):
+    import time
+    import pytest
+    from pydantic import ValidationError
+    from app.orbits import Schedule
+
+    tle_file = tmp_path / "satdump_tles.txt"
+    tle_file.write_text(TLE)
+    config = station_config()
+    config.display.upcoming_days = 3
+    result = Schedule().get(config, tle_file)
+    assert result["days"] == 3
+    assert result["passes"] and all(p["aos"] < time.time() + 3 * 86400 for p in result["passes"])
+    assert result["passes"][-1]["aos"] > time.time() + 2 * 86400     # really reaches the third day
+
+    for days in (0, 15):
+        with pytest.raises(ValidationError):
+            Config.model_validate({"display": {"upcoming_days": days}})
+
+
 def test_predict_skips_disabled_and_unknown_satellites():
     config = station_config()
     config.satellites[0].enabled = False
