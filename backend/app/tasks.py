@@ -13,19 +13,34 @@ log = logging.getLogger(__name__)
 
 http = httpx.AsyncClient(timeout=5)
 
-POLL_INTERVAL = 2
+POLL_INTERVAL = 1
 HOUSEKEEPING_INTERVAL = 15
 SCAN_INTERVAL = 30
 DAILY_RESTART = 24 * 3600   # SatDump only refreshes its orbit data (TLEs) when it starts
 
 
+SIGNAL_KEYS = ("snr", "peak_snr", "freq", "viterbi_ber", "viterbi_lock", "deframer_lock", "rs_avg")
+
+
+def signal(data: dict) -> dict:
+    """SNR, lock and sync from SatDump's live pipeline stats, whichever modules report them
+    (for Meteor: psk_demod and ccsds_conv_concat_decoder)."""
+    out = {}
+    for stats in (data.get("live_pipeline") or {}).values():
+        if isinstance(stats, dict):
+            out.update({k: stats[k] for k in SIGNAL_KEYS if k in stats})
+    return out
+
+
 class Tracker:
-    """The last status read from SatDump's own web server (/api)."""
+    """The last status read from SatDump's own web server (/api), and the current pass's signal history."""
 
     def __init__(self) -> None:
         self.data: dict | None = None
         self.updated_at = 0.0
+        self.pass_started = 0.0         # when the current or last pass began
         self.last_los = 0.0             # when the last pass ended (or SatDump stopped during one)
+        self.history: list[dict] = []   # one sample per poll during the current or last pass
         self._was_in_pass = False
 
     def in_pass(self) -> bool:
@@ -33,12 +48,18 @@ class Tracker:
         return not t.get("next_event_is_aos", True) and t.get("next_los_time", 0) > time.time()
 
     def update(self, data: dict | None) -> None:
+        now = time.time()
         self.data = data
         if data is not None:
-            self.updated_at = time.time()
+            self.updated_at = now
         now_in_pass = self.in_pass()
+        if now_in_pass and not self._was_in_pass:
+            self.pass_started, self.history = now, []
         if self._was_in_pass and not now_in_pass:
-            self.last_los = time.time()
+            self.last_los = now
+        if now_in_pass and data is not None:
+            pos = (data.get("object_tracker") or {}).get("sat_current_pos") or {}
+            self.history.append({"t": round(now, 1), "az": pos.get("az"), "el": pos.get("el"), **signal(data)})
         self._was_in_pass = now_in_pass
 
 

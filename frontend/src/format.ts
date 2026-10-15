@@ -23,6 +23,12 @@ export function size(bytes: number): string {
 
 export const percent = (share: number) => Math.round(share * 100) + '%'
 
+/** "13:10" in UTC */
+export const utcClock = (unix: number) => new Date(unix * 1000).toISOString().slice(11, 16)
+
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+export const compass = (az: number) => COMPASS[Math.round(az / 45) % 8]
+
 export const utc = (unix: number) =>
   new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 

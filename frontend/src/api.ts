@@ -56,6 +56,24 @@ export interface PassDetail {
 }
 export interface PassList { passes: PassSummary[]; in_progress: { id: string; last_activity: number }[] }
 
+/** a predicted pass; track is [az, el] every 10 s from AOS to LOS */
+export interface UpcomingPass {
+  name: string; norad: number; aos: number; los: number; tca: number; max_el: number
+  aos_az: number; los_az: number; track: [number, number][]; scheduled: boolean
+}
+export interface Schedule {
+  passes: UpcomingPass[]; computed_at: number; tle_updated_at?: number; missing?: string[]; error?: string
+}
+/** one sample per second during a pass; signal fields only while SatDump's pipeline reports them */
+export interface LiveSample {
+  t: number; az?: number; el?: number; snr?: number; peak_snr?: number; freq?: number
+  viterbi_ber?: number; viterbi_lock?: number | boolean; deframer_lock?: boolean; rs_avg?: number
+}
+export interface Live {
+  in_pass: boolean; pass_started: number; last_los: number; history: LiveSample[]
+  folder: string | null; cadu_bytes: number
+}
+
 export class ApiError extends Error {
   constructor(message: string, public details: string[] = []) { super(message) }
 }
@@ -89,6 +107,8 @@ export const api = {
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
   getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
+  getSchedule: () => request<Schedule>('GET', '/schedule'),
+  getLive: (after: number) => request<Live>('GET', `/live?after=${after}`),
   getPasses: () => request<PassList>('GET', '/passes'),
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),

@@ -16,6 +16,9 @@ The plan and build order are in [docs/PLAN.md](docs/PLAN.md). Built so far:
    picks a main image (MCIR corrected; the next choice if it is black) and measures how much of it
    was received, then writes `pass.json`. Passes page (gallery) and a page per pass with every
    composite, its variants, full-size originals and SatDump's files.
+   Also: upcoming passes for the next 24 h computed with Skyfield from SatDump's own TLEs (sky plot
+   and table on Status), a Live page during passes (progress, sky position, SNR, Viterbi/deframer
+   lock, Reed-Solomon, frames, signal chart over the pass, spectrum), and a UTC clock in the header.
 
 To try the gallery with passes made elsewhere (e.g. with the SatDump GUI), copy the pass folders
 into `~/raspberry_sat_data/passes/` on the Pi; they are picked up 5 minutes later:

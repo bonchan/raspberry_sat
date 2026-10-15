@@ -14,4 +14,6 @@ PASSES_DIR = DATA_DIR / "passes"        # SatDump's output folder: one folder pe
 LOGS_DIR = DATA_DIR / "logs"
 
 SATDUMP_BIN = os.environ.get("RSAT_SATDUMP", "satdump")
+# SatDump keeps its downloaded orbit data here (refreshed when it starts, at most daily)
+SATDUMP_TLES = Path(os.environ.get("RSAT_TLES", Path.home() / ".config" / "satdump" / "satdump_tles.txt"))
 SATDUMP_HTTP = "127.0.0.1:8081"         # SatDump's own status server, reached only through our API

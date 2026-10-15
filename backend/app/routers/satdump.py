@@ -5,7 +5,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
-from app import settings
+from app import passes, settings
 from app.config import load_config
 from app.satdump_cfg import build_autotrack_config
 from app.supervisor import supervisor
@@ -21,6 +21,20 @@ def get_status() -> dict:
         "tracker": tracker.data,
         "tracker_age": time.time() - tracker.updated_at if tracker.data else None,
         "in_pass": tracker.in_pass(),
+    }
+
+
+@router.get("/live")
+def get_live(after: float = 0) -> dict:
+    """The current (or last) pass as it happens: signal samples newer than `after`, data received so far."""
+    folder = passes.active_folder(settings.PASSES_DIR)
+    return {
+        "in_pass": tracker.in_pass(),
+        "pass_started": tracker.pass_started,
+        "last_los": tracker.last_los,
+        "history": [s for s in tracker.history if s["t"] > after],
+        "folder": folder.name if folder else None,
+        "cadu_bytes": passes.cadu_bytes(folder) if folder else 0,
     }
 
 

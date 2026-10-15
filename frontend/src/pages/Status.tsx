@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { api, satdumpImage, type SatdumpProcess, type Status as StatusData } from '../api'
-import { useNow, usePolling, useTick } from '../hooks'
-import { clock, dateTime, duration, gb } from '../format'
+import { Link } from 'react-router-dom'
+import { api, type SatdumpProcess, type Status as StatusData } from '../api'
+import { useNow, usePolling } from '../hooks'
+import { clock, dateTime, duration, gb, utcClock } from '../format'
+import UpcomingPasses from '../UpcomingPasses'
 
 const STATE_LABEL: Record<SatdumpProcess['state'], [string, string]> = {
   running: ['running', 'ok'],
@@ -14,6 +16,7 @@ const STATE_LABEL: Record<SatdumpProcess['state'], [string, string]> = {
 export default function Status() {
   const { data: status, error } = usePolling(api.getStatus, 2000)
   const { data: system } = usePolling(api.getSystem, 30000)
+  const { data: config } = usePolling(api.getConfig, 60000)
   const running = status?.satdump.state === 'running'
 
   return (
@@ -21,7 +24,7 @@ export default function Status() {
       {error && <p className="error">Backend not answering: {error}</p>}
       {status && <Receiver status={status} />}
       {status && running && <NextPass status={status} />}
-      {running && <Plots />}
+      <UpcomingPasses minElevation={config?.tracking.min_elevation} />
       {system && (
         <section>
           <h2>System</h2>
@@ -79,15 +82,15 @@ function NextPass({ status }: { status: StatusData }) {
   const stale = status.tracker_age !== null && status.tracker_age > 10
   return (
     <section>
-      <h2>{status.in_pass ? 'Receiving now' : 'Next pass'}</h2>
+      <h2>{status.in_pass ? 'Receiving now' : 'Next pass (SatDump)'}</h2>
       {!hasPass && <p className="hint">No pass scheduled. Check the satellites and minimum elevation in Settings.</p>}
       {hasPass && (
         <dl className="facts">
           <dt>Satellite</dt><dd>{t.object_name}</dd>
           {status.in_pass
-            ? <><dt>Ends</dt><dd>{clock(t.next_los_time)}, in {duration(t.next_los_time - now)}</dd></>
-            : <><dt>Starts</dt><dd>{dateTime(t.next_aos_time)}, in {duration(t.next_aos_time - now)}</dd>
-                <dt>Ends</dt><dd>{clock(t.next_los_time)}</dd></>}
+            ? <><dt>Ends</dt><dd>{clock(t.next_los_time)} ({utcClock(t.next_los_time)} UTC), in {duration(t.next_los_time - now)}</dd></>
+            : <><dt>Starts</dt><dd>{dateTime(t.next_aos_time)} ({utcClock(t.next_aos_time)} UTC), in {duration(t.next_aos_time - now)}</dd>
+                <dt>Ends</dt><dd>{clock(t.next_los_time)} ({utcClock(t.next_los_time)} UTC)</dd></>}
           {t.sat_current_pos.el > 0 && <>
             <dt>Position</dt>
             <dd>az {t.sat_current_pos.az.toFixed(1)}°, el {t.sat_current_pos.el.toFixed(1)}°
@@ -97,26 +100,7 @@ function NextPass({ status }: { status: StatusData }) {
         </dl>
       )}
       {stale && <p className="hint">Status is {Math.round(status.tracker_age!)} s old.</p>}
-    </section>
-  )
-}
-
-function Plots() {
-  const tick = useTick(2000)
-  const [showFft, setShowFft] = useState(false)
-  const fftTick = useTick(1000, showFft)
-  return (
-    <section>
-      <h2>Sky and schedule</h2>
-      <div className="plots">
-        <img className="polar" src={satdumpImage('polarplot', tick)} alt="Polar plot of the next pass" />
-        <img className="schedule" src={satdumpImage('schedule', Math.floor(tick / 30000))} alt="Upcoming passes" />
-      </div>
-      <div className="row">
-        <button onClick={() => setShowFft(s => !s)}>{showFft ? 'Hide spectrum' : 'Show spectrum'}</button>
-        <span className="hint">The spectrum is only live while the receiver runs, during passes unless "stop SDR between passes" is off.</span>
-      </div>
-      {showFft && <img className="fft" src={satdumpImage('fft', fftTick)} alt="Live spectrum" />}
+      {status.in_pass && <p><Link to="/live">Watch it live →</Link></p>}
     </section>
   )
 }

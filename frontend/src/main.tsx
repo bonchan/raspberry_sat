@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Layout from './Layout'
 import Status from './pages/Status'
+import Live from './pages/Live'
 import Passes from './pages/Passes'
 import PassDetail from './pages/PassDetail'
 import Settings from './pages/Settings'
@@ -15,6 +16,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Status />} />
+          <Route path="live" element={<Live />} />
           <Route path="passes" element={<Passes />} />
           <Route path="passes/:id" element={<PassDetail />} />
           <Route path="settings" element={<Settings />} />

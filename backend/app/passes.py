@@ -59,6 +59,17 @@ def last_activity(folder: Path) -> float:
     return max((f.stat().st_mtime for f in satdump_files(folder)), default=folder.stat().st_mtime)
 
 
+def active_folder(passes_dir: Path) -> Path | None:
+    """The pass SatDump is writing, or last wrote, that is not finished yet."""
+    unfinished = [f for f in pass_folders(passes_dir) if not is_finished(f)]
+    return max(unfinished, key=last_activity, default=None)
+
+
+def cadu_bytes(folder: Path) -> int:
+    """Decoded frames so far (.cadu files; a Meteor LRPT frame is 1024 bytes)."""
+    return sum(f.stat().st_size for f in folder.glob("*.cadu"))
+
+
 def output_busy(passes_dir: Path, quiet: float = SETTLE) -> bool:
     """True while SatDump is still writing a pass (it keeps decoding for a while after LOS)."""
     now = time.time()

@@ -3,3 +3,4 @@ uvicorn[standard]>=0.30,<1
 pydantic>=2.7,<3
 httpx>=0.27,<1
 Pillow>=10,<13
+skyfield>=1.48,<2
