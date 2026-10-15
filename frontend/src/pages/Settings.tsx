@@ -87,7 +87,7 @@ export default function Settings() {
 
       <section>
         <h2>{t('settings.stations')}</h2>
-        <table className="sats">
+        <table className="sats stations">
           <thead>
             <tr>
               <th>{t('settings.use')}</th><th>{t('settings.name')}</th><th>{t('settings.latitude')}</th>
@@ -100,9 +100,9 @@ export default function Settings() {
                 <td><input type="radio" name="active-station" checked={i === config.active_station}
                   onChange={() => setConfig({ ...config, active_station: i })} /></td>
                 <td><input type="text" value={st.name} onChange={e => setStation(i, 'name', e.target.value)} /></td>
-                <td><input type="number" step="any" value={numValue(st.lat)} onChange={e => setStation(i, 'lat', toNum(e.target.value))} /></td>
-                <td><input type="number" step="any" value={numValue(st.lon)} onChange={e => setStation(i, 'lon', toNum(e.target.value))} /></td>
-                <td><input type="number" step="any" value={numValue(st.alt)} onChange={e => setStation(i, 'alt', toNum(e.target.value))} /></td>
+                <td data-label={t('settings.latitude')}><input type="number" step="any" value={numValue(st.lat)} onChange={e => setStation(i, 'lat', toNum(e.target.value))} /></td>
+                <td data-label={t('settings.longitude')}><input type="number" step="any" value={numValue(st.lon)} onChange={e => setStation(i, 'lon', toNum(e.target.value))} /></td>
+                <td data-label={t('settings.altitude')}><input type="number" step="any" value={numValue(st.alt)} onChange={e => setStation(i, 'alt', toNum(e.target.value))} /></td>
                 <td><button disabled={config.stations.length === 1} onClick={() => removeStation(i)}>{t('common.remove')}</button></td>
               </tr>
             ))}
