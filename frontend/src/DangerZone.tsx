@@ -52,6 +52,13 @@ export default function DangerZone() {
         </div>
         <Link className="button danger" to="/update">{t('danger.updateButton')}</Link>
       </div>
+      <div className="danger-row">
+        <div>
+          <b>{t('danger.networks')}</b>
+          <p className="hint">{t('danger.networksHint')}</p>
+        </div>
+        <Link className="button danger" to="/networks">{t('danger.networksButton')}</Link>
+      </div>
       {ACTIONS.map(a => (
         <div key={a.action} className="danger-row">
           <div>

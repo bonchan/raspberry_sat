@@ -90,6 +90,12 @@ export interface UpdateState {
   last_run: { log: string[]; result: 'ok' | 'failed' | null; changed_at: number } | null
 }
 
+export interface NetDevice { device: string; type: 'wifi' | 'ethernet'; connected: boolean; state: string; connection: string }
+export interface SavedNetwork { uuid: string; name: string; ssid: string; autoconnect: boolean; priority: number; active: boolean }
+export interface NetworksState { devices: NetDevice[]; saved: SavedNetwork[]; error: string | null }
+export interface NearbyNetwork { ssid: string; signal: number; security: string; in_use: boolean }
+export interface NewNetwork { ssid: string; password: string; priority: number; hidden: boolean; security: '' | 'wpa-psk' | 'sae' }
+
 export class ApiError extends Error {
   constructor(message: string, public details: string[] = []) { super(message) }
 }
@@ -123,6 +129,12 @@ export const api = {
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
   getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
+  getNetworks: () => request<NetworksState>('GET', '/networks'),
+  scanNetworks: () => request<{ networks: NearbyNetwork[] }>('GET', '/networks/scan'),
+  saveNetwork: (n: NewNetwork) => request<{ result: 'added' | 'updated' }>('POST', '/networks', n),
+  setNetworkPriority: (uuid: string, priority: number) =>
+    request<{ uuid: string }>('PATCH', `/networks/${encodeURIComponent(uuid)}`, { priority }),
+  forgetNetwork: (uuid: string) => request<{ forgotten: string }>('DELETE', `/networks/${encodeURIComponent(uuid)}`),
   power: (action: 'restart-app' | 'reboot' | 'poweroff') => request<{ action: string }>('POST', `/system/${action}`),
   getUpdate: () => request<UpdateState>('GET', '/update'),
   checkUpdate: () => request<UpdateState>('POST', '/update/check'),

@@ -55,6 +55,13 @@ Runtime data (config, passes) lives outside the checkout in `~/raspberry_sat_dat
    `raspberry_sat` service. Takes a while on a Pi 4.
 3. Open `http://sat.local:8000`, go to Settings and enter your station position.
 
+## Moving the Pi to another site
+
+Settings → Danger zone → Manage networks lists the Wi-Fi networks the Pi has saved (NetworkManager),
+scans for nearby ones and adds, updates or forgets them. Saved networks connect by themselves when
+the Pi has no connection and one is in range; the highest priority wins. Save your phone's hotspot
+too: at a new site, turn it on, the Pi joins it, and you add the site's Wi-Fi from the page.
+
 ## Updating
 
 ```bash
