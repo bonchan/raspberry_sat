@@ -73,6 +73,30 @@ def test_name_clash_gets_a_suffix(tmp_path):
     assert second.name == "2026-10-12_1310Z_meteor-m2-3-2"
 
 
+SATDUMP_NAME = "2026-10-15_19-21_meteor_m2-x_lrpt_137.9 MHz"
+
+
+def test_satdump_minus_one_timestamp_falls_back_to_the_folder_name(tmp_path):
+    folder = make_pass(tmp_path, name=SATDUMP_NAME, satellite="METEOR-M2-4")
+    (folder / "dataset.json").write_text(json.dumps(
+        {"products": ["MSU-MR"], "satellite": "METEOR-M2-4", "timestamp": -1}))
+    folder = passes.finalize(folder)
+    assert folder.name == "2026-10-15_1921Z_meteor-m2-4"
+    assert passes.load_pass(folder)["time"] == passes.time_from_name(SATDUMP_NAME)
+
+
+def test_repair_passes_finished_with_a_1969_date(tmp_path):
+    folder = passes.finalize(make_pass(tmp_path, name=SATDUMP_NAME, satellite="METEOR-M2-4"))
+    meta = passes.load_pass(folder)
+    meta["time"] = -1                       # what the first version stored
+    passes.write_meta(folder, meta)
+    folder = folder.rename(folder.with_name("1969-12-31_2359Z_meteor-m2-4"))
+
+    assert passes.repair_times(tmp_path) == [("1969-12-31_2359Z_meteor-m2-4", "2026-10-15_1921Z_meteor-m2-4")]
+    assert passes.repair_times(tmp_path) == []      # nothing left to fix
+    assert passes.plausible_time(passes.load_pass(tmp_path / "2026-10-15_1921Z_meteor-m2-4")["time"])
+
+
 def test_finalize_ready_leaves_fresh_folders(tmp_path):
     make_pass(tmp_path, name="old")
     make_pass(tmp_path, name="fresh", satellite="METEOR-M2-4", age=10)

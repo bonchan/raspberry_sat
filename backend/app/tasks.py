@@ -124,6 +124,12 @@ async def scan_passes() -> None:
     """
     reported: set[str] = set()          # folders whose error was already logged
 
+    try:
+        for old, new in await asyncio.to_thread(passes.repair_times, settings.PASSES_DIR):
+            supervisor.note("info", f"pass {old} had no valid time from SatDump; renamed to {new}")
+    except Exception:
+        log.exception("repairing pass times failed")
+
     def report_error(name: str, error: str) -> None:
         if name not in reported:
             reported.add(name)

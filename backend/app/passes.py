@@ -192,14 +192,64 @@ def read_json(path: Path) -> dict | None:
         return None
 
 
+def write_meta(folder: Path, meta: dict) -> None:
+    tmp = folder / (META + ".tmp")
+    tmp.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    tmp.replace(folder / META)
+
+
+EARLIEST = datetime(2000, 1, 1, tzinfo=timezone.utc).timestamp()
+# SatDump's automatic folder names start with the pass's UTC start: "2026-10-15_19-21_meteor_m2-x_lrpt_137.9 MHz"
+SATDUMP_FOLDER_TIME = re.compile(r"^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})_")
+
+
+def plausible_time(value) -> bool:
+    return isinstance(value, (int, float)) and EARLIEST < value < time.time() + 86400
+
+
+def time_from_name(name: str) -> float | None:
+    m = SATDUMP_FOLDER_TIME.match(name)
+    if not m:
+        return None
+    try:
+        return datetime(*map(int, m.groups()), tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return None
+
+
+def pass_time(folder: Path, source_name: str, dataset: dict) -> float:
+    """When the pass happened. dataset.json's timestamp when SatDump knew it (it writes -1 when the
+    received data had no usable time), else the time in SatDump's folder name, else the oldest file."""
+    if plausible_time(dataset.get("timestamp")):
+        return float(dataset["timestamp"])
+    return time_from_name(source_name) or \
+        min((f.stat().st_mtime for f in satdump_files(folder)), default=folder.stat().st_mtime)
+
+
+def repair_times(passes_dir: Path) -> list[tuple[str, str]]:
+    """Fix passes finished with SatDump's -1 timestamp (shown as 1969): their time and folder name.
+    Returns [(old name, new name)]."""
+    fixed = []
+    for folder in pass_folders(passes_dir):
+        meta = read_json(folder / META)
+        if meta is None or plausible_time(meta.get("time")):
+            continue
+        old = folder.name
+        meta["time"] = pass_time(folder, str(meta.get("source_name", "")), {})
+        target = unique_path(folder, folder_name(meta["time"], str(meta.get("satellite", "unknown"))))
+        if target != folder:
+            folder = folder.rename(target)
+        write_meta(folder, meta)
+        fixed.append((old, folder.name))
+    return fixed
+
+
 def finalize(folder: Path) -> Path:
     """Rename the folder, make thumbnails, write pass.json. Returns the folder's new path."""
     source_name = folder.name
     dataset = read_json(folder / "dataset.json") or {}
     satellite = str(dataset.get("satellite") or "unknown")
-    started = dataset.get("timestamp")
-    if not isinstance(started, (int, float)):
-        started = min((f.stat().st_mtime for f in satdump_files(folder)), default=folder.stat().st_mtime)
+    started = pass_time(folder, source_name, dataset)
 
     target = unique_path(folder, folder_name(started, satellite))
     if target != folder:
@@ -232,9 +282,7 @@ def finalize(folder: Path) -> Path:
         "size": sum(f.stat().st_size for f in folder.rglob("*") if f.is_file()),
         "finished_at": time.time(),
     }
-    tmp = folder / (META + ".tmp")
-    tmp.write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    tmp.replace(folder / META)
+    write_meta(folder, meta)
     return folder
 
 
