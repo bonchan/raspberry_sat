@@ -15,7 +15,8 @@ export interface Discord { enabled: boolean; webhook_url: string; composites: st
 export interface Storage { keep_days: number; max_gb: number; keep_baseband: boolean }
 
 export interface Config {
-  station: Station; sdr: Sdr; satellites: Satellite[]; tracking: Tracking
+  stations: Station[]; active_station: number   // index of the station SatDump uses
+  sdr: Sdr; satellites: Satellite[]; tracking: Tracking
   rotator: Rotator; discord: Discord; storage: Storage
 }
 

@@ -45,6 +45,13 @@ def test_station_receiver_and_output():
     assert all(isinstance(params[k], int) for k in ("fft_size", "fft_rate", "fft_min", "fft_max"))
 
 
+def test_uses_the_selected_station():
+    config = Config()
+    config.stations.append(config.stations[0].model_copy(update={"name": "field", "lat": -40.0}))
+    config.active_station = 1
+    assert build(config)["qth"]["lat"] == -40.0
+
+
 def test_device_id_passed_when_set():
     config = Config()
     config.sdr.source_id = "00000001"

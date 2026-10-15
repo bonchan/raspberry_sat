@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 
 class Station(BaseModel):
-    name: str = "raspberry_sat"
+    name: str = "home"
     lat: float = Field(0.0, ge=-90, le=90)
     lon: float = Field(0.0, ge=-180, le=180)
     alt: float = 0.0                       # meters above sea level
@@ -76,13 +76,34 @@ def default_satellites() -> list[Satellite]:
 
 
 class Config(BaseModel):
-    station: Station = Field(default_factory=Station)
+    stations: list[Station] = Field(default_factory=lambda: [Station()], min_length=1)
+    active_station: int = 0                # index into stations: the one SatDump uses
     sdr: Sdr = Field(default_factory=Sdr)
     satellites: list[Satellite] = Field(default_factory=default_satellites)
     tracking: Tracking = Field(default_factory=Tracking)
     rotator: Rotator = Field(default_factory=Rotator)
     discord: Discord = Field(default_factory=Discord)
     storage: Storage = Field(default_factory=Storage)
+
+    @model_validator(mode="before")
+    @classmethod
+    def single_station_to_list(cls, data):
+        # configs saved before multiple stations had one "station"
+        if isinstance(data, dict) and "station" in data and "stations" not in data:
+            data = {**data, "stations": [data["station"]], "active_station": 0}
+            del data["station"]
+        return data
+
+    @model_validator(mode="after")
+    def active_station_exists(self):
+        if not 0 <= self.active_station < len(self.stations):
+            raise ValueError("active_station must point at one of the stations")
+        return self
+
+    @property
+    def station(self) -> Station:
+        """The selected station."""
+        return self.stations[self.active_station]
 
 
 def load_config(path: Path) -> Config:

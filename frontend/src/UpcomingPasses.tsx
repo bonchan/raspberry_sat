@@ -4,7 +4,7 @@ import { useNow, usePolling } from './hooks'
 import { clock, compass, duration, utcClock } from './format'
 import SkyPlot, { SkyLegend } from './SkyPlot'
 
-export default function UpcomingPasses({ minElevation }: { minElevation?: number }) {
+export default function UpcomingPasses({ minElevation, station }: { minElevation?: number; station?: string }) {
   const { data, error } = usePolling(api.getSchedule, 60000)
   const now = useNow()
   const [selected, setSelected] = useState<string | null>(null)
@@ -15,7 +15,7 @@ export default function UpcomingPasses({ minElevation }: { minElevation?: number
 
   return (
     <section>
-      <h2>Upcoming passes (24 h)</h2>
+      <h2>Upcoming passes{station && ` at ${station}`} (24 h)</h2>
       {error && <p className="error">{error}</p>}
       {data?.error && <p className="hint">{data.error}</p>}
       {data?.missing?.length ? <p className="hint">No orbit data for: {data.missing.join(', ')}.</p> : null}

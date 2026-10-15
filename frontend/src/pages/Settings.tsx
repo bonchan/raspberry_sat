@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError, type Config, type Satellite } from '../api'
+import { api, ApiError, type Config, type Satellite, type Station } from '../api'
 import { CheckField, NumberField, TextField } from '../fields'
 
-type Section = keyof Omit<Config, 'satellites'>
+type Section = keyof Omit<Config, 'satellites' | 'stations' | 'active_station'>
+
+// number inputs in tables: an emptied box becomes NaN, which the backend rejects with a readable error
+const numValue = (v: number) => Number.isNaN(v) ? '' : v
+const toNum = (s: string) => s === '' ? NaN : Number(s)
 
 const newSatellite = (): Satellite => ({
   name: '', norad: NaN, frequency_hz: 137_900_000, pipeline: 'meteor_m2-x_lrpt', min_elevation: 15, enabled: true,
@@ -24,12 +28,28 @@ export default function Settings() {
 
   const dirty = JSON.stringify(config) !== saved
 
-  // set one field of one section: set('station', 'lat', 12.3)
+  // set one field of one section: set('sdr', 'gain', 30)
   function set<S extends Section, K extends keyof Config[S]>(section: S, key: K, value: Config[S][K]) {
     setConfig(c => c && { ...c, [section]: { ...c[section], [key]: value } })
   }
   function setSat<K extends keyof Satellite>(i: number, key: K, value: Satellite[K]) {
     setConfig(c => c && { ...c, satellites: c.satellites.map((s, j) => j === i ? { ...s, [key]: value } : s) })
+  }
+  function setStation<K extends keyof Station>(i: number, key: K, value: Station[K]) {
+    setConfig(c => c && { ...c, stations: c.stations.map((s, j) => j === i ? { ...s, [key]: value } : s) })
+  }
+  function addStation() {
+    setConfig(c => c && {
+      ...c, stations: [...c.stations, { name: `station ${c.stations.length + 1}`, lat: 0, lon: 0, alt: 0 }],
+    })
+  }
+  function removeStation(i: number) {
+    // keep the selection on the same station; removing the selected one selects the first
+    setConfig(c => c && {
+      ...c,
+      stations: c.stations.filter((_, j) => j !== i),
+      active_station: i < c.active_station ? c.active_station - 1 : i === c.active_station ? 0 : c.active_station,
+    })
   }
 
   async function save() {
@@ -46,7 +66,7 @@ export default function Settings() {
     }
   }
 
-  const { station, sdr, tracking, rotator, discord, storage } = config
+  const { sdr, tracking, rotator, discord, storage } = config
 
   return (
     <div className="settings">
@@ -59,12 +79,28 @@ export default function Settings() {
       {errors.length > 0 && <ul className="error">{errors.map(e => <li key={e}>{e}</li>)}</ul>}
 
       <section>
-        <h2>Station</h2>
-        <div className="grid">
-          <TextField label="Name" value={station.name} onChange={v => set('station', 'name', v)} />
-          <NumberField label="Latitude" hint="degrees, south negative" value={station.lat} onChange={v => set('station', 'lat', v)} />
-          <NumberField label="Longitude" hint="degrees, west negative" value={station.lon} onChange={v => set('station', 'lon', v)} />
-          <NumberField label="Altitude" hint="meters" value={station.alt} onChange={v => set('station', 'alt', v)} />
+        <h2>Stations</h2>
+        <table className="sats">
+          <thead>
+            <tr><th>Use</th><th>Name</th><th>Latitude</th><th>Longitude</th><th>Altitude (m)</th><th></th></tr>
+          </thead>
+          <tbody>
+            {config.stations.map((st, i) => (
+              <tr key={i} className={i === config.active_station ? 'selected' : undefined}>
+                <td><input type="radio" name="active-station" checked={i === config.active_station}
+                  onChange={() => setConfig({ ...config, active_station: i })} /></td>
+                <td><input type="text" value={st.name} onChange={e => setStation(i, 'name', e.target.value)} /></td>
+                <td><input type="number" step="any" value={numValue(st.lat)} onChange={e => setStation(i, 'lat', toNum(e.target.value))} /></td>
+                <td><input type="number" step="any" value={numValue(st.lon)} onChange={e => setStation(i, 'lon', toNum(e.target.value))} /></td>
+                <td><input type="number" step="any" value={numValue(st.alt)} onChange={e => setStation(i, 'alt', toNum(e.target.value))} /></td>
+                <td><button disabled={config.stations.length === 1} onClick={() => removeStation(i)}>Remove</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="row">
+          <button onClick={addStation}>Add station</button>
+          <span className="hint">Degrees, south and west negative. The selected station is the one SatDump and the pass predictions use.</span>
         </div>
       </section>
 

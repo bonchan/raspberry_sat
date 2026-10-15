@@ -24,7 +24,8 @@ export default function Status() {
       {error && <p className="error">Backend not answering: {error}</p>}
       {status && <Receiver status={status} />}
       {status && running && <NextPass status={status} />}
-      <UpcomingPasses minElevation={config?.tracking.min_elevation} />
+      <UpcomingPasses minElevation={config?.tracking.min_elevation}
+        station={config?.stations[config.active_station]?.name} />
       {system && (
         <section>
           <h2>System</h2>

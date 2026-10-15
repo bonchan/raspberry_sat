@@ -54,7 +54,7 @@ raspberry_sat/
 ```
 
 ## Config (edited in the web UI, stored as data/config.json)
-- **station:** name, lat, lon, alt
+- **stations:** list of name, lat, lon, alt; one of them selected (`active_station`) and used by SatDump
 - **sdr:** source (rtlsdr), device id, sample rate (1.024 MS/s), gain, agc, bias-tee, ppm
 - **satellites:** list of {name, NORAD, frequency, pipeline, min elevation, enabled}; defaults Meteor-M2-3 (57166) and M2-4 (59051), 137.9 MHz, `meteor_m2-x_lrpt` — IDs/frequencies checked against current TLEs during build
 - **tracking:** global min elevation, stop SDR when idle
