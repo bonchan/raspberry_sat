@@ -22,7 +22,7 @@ class Sdr(BaseModel):
     source: str = "rtlsdr"                 # SatDump source type
     source_id: str = ""                    # empty = first device of that type
     samplerate: int = Field(1_024_000, gt=0)
-    gain: float = Field(30.0, ge=0)
+    gain: float = Field(38.6, ge=0)        # dB; an R820T gain step
     agc: bool = False
     bias: bool = False                     # bias-tee, for an LNA at the antenna
     ppm_correction: int = 0
