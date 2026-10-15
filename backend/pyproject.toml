@@ -1,0 +1,5 @@
+# Dependencies live in requirements.txt / requirements-dev.txt: the app runs from the checkout, it is not packaged.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

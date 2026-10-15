@@ -1,0 +1,16 @@
+# Template: install.sh fills in @USER@, @REPO@ and @DATA@ and copies it to /etc/systemd/system/
+[Unit]
+Description=raspberry_sat ground station
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=@USER@
+WorkingDirectory=@REPO@/backend
+Environment=RSAT_DATA=@DATA@
+ExecStart=@REPO@/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

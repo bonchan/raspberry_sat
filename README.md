@@ -1,0 +1,72 @@
+# raspberry_sat
+
+Unattended Meteor-M LRPT ground station on a Raspberry Pi 4 with an RTL-SDR.
+[SatDump](https://github.com/SatDump/SatDump) does the radio work (pass scheduling, tuning, decoding,
+optional rotator); this app wraps it with a web page for settings, live status, a gallery,
+Discord posting and storage cleanup. LAN only, no login.
+
+The plan and build order are in [docs/PLAN.md](docs/PLAN.md). Built so far: **step 1** (skeleton:
+settings page, config API, install scripts).
+
+## Layout
+
+| Path | What |
+|---|---|
+| `backend/` | Python, FastAPI. Serves `/api` and the built frontend on port 8000 |
+| `frontend/` | React + TypeScript + Vite, built into `frontend/dist` |
+| `scripts/` | `install.sh` (once per Pi), `update.sh` (after each pull), systemd unit template |
+| `docs/` | Plan and notes |
+
+Runtime data (config, passes) lives outside the checkout in `~/raspberry_sat_data`
+(override with the `RSAT_DATA` environment variable).
+
+## Setting up the Pi
+
+1. Flash **Raspberry Pi OS Lite (64-bit), Bookworm** with Raspberry Pi Imager. Bookworm is under
+   "Raspberry Pi OS (other)". In Imager's settings set a hostname (e.g. `sat`), your user, WiFi if needed,
+   and enable SSH.
+2. Boot, then from your PC:
+   ```bash
+   ssh <user>@sat.local
+   git clone https://github.com/bonchan/raspberry_sat.git
+   cd raspberry_sat
+   bash scripts/install.sh
+   ```
+   It installs SatDump 1.2.2, Node 22 + pnpm, the Python venv, builds the frontend and starts the
+   `raspberry_sat` service. Takes a while on a Pi 4.
+3. Open `http://sat.local:8000`, go to Settings and enter your station position.
+
+## Updating
+
+```bash
+cd ~/raspberry_sat && git pull && bash scripts/update.sh
+```
+
+Logs: `journalctl -u raspberry_sat -f`
+
+## Developing on Windows
+
+Frontend against the Pi's backend (no Python needed on the PC):
+
+```bash
+cd frontend
+pnpm install
+```
+
+Create `frontend/.env.local` with `API_TARGET=http://sat.local:8000`, then:
+
+```bash
+pnpm dev
+```
+
+Backend locally (needs Python 3.11+):
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\pip install -r requirements-dev.txt
+.venv\Scripts\pytest
+.venv\Scripts\uvicorn app.main:app --reload --port 8000
+```
+
+Without `API_TARGET`, `pnpm dev` talks to that local backend.
