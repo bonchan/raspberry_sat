@@ -51,8 +51,9 @@ Runtime data (config, passes) lives outside the checkout in `~/raspberry_sat_dat
    cd raspberry_sat
    bash scripts/install.sh
    ```
-   It installs SatDump 1.2.2, Node 22 + pnpm, the Python venv, builds the frontend and starts the
-   `raspberry_sat` service. Takes a while on a Pi 4.
+   It installs SatDump 1.2.2, the RTL-SDR Blog driver (needed for the Blog V4; Debian's is too old),
+   Node 22 + pnpm, the Python venv, builds the frontend and starts the `raspberry_sat` service.
+   Takes a while on a Pi 4.
 3. Open `http://sat.local:8000`, go to Settings and enter your station position.
 
 ## Moving the Pi to another site

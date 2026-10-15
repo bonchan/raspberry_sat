@@ -28,6 +28,25 @@ else
   echo "already installed: $(command -v satdump)"
 fi
 
+echo "== RTL-SDR driver from RTL-SDR Blog"
+# Debian's librtlsdr is too old for the RTL-SDR Blog V4 (R828D tuner: weak or no reception); the Blog
+# fork handles it and older dongles alike. It goes into /usr/local, and /usr/local/lib is put first for
+# the dynamic linker so SatDump loads it. Debian's package stays: SatDump's package depends on it.
+if [ ! -e /usr/local/lib/librtlsdr.so.0 ]; then
+  sudo apt-get install -y libusb-1.0-0-dev cmake pkg-config build-essential
+  tmp="$(mktemp -d)"
+  git clone --depth 1 https://github.com/rtlsdrblog/rtl-sdr-blog "$tmp/rtl-sdr-blog"
+  cmake -S "$tmp/rtl-sdr-blog" -B "$tmp/build" -DINSTALL_UDEV_RULES=ON -DDETACH_KERNEL_DRIVER=ON
+  make -C "$tmp/build" -j4
+  sudo make -C "$tmp/build" install
+  rm -rf "$tmp"
+else
+  echo "already installed: /usr/local/lib/librtlsdr.so.0"
+fi
+echo /usr/local/lib | sudo tee /etc/ld.so.conf.d/00-rtlsdr-blog.conf >/dev/null
+sudo ldconfig
+echo "SatDump uses: $(ldd /usr/lib/satdump/plugins/librtlsdr_sdr_support.so | grep -o '/[^ ]*librtlsdr[^ ]*' || echo 'not found')"
+
 echo "== Node $NODE_MAJOR + pnpm"
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt "$NODE_MAJOR" ]; then
   curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | sudo -E bash -
