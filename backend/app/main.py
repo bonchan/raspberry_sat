@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from app import settings, tasks
-from app.routers import config, logs, networks, passes, satdump, schedule, system, update
+from app.routers import config, logs, networks, passes, receiver, satdump, schedule, system, update
 from app.supervisor import supervisor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -29,7 +29,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="raspberry_sat", lifespan=lifespan)
 for router in (config.router, system.router, satdump.router, logs.router, passes.router, schedule.router,
-               update.router, networks.router):
+               update.router, networks.router, receiver.router):
     app.include_router(router, prefix="/api")
 
 

@@ -3,6 +3,7 @@ import { api, ApiError, type Config, type Satellite, type Station } from '../api
 import { CheckField, NumberField, SelectField, TextField } from '../fields'
 import { LANGUAGES, useLanguage, useT } from '../i18n'
 import DangerZone from '../DangerZone'
+import ReceiverTest from '../ReceiverTest'
 
 type Section = keyof Omit<Config, 'satellites' | 'stations' | 'active_station'>
 
@@ -124,6 +125,7 @@ export default function Settings() {
           <CheckField label={t('settings.agc')} value={sdr.agc} onChange={v => set('sdr', 'agc', v)} />
           <CheckField label={t('settings.bias')} hint={t('settings.biasHint')} value={sdr.bias} onChange={v => set('sdr', 'bias', v)} />
         </div>
+        <ReceiverTest sdr={sdr} />
       </section>
 
       <section>

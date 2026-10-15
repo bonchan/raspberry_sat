@@ -96,6 +96,12 @@ export interface NetworksState { devices: NetDevice[]; saved: SavedNetwork[]; er
 export interface NearbyNetwork { ssid: string; signal: number; security: string; in_use: boolean }
 export interface NewNetwork { ssid: string; password: string; priority: number; hidden: boolean; security: '' | 'wpa-psk' | 'sae' }
 
+export interface ReceiverCheck { id: string; status: 'ok' | 'warn' | 'fail'; detail: string; reason: string | null }
+export interface ReceiverTest {
+  source: string; supported: boolean; ok: boolean | null; checks: ReceiverCheck[]
+  gains: number[]; effective_gain: number | null; output: string
+}
+
 export class ApiError extends Error {
   constructor(message: string, public details: string[] = []) { super(message) }
 }
@@ -129,6 +135,7 @@ export const api = {
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
   getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
+  testReceiver: (sdr: Sdr) => request<ReceiverTest>('POST', '/receiver/test', sdr),
   getNetworks: () => request<NetworksState>('GET', '/networks'),
   scanNetworks: () => request<{ networks: NearbyNetwork[] }>('GET', '/networks/scan'),
   saveNetwork: (n: NewNetwork) => request<{ result: 'added' | 'updated' }>('POST', '/networks', n),
