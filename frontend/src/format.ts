@@ -2,7 +2,8 @@ import { currentLanguage, locale } from './i18n'
 
 export function duration(seconds: number): string {
   const s = Math.max(0, Math.round(seconds))
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
+  if (d > 0) return `${d} d ${String(h).padStart(2, '0')} h`
   if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min`
   if (m > 0) return `${m} min ${String(r).padStart(2, '0')} s`
   return `${r} s`
@@ -20,6 +21,13 @@ export const dateTime = (unix: number) =>
 
 export const longDate = (unix: number) =>
   new Date(unix * 1000).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short', hour12: false })
+
+export const sameDay = (a: number, b: number) =>
+  new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString()
+
+/** "Thu" / "jue" */
+export const weekdayShort = (unix: number) =>
+  new Date(unix * 1000).toLocaleDateString(locale(), { weekday: 'short' })
 
 /** "Wednesday 14" / "miércoles 14" */
 export const weekdayAndDay = (unix: number) => {

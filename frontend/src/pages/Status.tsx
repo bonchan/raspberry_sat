@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type SatdumpProcess, type Status as StatusData } from '../api'
 import { useNow, usePolling } from '../hooks'
-import { clock, dateTime, duration, gb, utcClock } from '../format'
+import { clock, duration, gb, sameDay, utcClock, weekdayShort } from '../format'
 import { useT, type Key } from '../i18n'
 import UpcomingPasses from '../UpcomingPasses'
 
@@ -92,20 +92,34 @@ function NextPass({ status }: { status: StatusData }) {
   const skipped = status.overhead && !status.receiving
   const title = status.receiving ? t('status.receivingNow')
     : skipped ? t('status.overheadNotRecorded') : t('status.nextPassSatdump')
+  // "Today", or the weekday, next to a time
+  const day = (unix: number) => sameDay(unix, now) ? t('up.today') : weekdayShort(unix)
+  const showPosition = status.overhead && tr.sat_current_pos.el > 0
   return (
     <section>
-      <h2>{title}</h2>
+      <h2>{title}{hasPass && ` · ${tr.object_name}`}</h2>
       {!hasPass && <p className="hint">{t('status.noPass')}</p>}
       {hasPass && (
+        <div className="pass-cards">
+          <div className="tile">
+            <small>{t('status.starts')}</small>
+            <b>{clock(tr.next_aos_time)}</b>
+            <small>{day(tr.next_aos_time)} · {utcClock(tr.next_aos_time)} UTC</small>
+          </div>
+          <div className="tile">
+            <small>{t('status.ends')}</small>
+            <b>{clock(tr.next_los_time)}</b>
+            <small>{day(tr.next_los_time)} · {utcClock(tr.next_los_time)} UTC</small>
+          </div>
+          <div className={status.overhead ? 'tile countdown now' : 'tile countdown'}>
+            <small>{status.overhead ? t('status.endsIn') : t('status.startsIn')}</small>
+            <b>{duration((status.overhead ? tr.next_los_time : tr.next_aos_time) - now)}</b>
+          </div>
+        </div>
+      )}
+      {(showPosition || status.receiving) && (
         <dl className="facts">
-          <dt>{t('status.satellite')}</dt><dd>{tr.object_name}</dd>
-          {status.overhead
-            ? <><dt>{t('status.ends')}</dt>
-                <dd>{clock(tr.next_los_time)} ({utcClock(tr.next_los_time)} UTC), {t('common.in', { d: duration(tr.next_los_time - now) })}</dd></>
-            : <><dt>{t('status.starts')}</dt>
-                <dd>{dateTime(tr.next_aos_time)} ({utcClock(tr.next_aos_time)} UTC), {t('common.in', { d: duration(tr.next_aos_time - now) })}</dd>
-                <dt>{t('status.ends')}</dt><dd>{clock(tr.next_los_time)} ({utcClock(tr.next_los_time)} UTC)</dd></>}
-          {tr.sat_current_pos.el > 0 && <>
+          {showPosition && <>
             <dt>{t('status.position')}</dt>
             <dd>az {tr.sat_current_pos.az.toFixed(1)}°, el {tr.sat_current_pos.el.toFixed(1)}°
               {tr.sat_current_range !== undefined && `, ${Math.round(tr.sat_current_range)} km`}</dd>

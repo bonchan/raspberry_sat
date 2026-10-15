@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { api, type UpcomingPass } from './api'
 import { useNow, usePolling } from './hooks'
-import { clock, compass, duration, utcClock, weekdayAndDay } from './format'
+import { clock, compass, duration, sameDay, utcClock, weekdayAndDay } from './format'
 import { useT } from './i18n'
 import SkyPlot, { SkyLegend } from './SkyPlot'
 
@@ -14,8 +14,6 @@ function quality(p: UpcomingPass): Quality {
   if (!p.scheduled) return 'low'
   return p.max_el >= EXCELLENT ? 'excellent' : p.max_el >= GOOD ? 'good' : 'fair'
 }
-
-const sameDay = (a: number, b: number) => new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString()
 
 interface Props { minElevation?: number; station?: string; showLow?: boolean }
 
