@@ -6,10 +6,20 @@ import time
 
 import httpx
 
-from app import passes, settings, updater
+from app import orbits, passes, settings, updater
+from app.config import load_config
 from app.supervisor import supervisor
 
 log = logging.getLogger(__name__)
+
+
+def guess_satellite(when: float) -> str | None:
+    """For passes SatDump could not identify: the configured satellite that was up then, from the orbits."""
+    try:
+        return orbits.satellite_up(load_config(settings.CONFIG_FILE), orbits.load_tles(settings.SATDUMP_TLES), when)
+    except Exception:
+        log.exception("could not work out which satellite a pass was")
+        return None
 
 http = httpx.AsyncClient(timeout=5)
 
@@ -125,8 +135,8 @@ async def scan_passes() -> None:
     reported: set[str] = set()          # folders whose error was already logged
 
     try:
-        for old, new in await asyncio.to_thread(passes.repair_times, settings.PASSES_DIR):
-            supervisor.note("info", f"pass {old} had no valid time from SatDump; renamed to {new}")
+        for old, new in await asyncio.to_thread(passes.repair, settings.PASSES_DIR, guess_satellite):
+            supervisor.note("info", f"pass {old} lacked a time or satellite name from SatDump; now {new}")
     except Exception:
         log.exception("repairing pass times failed")
 
@@ -144,7 +154,7 @@ async def scan_passes() -> None:
         if folder is not None:
             if folder.is_dir() and not passes.is_finished(folder):
                 try:
-                    report_ready(await asyncio.to_thread(passes.finalize, folder))
+                    report_ready(await asyncio.to_thread(passes.finalize, folder, guess_satellite))
                 except Exception as e:
                     report_error(folder.name, f"{type(e).__name__}: {e}")
             continue
@@ -152,7 +162,7 @@ async def scan_passes() -> None:
         if tracker.receiving() or time.time() - tracker.last_los < passes.SETTLE:
             continue                    # SatDump is receiving, or may still be decoding: leave its folders alone
         try:
-            done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR)
+            done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR, guess_satellite)
         except Exception:
             log.exception("pass scan failed")
             continue

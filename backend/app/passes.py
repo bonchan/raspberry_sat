@@ -9,6 +9,7 @@ pass.json is what marks a pass as finished. SatDump's own files are left as they
 import json
 import re
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
@@ -226,17 +227,44 @@ def pass_time(folder: Path, source_name: str, dataset: dict) -> float:
         min((f.stat().st_mtime for f in satdump_files(folder)), default=folder.stat().st_mtime)
 
 
-def repair_times(passes_dir: Path) -> list[tuple[str, str]]:
-    """Fix passes finished with SatDump's -1 timestamp (shown as 1969): their time and folder name.
-    Returns [(old name, new name)]."""
+# (time of a pass) -> name of the satellite that was up then, or None; see tasks.guess_satellite
+SatelliteGuess = Callable[[float], str | None]
+
+
+def known_satellite(name: str) -> bool:
+    """SatDump names a Meteor from the received data; with nothing decoded it writes "Unknown Meteor"."""
+    return bool(name) and not name.lower().startswith("unknown")
+
+
+def pass_satellite(dataset: dict, started: float, guess: SatelliteGuess | None) -> str:
+    """dataset.json's satellite when SatDump identified it, else the one the orbits say was up."""
+    named = str(dataset.get("satellite") or "")
+    if known_satellite(named):
+        return named
+    return (guess(started) if guess else None) or named or "unknown"
+
+
+def repair(passes_dir: Path, guess: SatelliteGuess | None = None) -> list[tuple[str, str]]:
+    """Fix finished passes saved before the fallbacks existed: SatDump's -1 timestamp (shown as 1969)
+    and "Unknown Meteor". Corrects pass.json and the folder name. Returns [(old name, new name)]."""
     fixed = []
     for folder in pass_folders(passes_dir):
         meta = read_json(folder / META)
-        if meta is None or plausible_time(meta.get("time")):
+        if meta is None:
+            continue
+        changed = False
+        if not plausible_time(meta.get("time")):
+            meta["time"] = pass_time(folder, str(meta.get("source_name", "")), {})
+            changed = True
+        if not known_satellite(str(meta.get("satellite") or "")):
+            name = pass_satellite({"satellite": meta.get("satellite")}, meta["time"], guess)
+            if known_satellite(name):
+                meta["satellite"] = name
+                changed = True
+        if not changed:
             continue
         old = folder.name
-        meta["time"] = pass_time(folder, str(meta.get("source_name", "")), {})
-        target = unique_path(folder, folder_name(meta["time"], str(meta.get("satellite", "unknown"))))
+        target = unique_path(folder, folder_name(meta["time"], str(meta.get("satellite") or "unknown")))
         if target != folder:
             folder = folder.rename(target)
         write_meta(folder, meta)
@@ -244,12 +272,12 @@ def repair_times(passes_dir: Path) -> list[tuple[str, str]]:
     return fixed
 
 
-def finalize(folder: Path) -> Path:
+def finalize(folder: Path, guess: SatelliteGuess | None = None) -> Path:
     """Rename the folder, make thumbnails, write pass.json. Returns the folder's new path."""
     source_name = folder.name
     dataset = read_json(folder / "dataset.json") or {}
-    satellite = str(dataset.get("satellite") or "unknown")
     started = pass_time(folder, source_name, dataset)
+    satellite = pass_satellite(dataset, started, guess)
 
     target = unique_path(folder, folder_name(started, satellite))
     if target != folder:
@@ -286,7 +314,7 @@ def finalize(folder: Path) -> Path:
     return folder
 
 
-def finalize_ready(passes_dir: Path) -> tuple[list[Path], list[tuple[str, str]]]:
+def finalize_ready(passes_dir: Path, guess: SatelliteGuess | None = None) -> tuple[list[Path], list[tuple[str, str]]]:
     """Finish every pass that has gone quiet. Returns (finished folders, [(folder name, error)])."""
     done, errors = [], []
     now = time.time()
@@ -294,7 +322,7 @@ def finalize_ready(passes_dir: Path) -> tuple[list[Path], list[tuple[str, str]]]
         if is_finished(folder) or now - last_activity(folder) < SETTLE:
             continue
         try:
-            done.append(finalize(folder))
+            done.append(finalize(folder, guess))
         except Exception as e:      # one bad folder must not stop the others
             errors.append((folder.name, f"{type(e).__name__}: {e}"))
     return done, errors

@@ -92,9 +92,31 @@ def test_repair_passes_finished_with_a_1969_date(tmp_path):
     passes.write_meta(folder, meta)
     folder = folder.rename(folder.with_name("1969-12-31_2359Z_meteor-m2-4"))
 
-    assert passes.repair_times(tmp_path) == [("1969-12-31_2359Z_meteor-m2-4", "2026-10-15_1921Z_meteor-m2-4")]
-    assert passes.repair_times(tmp_path) == []      # nothing left to fix
+    assert passes.repair(tmp_path) == [("1969-12-31_2359Z_meteor-m2-4", "2026-10-15_1921Z_meteor-m2-4")]
+    assert passes.repair(tmp_path) == []            # nothing left to fix
     assert passes.plausible_time(passes.load_pass(tmp_path / "2026-10-15_1921Z_meteor-m2-4")["time"])
+
+
+def test_unknown_meteor_is_named_from_the_orbits(tmp_path):
+    folder = make_pass(tmp_path, name="2026-10-15_21-02_meteor_m2-x_lrpt_137.9 MHz", satellite="Unknown Meteor")
+    asked = []
+    guess = lambda when: asked.append(when) or "METEOR-M2 4"
+    folder = passes.finalize(folder, guess)
+    assert folder.name.endswith("_meteor-m2-4")
+    assert passes.load_pass(folder)["satellite"] == "METEOR-M2 4"
+    assert asked                                     # asked with the pass's time
+
+    named = make_pass(tmp_path, name="named", satellite="METEOR-M2-3")
+    assert passes.load_pass(passes.finalize(named, guess))["satellite"] == "METEOR-M2-3"   # SatDump's name wins
+
+
+def test_repair_names_unknown_passes(tmp_path):
+    folder = passes.finalize(make_pass(tmp_path, name="2026-10-15_21-02_meteor_m2-x_lrpt_137.9 MHz",
+                                       satellite="Unknown Meteor"))
+    assert folder.name.endswith("_unknown-meteor")
+    assert passes.repair(tmp_path, lambda when: None) == []                 # orbits don't know either
+    fixed = passes.repair(tmp_path, lambda when: "METEOR-M2 4")
+    assert fixed == [(folder.name, folder.name.replace("unknown-meteor", "meteor-m2-4"))]
 
 
 def test_finalize_ready_leaves_fresh_folders(tmp_path):

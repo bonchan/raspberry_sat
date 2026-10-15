@@ -60,6 +60,14 @@ def test_schedule_covers_the_configured_days(tmp_path):
             Config.model_validate({"display": {"upcoming_days": days}})
 
 
+def test_satellite_up_names_the_pass():
+    from app.orbits import satellite_up
+    config = station_config()
+    first = predict(config, parse_tles(TLE), EPOCH, hours=24)[0]
+    assert satellite_up(config, parse_tles(TLE), first["aos"]) == "METEOR-M2 3"
+    assert satellite_up(config, parse_tles(TLE), first["los"] + 3600) is None     # nothing up an hour later
+
+
 def test_predict_skips_disabled_and_unknown_satellites():
     config = station_config()
     config.satellites[0].enabled = False

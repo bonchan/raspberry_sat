@@ -56,6 +56,24 @@ def unix(t) -> float:
     return t.utc_datetime().timestamp()
 
 
+def satellite_up(config: Config, tles: dict[int, tuple[str, str, str]], when: float) -> str | None:
+    """Which of the configured satellites was highest over the station shortly after `when` (a pass's
+    start), if any was above the horizon: names passes SatDump could not identify."""
+    ts = timescale()
+    station = wgs84.latlon(config.station.lat, config.station.lon, elevation_m=config.station.alt)
+    times = ts.from_datetimes([datetime.fromtimestamp(when + dt, timezone.utc) for dt in (60, 180, 300, 420)])
+    best, best_el = None, 0.0
+    for s in config.satellites:
+        if s.norad not in tles:
+            continue
+        name, l1, l2 = tles[s.norad]
+        alt, _, _ = (EarthSatellite(l1, l2, name, ts) - station).at(times).altaz()
+        el = float(np.max(alt.degrees))
+        if el > best_el:
+            best, best_el = s.name or name, el
+    return best
+
+
 def predict(config: Config, tles: dict[int, tuple[str, str, str]], now: float, hours: float = 24) -> list[dict]:
     """Passes of the enabled satellites that end after `now` and start within `hours`."""
     ts = timescale()
