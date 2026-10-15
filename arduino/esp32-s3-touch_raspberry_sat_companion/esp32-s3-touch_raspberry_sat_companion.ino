@@ -21,6 +21,7 @@
 #include <time.h>
 
 #include "secrets.h"
+#include "types.h"
 
 // ---------- settings ----------
 
@@ -66,15 +67,10 @@ const uint16_t C_TEXT = rgb(230, 232, 235), C_DIM = rgb(139, 147, 161), C_ACCENT
 const uint16_t C_OK = rgb(62, 207, 142), C_DANGER = rgb(229, 72, 77), C_WARN = rgb(229, 184, 77);
 const uint16_t C_FAIR = rgb(240, 136, 62), C_GOOD = rgb(242, 208, 59), C_EXCELLENT = C_OK, C_SAT = rgb(255, 210, 63);
 
-#define DEG "\xF8"                        // the degree sign in the built-in (CP437) font
+#define DEG "~"                           // text() draws a '~' as a small degree circle
 
 // ---------- texts ----------
 
-struct Texts {
-  const char *next, *receiving, *overhead, *notRecorded, *noPassNow, *today, *left, *in, *noPasses;
-  const char *connecting, *noServer, *noTime, *lastPass, *locked, *searching, *synced, *noSync, *frames;
-  const char *peak, *viterbi, *deframer, *days[7];
-};
 const Texts EN = {
   "NEXT PASS", "RECEIVING", "OVERHEAD", "too low, not recorded", "No pass right now", "TODAY", "left", "in",
   "No upcoming passes", "Connecting to Wi-Fi...", "raspberry_sat not answering", "Waiting for the time...",
@@ -88,41 +84,7 @@ const Texts ES = {
   {"DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB"},
 };
 
-// ---------- data shared between the network task and the screen ----------
-
-const int MAX_PASSES = 60;
-const int MAX_SAMPLES = 1200;              // one per second: longer than any pass
-
-struct Pass {
-  char name[24];
-  uint32_t aos, los;
-  float maxEl, aosAz, losAz;
-  bool scheduled;
-};
-
-struct Sample {
-  uint32_t t;
-  float snr, el;
-  int8_t sync;                             // 1 frames syncing, 0 no sync, -1 not reported
-};
-
-struct Data {
-  bool wifi = false, server = false;
-  bool spanish = false, showLow = true;
-  Pass passes[MAX_PASSES];
-  int passCount = 0;
-  // status
-  bool hasTracker = false, receiving = false, overhead = false;
-  char object[24] = "";
-  uint32_t nextAos = 0, nextLos = 0;
-  float az = 0, el = 0, range = -1, freqMHz = 0;
-  // live
-  uint32_t passStarted = 0, lastLos = 0, caduBytes = 0;
-  Sample samples[MAX_SAMPLES];
-  int sampleCount = 0;
-  float snr = NAN, peakSnr = NAN, ber = NAN, freqOffset = NAN, rs = NAN;
-  int8_t vit = -1, dfr = -1;
-};
+// ---------- data shared between the network task and the screen (types in types.h) ----------
 
 Data shared;                               // written by the network task
 Data view;                                 // the screen's copy, taken before each frame
@@ -142,7 +104,8 @@ bool resolveServer() {
   if (host.endsWith(".local")) {
     static bool mdnsStarted = false;
     if (!mdnsStarted) mdnsStarted = MDNS.begin("sat-companion");
-    ip = MDNS.queryHost(host.substring(0, host.length() - 6), 3000);
+    String name = host.substring(0, host.length() - 6);
+    ip = MDNS.queryHost(name.c_str(), 3000);
     if (ip == IPAddress()) return false;
   } else if (!ip.fromString(host) && !WiFi.hostByName(host.c_str(), ip)) {
     return false;
@@ -316,19 +279,32 @@ Arduino_Canvas *gfx = new Arduino_Canvas(W, H, panel);   // draw a whole frame, 
 
 const Texts &T() { return view.spanish ? ES : EN; }
 
-void text(int x, int y, const char *s, uint16_t color, uint8_t size = 1) {
+// the built-in font is 6x8 per character (times size); a '~' (DEG) is drawn as a small degree circle.
+// No default arguments in this file: the Arduino build would repeat them in its generated declarations.
+void text(int x, int y, const char *s, uint16_t color, uint8_t size) {
+  char plain[64];
+  strlcpy(plain, s, sizeof(plain));
+  for (char *c = plain; *c; c++) {
+    if (*c == '~') *c = ' ';
+  }
   gfx->setTextSize(size);
   gfx->setTextColor(color);
   gfx->setCursor(x, y);
-  gfx->print(s);
+  gfx->print(plain);
+  for (int i = 0; s[i] && i < (int)sizeof(plain) - 1; i++) {
+    if (s[i] == '~') gfx->drawCircle(x + i * 6 * size + 2 * size, y + 2 * size, size, color);
+  }
 }
-int textWidth(const char *s, uint8_t size = 1) { return strlen(s) * 6 * size; }
-void textRight(int right, int y, const char *s, uint16_t color, uint8_t size = 1) {
+void text(int x, int y, const char *s, uint16_t color) { text(x, y, s, color, 1); }
+int textWidth(const char *s, uint8_t size) { return strlen(s) * 6 * size; }
+void textRight(int right, int y, const char *s, uint16_t color, uint8_t size) {
   text(right - textWidth(s, size), y, s, color, size);
 }
-void textCenter(int cx, int y, const char *s, uint16_t color, uint8_t size = 1) {
+void textRight(int right, int y, const char *s, uint16_t color) { textRight(right, y, s, color, 1); }
+void textCenter(int cx, int y, const char *s, uint16_t color, uint8_t size) {
   text(cx - textWidth(s, size) / 2, y, s, color, size);
 }
+void textCenter(int cx, int y, const char *s, uint16_t color) { textCenter(cx, y, s, color, 1); }
 // the biggest size (up to `size`) at which `s` fits in `width`
 uint8_t fitSize(const char *s, int width, uint8_t size) {
   while (size > 1 && textWidth(s, size) > width) size--;
@@ -742,7 +718,6 @@ void setup() {
   pinMode(LCD_BL, OUTPUT);
   digitalWrite(LCD_BL, HIGH);
   if (!gfx->begin()) Serial.println("display init failed");
-  gfx->cp437(true);                                 // so DEG is the degree sign
   gfx->fillScreen(C_BG);
   gfx->flush();
 
