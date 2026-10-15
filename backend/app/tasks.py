@@ -117,24 +117,48 @@ async def check_updates() -> None:
 
 
 async def scan_passes() -> None:
-    """Finish passes SatDump is done with: rename, thumbnails, pass.json."""
+    """Finish passes SatDump is done with: rename, thumbnails, pass.json.
+
+    Right away when SatDump says a pass's images are written ("Pipeline Processing Done!"); otherwise
+    (passes copied in by hand, SatDump stopped mid-decode) once a folder has been quiet for SETTLE.
+    """
     reported: set[str] = set()          # folders whose error was already logged
+
+    def report_error(name: str, error: str) -> None:
+        if name not in reported:
+            reported.add(name)
+            supervisor.note("error", f"could not finish pass {name}: {error}")
+
     while True:
-        await asyncio.sleep(SCAN_INTERVAL)
+        try:
+            folder = await asyncio.wait_for(supervisor.passes_done.get(), SCAN_INTERVAL)
+        except asyncio.TimeoutError:
+            folder = None
+
+        if folder is not None:
+            if folder.is_dir() and not passes.is_finished(folder):
+                try:
+                    report_ready(await asyncio.to_thread(passes.finalize, folder))
+                except Exception as e:
+                    report_error(folder.name, f"{type(e).__name__}: {e}")
+            continue
+
         if tracker.receiving() or time.time() - tracker.last_los < passes.SETTLE:
-            continue                    # SatDump is receiving, or still decoding: leave its folders alone
+            continue                    # SatDump is receiving, or may still be decoding: leave its folders alone
         try:
             done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR)
         except Exception:
             log.exception("pass scan failed")
             continue
         for folder in done:
-            meta = passes.load_pass(folder) or {}
-            text = f"pass {folder.name} ready: {len(meta.get('images', []))} images"
-            if meta.get("coverage") is not None:
-                text += f", {meta['coverage']:.0%} of the main image received"
-            supervisor.note("info", text)
+            report_ready(folder)
         for name, error in errors:
-            if name not in reported:
-                reported.add(name)
-                supervisor.note("error", f"could not finish pass {name}: {error}")
+            report_error(name, error)
+
+
+def report_ready(folder) -> None:
+    meta = passes.load_pass(folder) or {}
+    text = f"pass {folder.name} ready: {len(meta.get('images', []))} images"
+    if meta.get("coverage") is not None:
+        text += f", {meta['coverage']:.0%} of the main image received"
+    supervisor.note("info", text)

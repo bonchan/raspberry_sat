@@ -1,6 +1,7 @@
 import asyncio
 import os
 import time
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +18,18 @@ def test_parse_satdump_line():
 
 def test_parse_other_line():
     assert parse_line("plain text\n") == ("info", "plain text")
+
+
+def test_follows_passes_through_satdump_output():
+    sup = Supervisor()
+    folder = "/home/bon/raspberry_sat_data/passes/2026-10-15_19-21_meteor_m2-x_lrpt_137.9 MHz"
+    sup._watch(f"Generated folder name : {folder}")
+    sup._watch("Writing images.... (Can take a while)")
+    assert sup.passes_done.empty()
+    sup._watch("Pipeline Processing Done!")
+    assert sup.passes_done.get_nowait() == Path(folder)
+    sup._watch("Pipeline Processing Done!")         # no pass left to match: nothing reported
+    assert sup.passes_done.empty()
 
 
 def test_output_busy(tmp_path):

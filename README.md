@@ -11,7 +11,8 @@ The plan and build order are in [docs/PLAN.md](docs/PLAN.md). Built so far:
 2. SatDump runs as `satdump autotrack` under the backend: generated config, start/stop/restart,
    restart after a crash, restart after a settings change (waits for a running pass), daily restart
    for fresh orbit data. Status page (next pass, polar plot, schedule, spectrum) and Logs page.
-3. Passes: 5 minutes after SatDump stops writing a pass folder, the app finishes it: renames it to
+3. Passes: as soon as SatDump logs "Pipeline Processing Done!" for a pass (or, as a fallback, once a
+   pass folder has had no new file for 5 minutes), the app finishes it: renames it to
    `<UTC start>_<satellite>` (e.g. `2026-10-12_1310Z_meteor-m2-3`), makes thumbnails in `.thumbs/`,
    picks a main image (MCIR corrected; the next choice if it is black) and measures how much of it
    was received, then writes `pass.json`. Passes page (gallery) and a page per pass with every

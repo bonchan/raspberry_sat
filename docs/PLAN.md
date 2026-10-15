@@ -33,7 +33,8 @@ raspberry_sat/
       satdump_cfg.py          Config -> autotrack.json (pure function, unit-tested)
       supervisor.py           start/stop/restart `satdump autotrack` child process, log ring buffer,
                               auto-restart with backoff, nightly restart when idle (fresh TLEs)
-      passes.py               finish quiet pass folders (5 min without a new file): rename, thumbnails,
+      passes.py               finish a pass when SatDump logs "Pipeline Processing Done!" (fallback: 5 min
+                              without a new file): rename, thumbnails,
                               pass.json per pass instead of a SQLite index (metadata travels with the folder)
       discord.py              webhook post: pass summary + chosen composites as JPEG (<10 MB)
       retention.py            delete passes older than N days / beyond max GB, oldest first; drop basebands

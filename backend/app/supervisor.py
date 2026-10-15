@@ -28,6 +28,10 @@ LEVELS = {"T": "trace", "D": "debug", "I": "info", "W": "warn", "E": "error", "C
 PY_LEVELS = {"trace": logging.DEBUG, "debug": logging.DEBUG, "info": logging.INFO,
              "warn": logging.WARNING, "error": logging.ERROR, "critical": logging.CRITICAL}
 
+# what SatDump prints when a pass's folder is made (at AOS) and when its images are all written (after LOS)
+PASS_FOLDER = re.compile(r"Generated folder name : (.+)$")
+PASS_DONE = "Pipeline Processing Done!"
+
 
 @dataclass
 class LogLine:
@@ -60,6 +64,8 @@ class Supervisor:
         self.restart_reason = ""
         self._restarting = False            # the coming exit is ours: start again right away
         self._wake = asyncio.Event()
+        self.decoding: deque[Path] = deque()            # pass folders SatDump started, oldest first
+        self.passes_done: asyncio.Queue[Path] = asyncio.Queue()   # folders whose images are written
         self._file: logging.Logger | None = None
         self._tasks: set[asyncio.Task] = set()
 
@@ -183,6 +189,7 @@ class Supervisor:
                 continue
 
             self.state, self.started_at, self.exit_code = "running", time.time(), None
+            self.decoding.clear()           # a pass the last run was decoding is left to the quiet-folder check
             await asyncio.gather(self._pump(self.proc.stdout), self.proc.wait())
             self.exit_code = self.proc.returncode
             ran = time.time() - self.started_at
@@ -212,6 +219,16 @@ class Supervisor:
             level, text = parse_line(raw.decode("utf-8", errors="replace"))
             if text:
                 self._add(level, "satdump", text)
+                self._watch(text)
+
+    def _watch(self, text: str) -> None:
+        """Follow passes through SatDump's output, so a pass is finished as soon as its images are written."""
+        m = PASS_FOLDER.search(text)
+        if m:
+            self.decoding.append(Path(m.group(1).strip()))
+        elif text.startswith(PASS_DONE) and self.decoding:
+            # SatDump decodes passes one after the other, so this is the oldest one still decoding
+            self.passes_done.put_nowait(self.decoding.popleft())
 
     async def _terminate(self) -> None:
         proc = self.proc
