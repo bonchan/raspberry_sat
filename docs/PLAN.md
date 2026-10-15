@@ -72,6 +72,16 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
 5. **Retention:** cleanup job, disk usage on Status page.
 6. **Rotator + polish:** rotator settings, show rotator position, small UX fixes.
 
+## Later (ideas, not scheduled)
+- **Gain as a dropdown:** tuners only have fixed gain steps and SatDump rounds up to the next one. Ask the
+  dongle for its steps (`rtlsdr_get_tuner_gains`, while SatDump has the SDR idle) and offer those instead of
+  a free number; other SDR types have other gain controls. Notes at `Sdr.gain` in `backend/app/config.py`.
+- **Gain per pass:** record the gain (and other receiver settings) in each pass's `pass.json` and show it in
+  the gallery, to compare passes when tuning.
+- **Releases only:** an update channel that follows tags instead of every commit on `main`.
+- **Fallback hotspot with captive portal** when the Pi has no network (dropped for now; the phone-hotspot
+  trick on the Networks page covers moving the Pi).
+
 ## Dev on Windows
 - Backend runs without SatDump (supervisor reports "satdump not installed"); point `RSAT_DATA` at a copy of a real pass folder to develop gallery/Discord.
 - `pnpm dev` with Vite proxying `/api` to `uvicorn --reload` on :8000.
