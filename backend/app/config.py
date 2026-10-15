@@ -68,6 +68,10 @@ class Storage(BaseModel):
     keep_baseband: bool = False
 
 
+class Display(BaseModel):
+    show_low_passes: bool = True           # list passes that stay under the minimum elevation
+
+
 def default_satellites() -> list[Satellite]:
     return [
         Satellite(name="METEOR-M2 3", norad=57166, frequency_hz=137_900_000),
@@ -84,6 +88,7 @@ class Config(BaseModel):
     rotator: Rotator = Field(default_factory=Rotator)
     discord: Discord = Field(default_factory=Discord)
     storage: Storage = Field(default_factory=Storage)
+    display: Display = Field(default_factory=Display)
 
     @model_validator(mode="before")
     @classmethod

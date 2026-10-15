@@ -79,11 +79,19 @@ def test_api_rejects_invalid(config_file):
     assert not config_file.exists()
 
 
-def test_api_save_asks_for_a_satdump_restart(config_file, monkeypatch):
+def test_api_restarts_satdump_only_for_settings_it_uses(config_file, monkeypatch):
     from app.supervisor import supervisor
     monkeypatch.setattr(supervisor, "restart_pending", False)
     client = TestClient(app)
-    client.put("/api/config", json=client.get("/api/config").json())
+
+    body = client.get("/api/config").json()
+    body["display"]["show_low_passes"] = False
+    body["discord"]["webhook_url"] = "https://example.invalid/hook"
+    client.put("/api/config", json=body)
+    assert not supervisor.restart_pending
+
+    body["sdr"]["gain"] = 40
+    client.put("/api/config", json=body)
     assert supervisor.restart_pending
 
 

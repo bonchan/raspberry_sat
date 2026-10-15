@@ -13,11 +13,12 @@ export interface Tracking { min_elevation: number; stop_sdr_when_idle: boolean }
 export interface Rotator { enabled: boolean; address: string; port: number }
 export interface Discord { enabled: boolean; webhook_url: string; composites: string[]; post_failed: boolean }
 export interface Storage { keep_days: number; max_gb: number; keep_baseband: boolean }
+export interface Display { show_low_passes: boolean }
 
 export interface Config {
   stations: Station[]; active_station: number   // index of the station SatDump uses
   sdr: Sdr; satellites: Satellite[]; tracking: Tracking
-  rotator: Rotator; discord: Discord; storage: Storage
+  rotator: Rotator; discord: Discord; storage: Storage; display: Display
 }
 
 export interface SystemInfo {

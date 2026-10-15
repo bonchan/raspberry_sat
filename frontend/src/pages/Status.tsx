@@ -25,7 +25,8 @@ export default function Status() {
       {status && <Receiver status={status} />}
       {status && running && <NextPass status={status} />}
       <UpcomingPasses minElevation={config?.tracking.min_elevation}
-        station={config?.stations[config.active_station]?.name} />
+        station={config?.stations[config.active_station]?.name}
+        showLow={config?.display.show_low_passes ?? true} />
       {system && (
         <section>
           <h2>System</h2>

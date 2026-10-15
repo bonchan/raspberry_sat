@@ -66,7 +66,7 @@ export default function Settings() {
     }
   }
 
-  const { sdr, tracking, rotator, discord, storage } = config
+  const { sdr, tracking, rotator, discord, storage, display } = config
 
   return (
     <div className="settings">
@@ -183,6 +183,15 @@ export default function Settings() {
           <CheckField label="Keep raw recordings" hint="about 1-2 GB per pass" value={storage.keep_baseband}
             onChange={v => set('storage', 'keep_baseband', v)} />
         </div>
+      </section>
+
+      <section>
+        <h2>Display</h2>
+        <div className="grid">
+          <CheckField label="Show passes too low to record" hint="in the upcoming passes list"
+            value={display.show_low_passes} onChange={v => set('display', 'show_low_passes', v)} />
+        </div>
+        <p className="hint">Display settings don't restart SatDump.</p>
       </section>
     </div>
   )

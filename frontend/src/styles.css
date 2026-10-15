@@ -1,6 +1,7 @@
 :root {
   --bg: #14161a; --panel: #1e2127; --line: #2e333c; --text: #e6e8eb;
   --dim: #8b93a1; --accent: #4da3ff; --ok: #3ecf8e; --danger: #e5484d;
+  --fair: #e5b84d; --good: #4da3ff; --excellent: #3ecf8e;    /* pass quality */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -104,8 +105,21 @@ table.passes td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertic
 table.passes tr { cursor: pointer; }
 table.passes tr:hover td { background: #262a31; }
 table.passes tr.on td { background: #24303f; }
-table.passes tr.low td { color: var(--dim); }
-table.passes tr.live td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+table.passes tr.day td {
+  cursor: default; background: none; padding: 14px 8px 4px; border-bottom: 1px solid var(--dim);
+  color: var(--text); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+}
+table.passes tbody tr.day:first-child td { padding-top: 4px; }
+table.passes tr.q-low td { color: var(--dim); }
+table.passes tr.q-fair td:first-child { box-shadow: inset 3px 0 0 var(--fair); }
+table.passes tr.q-good td:first-child { box-shadow: inset 3px 0 0 var(--good); }
+table.passes tr.q-excellent td:first-child { box-shadow: inset 3px 0 0 var(--excellent); }
+table.passes tr.live td { font-weight: 600; }
+.quality { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; border: 1px solid currentColor; }
+.quality.q-low { color: var(--dim); }
+.quality.q-fair { color: var(--fair); }
+.quality.q-good { color: var(--good); }
+.quality.q-excellent { color: #06121f; background: var(--excellent); border-color: var(--excellent); font-weight: 600; }
 
 /* live pass */
 .live-grid { display: grid; grid-template-columns: minmax(240px, 380px) 1fr; gap: 16px; }
