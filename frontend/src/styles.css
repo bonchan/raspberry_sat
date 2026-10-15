@@ -77,6 +77,33 @@ img.polar { width: 256px; aspect-ratio: 1; }
 img.schedule { flex: 1; min-width: 260px; height: auto; }
 img.fft { display: block; width: 512px; aspect-ratio: 1; margin-top: 12px; }
 
+button.danger { border-color: var(--danger); color: var(--danger); }
+a { color: var(--accent); }
+
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.card {
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden; color: inherit; text-decoration: none;
+}
+a.card:hover { border-color: var(--accent); }
+.card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; display: block; cursor: pointer; }
+.card .noimage { aspect-ratio: 4 / 3; display: grid; place-items: center; background: #000; color: var(--dim); }
+.caption { display: grid; gap: 2px; padding: 8px 10px 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip { padding: 2px 8px; font-size: 12px; border-radius: 10px; }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #06121f; }
+
+img.hero { display: block; width: 100%; border-radius: 6px; background: #000; cursor: zoom-in; }
+.files { margin: 0 0 12px; padding-left: 18px; }
+.files li { margin: 2px 0; overflow-wrap: anywhere; }
+
+.lightbox {
+  position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, .92);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px; gap: 10px;
+}
+.lightbox img { max-width: 100%; max-height: calc(100vh - 80px); object-fit: contain; }
+.lightbox-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; }
+
 .console {
   height: 60vh; overflow: auto; background: #0c0d10; border-radius: 6px; padding: 8px; margin: 0;
   font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word;

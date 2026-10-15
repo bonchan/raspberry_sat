@@ -6,8 +6,7 @@ import time
 
 import httpx
 
-from app import settings
-from app.passes import output_busy
+from app import passes, settings
 from app.supervisor import supervisor
 
 log = logging.getLogger(__name__)
@@ -16,6 +15,7 @@ http = httpx.AsyncClient(timeout=5)
 
 POLL_INTERVAL = 2
 HOUSEKEEPING_INTERVAL = 15
+SCAN_INTERVAL = 30
 DAILY_RESTART = 24 * 3600   # SatDump only refreshes its orbit data (TLEs) when it starts
 
 
@@ -25,10 +25,21 @@ class Tracker:
     def __init__(self) -> None:
         self.data: dict | None = None
         self.updated_at = 0.0
+        self.last_los = 0.0             # when the last pass ended (or SatDump stopped during one)
+        self._was_in_pass = False
 
     def in_pass(self) -> bool:
         t = (self.data or {}).get("object_tracker") or {}
         return not t.get("next_event_is_aos", True) and t.get("next_los_time", 0) > time.time()
+
+    def update(self, data: dict | None) -> None:
+        self.data = data
+        if data is not None:
+            self.updated_at = time.time()
+        now_in_pass = self.in_pass()
+        if self._was_in_pass and not now_in_pass:
+            self.last_los = time.time()
+        self._was_in_pass = now_in_pass
 
 
 tracker = Tracker()
@@ -40,16 +51,16 @@ async def poll_tracker() -> None:
             try:
                 r = await http.get(f"http://{settings.SATDUMP_HTTP}/api")
                 r.raise_for_status()
-                tracker.data, tracker.updated_at = r.json(), time.time()
+                tracker.update(r.json())
             except (httpx.HTTPError, ValueError):
                 pass                        # still starting up; the page shows how old the data is
         else:
-            tracker.data = None
+            tracker.update(None)
         await asyncio.sleep(POLL_INTERVAL)
 
 
 def safe_to_restart() -> bool:
-    return not tracker.in_pass() and not output_busy(settings.PASSES_DIR)
+    return not tracker.in_pass() and not passes.output_busy(settings.PASSES_DIR)
 
 
 async def housekeeping() -> None:
@@ -63,3 +74,27 @@ async def housekeeping() -> None:
                 await supervisor.restart("daily restart, refreshes orbit data")
         except Exception:
             log.exception("housekeeping failed")
+
+
+async def scan_passes() -> None:
+    """Finish passes SatDump is done with: rename, thumbnails, pass.json."""
+    reported: set[str] = set()          # folders whose error was already logged
+    while True:
+        await asyncio.sleep(SCAN_INTERVAL)
+        if tracker.in_pass() or time.time() - tracker.last_los < passes.SETTLE:
+            continue                    # SatDump is receiving, or still decoding: leave its folders alone
+        try:
+            done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR)
+        except Exception:
+            log.exception("pass scan failed")
+            continue
+        for folder in done:
+            meta = passes.load_pass(folder) or {}
+            text = f"pass {folder.name} ready: {len(meta.get('images', []))} images"
+            if meta.get("coverage") is not None:
+                text += f", {meta['coverage']:.0%} of the main image received"
+            supervisor.note("info", text)
+        for name, error in errors:
+            if name not in reported:
+                reported.add(name)
+                supervisor.note("error", f"could not finish pass {name}: {error}")

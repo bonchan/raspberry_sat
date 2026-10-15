@@ -16,7 +16,7 @@ Repo `C:\code\raspberry_sat` (empty, remote `git@github.com:bonchan/raspberry_sa
 
 ## Stack (my take on your choice)
 Python + pnpm/Vite/React is a good fit. Specifics:
-- **Backend:** Python 3.11 (Bookworm's), FastAPI + uvicorn, pydantic for the config model, stdlib sqlite3 for the pass index, httpx (Discord, SatDump proxy), Pillow (thumbnails, Discord-sized JPEGs). Lives in a venv inside the repo (`backend/.venv`, gitignored) — Bookworm blocks system-wide pip.
+- **Backend:** Python 3.11 (Bookworm's), FastAPI + uvicorn, pydantic for the config model, a pass.json per pass folder as the pass index, httpx (Discord, SatDump proxy), Pillow (thumbnails, Discord-sized JPEGs). Lives in a venv inside the repo (`backend/.venv`, gitignored) — Bookworm blocks system-wide pip.
 - **Frontend:** React + TS + Vite, React Router, plain CSS (dark, same feel as your rotator page). Built on the Pi into `frontend/dist`, served by FastAPI — one process, one port.
 - **Node on the Pi:** Bookworm's apt Node 18 is too old for current Vite → install Node 22 LTS from NodeSource, pnpm via corepack.
 - **OS:** Raspberry Pi OS Lite 64-bit **Bookworm** (matches the SatDump arm64 .deb).
@@ -33,7 +33,8 @@ raspberry_sat/
       satdump_cfg.py          Config -> autotrack.json (pure function, unit-tested)
       supervisor.py           start/stop/restart `satdump autotrack` child process, log ring buffer,
                               auto-restart with backoff, nightly restart when idle (fresh TLEs)
-      passes.py               scan output folder -> SQLite index; pass "done" = no file change for 3 min
+      passes.py               finish quiet pass folders (5 min without a new file): rename, thumbnails,
+                              pass.json per pass instead of a SQLite index (metadata travels with the folder)
       discord.py              webhook post: pass summary + chosen composites as JPEG (<10 MB)
       retention.py            delete passes older than N days / beyond max GB, oldest first; drop basebands
       tasks.py                asyncio loop: scan -> post -> retention every 30 s
@@ -66,7 +67,7 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
 ## Build order (each step deployable and testable on the Pi)
 1. **Skeleton:** monorepo, FastAPI health + config load/save, React shell with Settings page, install/update scripts, systemd unit, README. Goal: `install.sh` on a fresh Pi → page at `http://pi:8000`.
 2. **SatDump supervisor:** autotrack.json generation, process control, logs page, Status page (next pass, az/el, polar plot, schedule, FFT via proxy).
-3. **Passes:** scanner + SQLite + thumbnails + gallery + pass detail.
+3. **Passes:** scanner + pass.json + thumbnails + gallery + pass detail.
 4. **Discord:** posting, test-webhook button, posted state per pass.
 5. **Retention:** cleanup job, disk usage on Status page.
 6. **Rotator + polish:** rotator settings, show rotator position, small UX fixes.

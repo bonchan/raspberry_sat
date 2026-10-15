@@ -13,3 +13,18 @@ export const dateTime = (unix: number) =>
   new Date(unix * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
 
 export const gb = (bytes: number) => (bytes / 1e9).toFixed(1) + ' GB'
+
+export function size(bytes: number): string {
+  if (bytes >= 1e9) return (bytes / 1e9).toFixed(1) + ' GB'
+  if (bytes >= 1e6) return (bytes / 1e6).toFixed(1) + ' MB'
+  if (bytes >= 1e3) return Math.round(bytes / 1e3) + ' kB'
+  return bytes + ' B'
+}
+
+export const percent = (share: number) => Math.round(share * 100) + '%'
+
+export const utc = (unix: number) =>
+  new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
+
+export const longDate = (unix: number) =>
+  new Date(unix * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })

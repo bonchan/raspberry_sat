@@ -42,6 +42,20 @@ export interface Status {
 }
 export interface LogLine { seq: number; time: number; level: string; source: string; text: string }
 
+export interface PassImage {
+  path: string; instrument: string; name: string; variants: string[]; bytes: number
+  width?: number; height?: number; mean?: number; coverage?: number; error?: string
+}
+export interface PassSummary {
+  id: string; satellite: string; time: number; main: string | null
+  coverage: number | null; image_count: number; size: number
+}
+export interface PassDetail {
+  id: string; satellite: string; time: number; main: string | null; coverage: number | null
+  size: number; source_name: string; images: PassImage[]; files: { path: string; bytes: number }[]
+}
+export interface PassList { passes: PassSummary[]; in_progress: { id: string; last_activity: number }[] }
+
 export class ApiError extends Error {
   constructor(message: string, public details: string[] = []) { super(message) }
 }
@@ -75,7 +89,17 @@ export const api = {
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
   getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
+  getPasses: () => request<PassList>('GET', '/passes'),
+  getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
+  deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),
 }
+
+// image paths contain spaces and brackets: encode each part, keep the slashes
+const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/')
+
+/** thumb: small preview; large: screen-sized JPEG; file: SatDump's original file */
+export const passFile = (id: string, kind: 'thumb' | 'large' | 'file', path: string) =>
+  `/api/passes/${encodeURIComponent(id)}/${kind}/${encodePath(path)}`
 
 export const satdumpImage = (name: 'polarplot' | 'schedule' | 'fft', tick: number) =>
   `/api/satdump/${name}.jpeg?t=${tick}`
