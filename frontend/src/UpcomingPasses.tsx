@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { api, type UpcomingPass } from './api'
 import { useNow, usePolling } from './hooks'
 import { clock, compass, duration, utcClock, weekdayAndDay } from './format'
-import { useT, type Key } from './i18n'
+import { useT } from './i18n'
 import SkyPlot, { SkyLegend } from './SkyPlot'
 
 // how good a pass is, from its highest elevation
@@ -38,7 +38,7 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
     const label = sameDay(p.aos, now) ? t('up.today') : weekdayAndDay(p.aos)
     if (label !== day) {
       day = label
-      rows.push(<tr key={`day-${label}`} className="day"><td colSpan={6}>{label}</td></tr>)
+      rows.push(<tr key={`day-${label}`} className="day"><td colSpan={5}>{label}</td></tr>)
     }
     const q = quality(p)
     const live = p.aos <= now && now <= p.los
@@ -53,7 +53,6 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
         <td>{Math.round((p.los - p.aos) / 60)} min</td>
         <td>{Math.round(p.max_el)}°</td>
         <td>{compass(p.aos_az)} → {compass(p.los_az)}</td>
-        <td><span className={`quality q-${q}`}>{t(`quality.${q}` as Key)}</span></td>
       </tr>,
     )
   }
@@ -76,17 +75,21 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
             <thead>
               <tr>
                 <th>{t('up.satellite')}</th><th>{t('up.starts')}</th><th>{t('up.length')}</th>
-                <th>{t('up.maxEl')}</th><th>{t('up.direction')}</th><th>{t('up.quality')}</th>
+                <th>{t('up.maxEl')}</th><th>{t('up.direction')}</th>
               </tr>
             </thead>
             <tbody>{rows}</tbody>
           </table>
         </div>
       )}
-      <p className="hint">
-        {t('up.qualityHint', { good: GOOD, excellent: EXCELLENT })}
-        {showLow && ' ' + t('up.lowHint')}
+      <p className="hint quality-legend">
+        {t('up.qualityLegend')}
+        <span className="swatch q-fair" />{t('quality.fair')} &lt; {GOOD}°
+        <span className="swatch q-good" />{t('quality.good')} {GOOD}–{EXCELLENT}°
+        <span className="swatch q-excellent" />{t('quality.excellent')} ≥ {EXCELLENT}°
+        {showLow && <><span className="swatch q-low" />{t('quality.low')}</>}
       </p>
+      {showLow && <p className="hint">{t('up.lowHint')}</p>}
     </section>
   )
 }
