@@ -5,8 +5,12 @@ Unattended Meteor-M LRPT ground station on a Raspberry Pi 4 with an RTL-SDR.
 optional rotator); this app wraps it with a web page for settings, live status, a gallery,
 Discord posting and storage cleanup. LAN only, no login.
 
-The plan and build order are in [docs/PLAN.md](docs/PLAN.md). Built so far: **step 1** (skeleton:
-settings page, config API, install scripts).
+The plan and build order are in [docs/PLAN.md](docs/PLAN.md). Built so far:
+
+1. Skeleton: settings page, config API, install scripts.
+2. SatDump runs as `satdump autotrack` under the backend: generated config, start/stop/restart,
+   restart after a crash, restart after a settings change (waits for a running pass), daily restart
+   for fresh orbit data. Status page (next pass, polar plot, schedule, spectrum) and Logs page.
 
 ## Layout
 
@@ -42,7 +46,18 @@ Runtime data (config, passes) lives outside the checkout in `~/raspberry_sat_dat
 cd ~/raspberry_sat && git pull && bash scripts/update.sh
 ```
 
-Logs: `journalctl -u raspberry_sat -f`
+This also refreshes the systemd service file, so changes to it arrive with a normal pull.
+
+Logs: the Logs page, `~/raspberry_sat_data/logs/satdump.log` for SatDump's full output, and
+`journalctl -u raspberry_sat -f` for the app itself.
+
+Tests on the Pi:
+
+```bash
+cd ~/raspberry_sat/backend
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest
+```
 
 ## Developing on Windows
 

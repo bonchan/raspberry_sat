@@ -1,18 +1,33 @@
 """raspberry_sat backend: the JSON API under /api, and the built frontend for everything else."""
 
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 
-from app import settings
-from app.routers import config, system
+from app import settings, tasks
+from app.routers import config, logs, satdump, system
+from app.supervisor import supervisor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-app = FastAPI(title="raspberry_sat")
-app.include_router(config.router, prefix="/api")
-app.include_router(system.router, prefix="/api")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    jobs = [asyncio.create_task(job) for job in (supervisor.run(), tasks.poll_tracker(), tasks.housekeeping())]
+    yield
+    await supervisor.shutdown()             # lets SatDump finish a pass it is decoding
+    for job in jobs:
+        job.cancel()
+    await tasks.http.aclose()
+
+
+app = FastAPI(title="raspberry_sat", lifespan=lifespan)
+for router in (config.router, system.router, satdump.router, logs.router):
+    app.include_router(router, prefix="/api")
 
 
 @app.get("/api/health")

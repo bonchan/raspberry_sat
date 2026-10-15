@@ -37,7 +37,8 @@ export default function Settings() {
     setBusy(true); setErrors([]); setMessage('')
     try {
       const c = await api.putConfig(config)
-      setConfig(c); setSaved(JSON.stringify(c)); setMessage('Saved.')
+      setConfig(c); setSaved(JSON.stringify(c))
+      setMessage('Saved. SatDump restarts with these settings once no pass is running.')
     } catch (e) {
       setErrors(e instanceof ApiError && e.details.length ? e.details : [String(e)])
     } finally {

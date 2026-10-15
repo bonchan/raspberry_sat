@@ -11,6 +11,8 @@ Environment=RSAT_DATA=@DATA@
 ExecStart=@REPO@/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5
+# on stop, SatDump first finishes decoding a pass it just received
+TimeoutStopSec=150
 
 [Install]
 WantedBy=multi-user.target

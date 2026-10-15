@@ -5,7 +5,6 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DATA_DIR="${RSAT_DATA:-$HOME/raspberry_sat_data}"
 SATDUMP_VERSION=1.2.2
 NODE_MAJOR=22
 SERVICE=raspberry_sat
@@ -36,14 +35,10 @@ if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split("."
 fi
 sudo corepack enable          # provides pnpm, version pinned in frontend/package.json
 
-echo "== app dependencies + frontend build"
-mkdir -p "$DATA_DIR"
+echo "== app dependencies, frontend build, service file"
 bash "$REPO_DIR/scripts/update.sh" --no-restart
 
-echo "== systemd service"
-sed -e "s|@USER@|$USER|g" -e "s|@REPO@|$REPO_DIR|g" -e "s|@DATA@|$DATA_DIR|g" \
-  "$REPO_DIR/scripts/$SERVICE.service" | sudo tee "/etc/systemd/system/$SERVICE.service" >/dev/null
-sudo systemctl daemon-reload
+echo "== start the service"
 sudo systemctl enable "$SERVICE"
 sudo systemctl restart "$SERVICE"
 

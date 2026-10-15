@@ -5,7 +5,7 @@ import logging
 import time
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +45,14 @@ class Rotator(BaseModel):
     enabled: bool = False
     address: str = "192.168.1.50"
     port: int = Field(4533, ge=1, le=65535)
+
+    @model_validator(mode="after")
+    def address_satdump_can_use(self):
+        # SatDump 1.2.2 copies the address over its default "127.0.0.1" without a terminator,
+        # so a shorter one keeps the leftover characters: "10.0.0.5" becomes "10.0.0.51"
+        if self.enabled and len(self.address) < len("127.0.0.1"):
+            raise ValueError("SatDump 1.2.2 garbles rotator addresses shorter than 9 characters")
+        return self
 
 
 class Discord(BaseModel):

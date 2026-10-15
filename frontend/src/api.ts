@@ -24,6 +24,24 @@ export interface SystemInfo {
   disk: { total: number; used: number; free: number }
 }
 
+export type SatdumpState = 'stopped' | 'running' | 'stopping' | 'waiting' | 'not_installed'
+export interface SatdumpProcess {
+  state: SatdumpState; wanted: boolean; pid: number | null; started_at: number | null
+  exit_code: number | null; restart_pending: boolean; restart_reason: string
+}
+export interface AzEl { az: number; el: number }
+// SatDump's own /api, passed through (times are unix seconds)
+export interface ObjectTracker {
+  object_name: string; sat_current_pos: AzEl; sat_current_range?: number
+  next_aos_time: number; next_los_time: number; next_event_is_aos: boolean; next_event_in: number
+  rotator_engaged: boolean; rotator_tracking: boolean; rot_current_pos: AzEl; rot_current_req_pos: AzEl
+}
+export interface SatdumpApi { object_tracker: ObjectTracker; frequency: number; recording?: { written_size: number } }
+export interface Status {
+  satdump: SatdumpProcess; tracker: SatdumpApi | null; tracker_age: number | null; in_pass: boolean
+}
+export interface LogLine { seq: number; time: number; level: string; source: string; text: string }
+
 export class ApiError extends Error {
   constructor(message: string, public details: string[] = []) { super(message) }
 }
@@ -53,4 +71,11 @@ export const api = {
   getConfig: () => request<Config>('GET', '/config'),
   putConfig: (config: Config) => request<Config>('PUT', '/config', config),
   getSystem: () => request<SystemInfo>('GET', '/system'),
+  getStatus: () => request<Status>('GET', '/status'),
+  satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
+  getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
+  getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
 }
+
+export const satdumpImage = (name: 'polarplot' | 'schedule' | 'fft', tick: number) =>
+  `/api/satdump/${name}.jpeg?t=${tick}`

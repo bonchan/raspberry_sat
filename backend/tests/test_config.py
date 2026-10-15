@@ -54,5 +54,13 @@ def test_api_rejects_invalid(config_file):
     assert not config_file.exists()
 
 
+def test_api_save_asks_for_a_satdump_restart(config_file, monkeypatch):
+    from app.supervisor import supervisor
+    monkeypatch.setattr(supervisor, "restart_pending", False)
+    client = TestClient(app)
+    client.put("/api/config", json=client.get("/api/config").json())
+    assert supervisor.restart_pending
+
+
 def test_api_paths_are_not_swallowed_by_the_frontend(config_file):
     assert TestClient(app).get("/api/nope").status_code == 404

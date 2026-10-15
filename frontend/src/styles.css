@@ -67,3 +67,26 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 12px; }
 .facts dt { color: var(--dim); }
 .facts dd { margin: 0; overflow-wrap: anywhere; }
+
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.row:last-child { margin-bottom: 0; }
+
+.plots { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 12px; }
+.plots img, img.fft { background: #000; border-radius: 6px; max-width: 100%; }
+img.polar { width: 256px; aspect-ratio: 1; }
+img.schedule { flex: 1; min-width: 260px; height: auto; }
+img.fft { display: block; width: 512px; aspect-ratio: 1; margin-top: 12px; }
+
+.console {
+  height: 60vh; overflow: auto; background: #0c0d10; border-radius: 6px; padding: 8px; margin: 0;
+  font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word;
+}
+details .console { height: auto; max-height: 60vh; margin-top: 10px; }
+summary { cursor: pointer; color: var(--dim); }
+.line { display: grid; grid-template-columns: max-content 4.5em 1fr; gap: 8px; }
+.line .time { color: var(--dim); }
+.line .level { color: var(--dim); }
+.line.warn .level, .line.warn .text { color: #e5b84d; }
+.line.error .level, .line.error .text, .line.critical .level, .line.critical .text { color: var(--danger); }
+.line.debug, .line.trace { opacity: .6; }
+.line.app .level { color: var(--accent); }

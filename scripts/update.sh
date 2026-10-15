@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# After `git pull`: refresh dependencies, rebuild the frontend, restart the service.
+# After `git pull`: refresh dependencies, rebuild the frontend, refresh the service, restart it.
 #   bash scripts/update.sh               normal use
-#   bash scripts/update.sh --no-restart  used by install.sh before the service exists
+#   bash scripts/update.sh --no-restart  used by install.sh, which starts the service itself
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+DATA_DIR="${RSAT_DATA:-$HOME/raspberry_sat_data}"
 SERVICE=raspberry_sat
 
 echo "== backend"
@@ -19,7 +20,13 @@ export COREPACK_ENABLE_DOWNLOAD_PROMPT=0   # let corepack fetch pnpm without ask
 pnpm install --frozen-lockfile
 pnpm build
 
-if [ "${1:-}" != "--no-restart" ] && [ -f "/etc/systemd/system/$SERVICE.service" ]; then
+echo "== systemd service"
+mkdir -p "$DATA_DIR"
+sed -e "s|@USER@|$USER|g" -e "s|@REPO@|$REPO_DIR|g" -e "s|@DATA@|$DATA_DIR|g" \
+  "$REPO_DIR/scripts/$SERVICE.service" | sudo tee "/etc/systemd/system/$SERVICE.service" >/dev/null
+sudo systemctl daemon-reload
+
+if [ "${1:-}" != "--no-restart" ]; then
   echo "== restart"
   sudo systemctl restart "$SERVICE"
 fi
