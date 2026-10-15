@@ -11,3 +11,6 @@ frontend/dist/
 
 # runtime data, if RSAT_DATA is pointed inside the repo
 data/
+
+# arduino sketches: Wi-Fi passwords
+arduino/**/secrets.h
