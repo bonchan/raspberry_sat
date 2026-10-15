@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { api } from './api'
 import { LanguageContext, setCurrentLanguage, type Lang } from './i18n'
 import Layout from './Layout'
+import Upcoming from './pages/Upcoming'
 import Status from './pages/Status'
 import Live from './pages/Live'
 import Passes from './pages/Passes'
@@ -46,7 +47,8 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
-            <Route index element={<Status />} />
+            <Route index element={<Upcoming />} />
+            <Route path="status" element={<Status />} />
             <Route path="live" element={<Live />} />
             <Route path="passes" element={<Passes />} />
             <Route path="passes/:id" element={<PassDetail />} />

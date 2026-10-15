@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, satdumpImage, type Live as LiveData, type LiveSample, type UpcomingPass } from '../api'
 import { useNow, usePolling, useTick } from '../hooks'
-import { clock, duration, size, utcClock } from '../format'
+import { clock, size, utcClock } from '../format'
 import { useT, type Key } from '../i18n'
+import PassCards from '../PassCards'
 import SkyPlot, { SkyLegend } from '../SkyPlot'
 
 const FRAME_BYTES = 1024            // one Meteor LRPT frame (CADU) in SatDump's .cadu file
@@ -59,6 +60,7 @@ export default function Live() {
       <>
         <section>
           <h2>{t('live.receiving', { name: tracker.object_name })}</h2>
+          <PassCards aos={aos} los={los} inPass />
           <Progress aos={aos} los={los} now={now} />
         </section>
         <div className="live-grid">
@@ -90,7 +92,11 @@ export default function Live() {
   return (
     <>
       {status.satdump.state !== 'running' && (
-        <section><p className="error">{t('live.notRunning', { state: t(`state.${status.satdump.state}` as Key) })}</p></section>
+        <section>
+          <p className="error">
+            {t('live.notRunning', { state: t(`state.${status.satdump.state}` as Key) })} <Link to="/status">→</Link>
+          </p>
+        </section>
       )}
       {status.overhead && tracker && (
         <section>
@@ -114,23 +120,20 @@ export default function Live() {
           <SignalChart samples={samples} start={live.pass_started} end={live.last_los} />
         </section>
       )}
-      <NextPass next={next} now={now} />
+      <NextPass next={next} />
     </>
   )
 }
 
-function NextPass({ next, now }: { next?: UpcomingPass; now: number }) {
+function NextPass({ next }: { next?: UpcomingPass }) {
   const t = useT()
   if (!next) return <section><h2>{t('live.nextPass')}</h2><p className="hint">{t('live.noNext')}</p></section>
   return (
     <section>
-      <h2>{t('live.nextPass')}</h2>
-      <p>
-        <b>{next.name}</b>{' '}
-        {t('live.nextDetail', {
-          d: duration(next.aos - now), local: clock(next.aos), utc: utcClock(next.aos),
-          min: Math.round((next.los - next.aos) / 60), el: Math.round(next.max_el),
-        })}
+      <h2>{t('live.nextPass')} · {next.name}</h2>
+      <PassCards aos={next.aos} los={next.los} inPass={false} />
+      <p className="hint">
+        {t('live.nextDetail', { min: Math.round((next.los - next.aos) / 60), el: Math.round(next.max_el) })}
       </p>
       <div className="narrow">
         <SkyPlot track={next.track} />
@@ -141,19 +144,10 @@ function NextPass({ next, now }: { next?: UpcomingPass; now: number }) {
   )
 }
 
+/** How far through the pass we are; the cards above carry the times. */
 function Progress({ aos, los, now }: { aos: number; los: number; now: number }) {
-  const t = useT()
   const share = Math.min(1, Math.max(0, (now - aos) / Math.max(1, los - aos)))
-  return (
-    <>
-      <div className="progress"><div style={{ width: `${share * 100}%` }} /></div>
-      <div className="progress-labels">
-        <span>AOS {utcClock(aos)} UTC</span>
-        <span>{t('live.left', { d: duration(los - now) })}</span>
-        <span>LOS {utcClock(los)} UTC</span>
-      </div>
-    </>
-  )
+  return <div className="progress"><div style={{ width: `${share * 100}%` }} /></div>
 }
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'ok' | 'warn' | 'bad' }) {

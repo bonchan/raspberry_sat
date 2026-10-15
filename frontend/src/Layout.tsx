@@ -5,9 +5,10 @@ import { useT, type Key } from './i18n'
 import { clock } from './format'
 
 const links: { to: string; label: Key; end?: boolean }[] = [
-  { to: '/', label: 'nav.status', end: true },
+  { to: '/', label: 'nav.upcoming', end: true },
   { to: '/live', label: 'nav.live' },
   { to: '/passes', label: 'nav.passes' },
+  { to: '/status', label: 'nav.status' },
   { to: '/settings', label: 'nav.settings' },
   { to: '/logs', label: 'nav.logs' },
 ]
@@ -32,6 +33,16 @@ function UpdateBadge() {
   return <NavLink className="badge" to="/update">{t('update.badge')}</NavLink>
 }
 
+// nothing while SatDump runs; red when it doesn't, or when the Pi does not answer
+function SatdumpBadge() {
+  const t = useT()
+  const { data, error } = usePolling(api.getStatus, 5000)
+  const state = data?.satdump.state
+  if (error) return <NavLink className="badge danger" to="/status">{t('header.offline')}</NavLink>
+  if (!state || state === 'running') return null
+  return <NavLink className="badge danger" to="/status">SatDump: {t(`state.${state}` as Key)}</NavLink>
+}
+
 export default function Layout() {
   const t = useT()
   return (
@@ -43,8 +54,11 @@ export default function Layout() {
             <NavLink key={l.to} to={l.to} end={l.end}>{t(l.label)}</NavLink>
           ))}
         </nav>
-        <UpdateBadge />
-        <Clock />
+        <div className="topbar-right">
+          <UpdateBadge />
+          <SatdumpBadge />
+          <Clock />
+        </div>
       </header>
       <main>
         <Outlet />

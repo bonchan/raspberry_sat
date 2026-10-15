@@ -78,11 +78,12 @@ img.fft { display: block; width: 512px; max-width: 100%; aspect-ratio: 1; backgr
 .center { text-align: center; }
 .narrow { max-width: 340px; }
 
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .badge {
-  margin-left: auto; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
   background: var(--warn); color: #1a1405; text-decoration: none;
 }
-.badge + .clock { margin-left: 0; }
+.badge.danger { background: var(--danger); color: #fff; }
 
 /* update page */
 code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
@@ -124,7 +125,7 @@ table.nearby td { padding: 6px 8px; }
 .signal .bar { display: inline-block; width: 60px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; vertical-align: middle; }
 .signal .bar span { display: block; height: 100%; background: var(--ok); }
 
-.clock { margin-left: auto; display: flex; gap: 10px; align-items: baseline; font-variant-numeric: tabular-nums; }
+.clock { display: flex; gap: 10px; align-items: baseline; font-variant-numeric: tabular-nums; }
 
 /* sky plot */
 .sky { width: 100%; max-width: 340px; display: block; margin: 0 auto; }
@@ -175,7 +176,7 @@ table.passes tr.live td { font-weight: 600; }
 @media (max-width: 760px) { .live-grid { grid-template-columns: 1fr; } }
 .progress { height: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
 .progress > div { height: 100%; background: var(--accent); transition: width 1s linear; }
-.progress-labels { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; margin-top: 4px; }
+.pass-cards + .progress { margin-top: 4px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .tile { background: var(--bg); border-radius: 6px; padding: 10px; border-left: 3px solid var(--line); display: grid; gap: 2px; }
 .tile b { font-size: 22px; font-variant-numeric: tabular-nums; }

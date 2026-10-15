@@ -14,7 +14,9 @@ export const LANGUAGES: { code: Lang; name: string }[] = [
 const LOCALES: Record<Lang, string> = { en: 'en-GB', es: 'es-AR' }
 
 const en = {
+  'nav.upcoming': 'Upcoming passes',
   'nav.status': 'Status',
+  'header.offline': 'Pi not answering',
   'nav.live': 'Live',
   'nav.passes': 'Passes',
   'nav.settings': 'Settings',
@@ -130,7 +132,6 @@ const en = {
   'live.sky': 'Sky',
   'live.signal': 'Signal',
   'live.thisPass': 'This pass',
-  'live.left': '{d} left',
   'live.notRunning': 'SatDump is not running ({state}). See Status.',
   'live.overheadTitle': '{name} is overhead, not recorded',
   'live.overheadHint': 'This pass stays under the minimum elevation{peak}, so SatDump leaves the radio off and there is no signal to show.',
@@ -141,7 +142,7 @@ const en = {
   'live.seeInPasses': 'See it in Passes →',
   'live.nextPass': 'Next pass',
   'live.noNext': 'No upcoming pass is high enough to record.',
-  'live.nextDetail': 'in {d}: {local} ({utc} UTC), {min} min, up to {el}°.',
+  'live.nextDetail': '{min} min, up to {el}°.',
   'live.switches': 'This page switches to the live view when the pass starts.',
   'live.peakSnr': 'peak {v} dB',
   'live.locked': 'locked',
@@ -342,7 +343,9 @@ const en = {
 export type Key = keyof typeof en
 
 const es: Record<Key, string> = {
+  'nav.upcoming': 'Próximas pasadas',
   'nav.status': 'Estado',
+  'header.offline': 'La Pi no responde',
   'nav.live': 'En vivo',
   'nav.passes': 'Pasadas',
   'nav.settings': 'Configuración',
@@ -458,7 +461,6 @@ const es: Record<Key, string> = {
   'live.sky': 'Cielo',
   'live.signal': 'Señal',
   'live.thisPass': 'Esta pasada',
-  'live.left': 'faltan {d}',
   'live.notRunning': 'SatDump no está en marcha ({state}). Ver Estado.',
   'live.overheadTitle': '{name} está pasando, sin grabar',
   'live.overheadHint': 'Esta pasada no supera la elevación mínima{peak}, así que SatDump deja la radio apagada y no hay señal para mostrar.',
@@ -469,7 +471,7 @@ const es: Record<Key, string> = {
   'live.seeInPasses': 'Verla en Pasadas →',
   'live.nextPass': 'Próxima pasada',
   'live.noNext': 'Ninguna próxima pasada es suficientemente alta para grabarla.',
-  'live.nextDetail': 'en {d}: {local} ({utc} UTC), {min} min, hasta {el}°.',
+  'live.nextDetail': '{min} min, hasta {el}°.',
   'live.switches': 'Esta página pasa a la vista en vivo cuando empieza la pasada.',
   'live.peakSnr': 'pico {v} dB',
   'live.locked': 'enganchado',
