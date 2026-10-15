@@ -40,7 +40,9 @@ export interface ObjectTracker {
 }
 export interface SatdumpApi { object_tracker: ObjectTracker; frequency: number; recording?: { written_size: number } }
 export interface Status {
-  satdump: SatdumpProcess; tracker: SatdumpApi | null; tracker_age: number | null; in_pass: boolean
+  satdump: SatdumpProcess; tracker: SatdumpApi | null; tracker_age: number | null
+  receiving: boolean      // SatDump is decoding/recording a pass
+  overhead: boolean       // the tracked satellite is up, recorded or not (low passes are skipped)
 }
 export interface LogLine { seq: number; time: number; level: string; source: string; text: string }
 
@@ -72,7 +74,7 @@ export interface LiveSample {
   viterbi_ber?: number; viterbi_lock?: number | boolean; deframer_lock?: boolean; rs_avg?: number
 }
 export interface Live {
-  in_pass: boolean; pass_started: number; last_los: number; history: LiveSample[]
+  receiving: boolean; pass_started: number; last_los: number; history: LiveSample[]
   folder: string | null; cadu_bytes: number
 }
 

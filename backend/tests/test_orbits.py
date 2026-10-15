@@ -68,3 +68,13 @@ def test_tracker_records_signal_during_a_pass():
     tracker.update(after)
     assert tracker.last_los > 0
     assert len(tracker.history) == 2             # kept until the next pass starts
+
+
+def test_low_pass_is_overhead_but_not_received():
+    import time
+    tracker = Tracker()
+    # SatDump's tracker follows the satellite, but no pipeline runs: the pass is under the minimum elevation
+    tracker.update({"object_tracker": {"next_event_is_aos": False, "next_los_time": time.time() + 300,
+                                       "sat_current_pos": {"az": 200.0, "el": 6.0}}})
+    assert tracker.overhead() and not tracker.receiving()
+    assert tracker.history == [] and tracker.last_los == 0

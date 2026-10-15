@@ -50,7 +50,7 @@ function Receiver({ status }: { status: StatusData }) {
   const [label, cls] = STATE_LABEL[p.state]
 
   async function control(action: 'start' | 'stop' | 'restart') {
-    if (action !== 'start' && status.in_pass &&
+    if (action !== 'start' && status.receiving &&
       !confirm('A pass is being received right now. Interrupt it?')) return
     setBusy(true)
     try { await api.satdump(action) } finally { setBusy(false) }
@@ -82,14 +82,17 @@ function NextPass({ status }: { status: StatusData }) {
 
   const hasPass = t.next_los_time > 0
   const stale = status.tracker_age !== null && status.tracker_age > 10
+  // SatDump's tracker follows every pass of the satellite; low ones are skipped, nothing is received
+  const skipped = status.overhead && !status.receiving
+  const title = status.receiving ? 'Receiving now' : skipped ? 'Overhead now, not recorded' : 'Next pass (SatDump)'
   return (
     <section>
-      <h2>{status.in_pass ? 'Receiving now' : 'Next pass (SatDump)'}</h2>
+      <h2>{title}</h2>
       {!hasPass && <p className="hint">No pass scheduled. Check the satellites and minimum elevation in Settings.</p>}
       {hasPass && (
         <dl className="facts">
           <dt>Satellite</dt><dd>{t.object_name}</dd>
-          {status.in_pass
+          {status.overhead
             ? <><dt>Ends</dt><dd>{clock(t.next_los_time)} ({utcClock(t.next_los_time)} UTC), in {duration(t.next_los_time - now)}</dd></>
             : <><dt>Starts</dt><dd>{dateTime(t.next_aos_time)} ({utcClock(t.next_aos_time)} UTC), in {duration(t.next_aos_time - now)}</dd>
                 <dt>Ends</dt><dd>{clock(t.next_los_time)} ({utcClock(t.next_los_time)} UTC)</dd></>}
@@ -98,11 +101,13 @@ function NextPass({ status }: { status: StatusData }) {
             <dd>az {t.sat_current_pos.az.toFixed(1)}°, el {t.sat_current_pos.el.toFixed(1)}°
               {t.sat_current_range !== undefined && `, ${Math.round(t.sat_current_range)} km`}</dd>
           </>}
-          {status.tracker && <><dt>Tuned to</dt><dd>{(status.tracker.frequency / 1e6).toFixed(3)} MHz</dd></>}
+          {status.receiving && status.tracker &&
+            <><dt>Tuned to</dt><dd>{(status.tracker.frequency / 1e6).toFixed(3)} MHz</dd></>}
         </dl>
       )}
+      {skipped && <p className="hint">This pass stays under the minimum elevation, so SatDump leaves the radio off.</p>}
       {stale && <p className="hint">Status is {Math.round(status.tracker_age!)} s old.</p>}
-      {status.in_pass && <p><Link to="/live">Watch it live →</Link></p>}
+      {status.receiving && <p><Link to="/live">Watch it live →</Link></p>}
     </section>
   )
 }

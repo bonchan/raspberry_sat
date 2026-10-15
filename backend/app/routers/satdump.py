@@ -20,7 +20,8 @@ def get_status() -> dict:
         "satdump": supervisor.snapshot(),
         "tracker": tracker.data,
         "tracker_age": time.time() - tracker.updated_at if tracker.data else None,
-        "in_pass": tracker.in_pass(),
+        "receiving": tracker.receiving(),
+        "overhead": tracker.overhead(),
     }
 
 
@@ -29,7 +30,7 @@ def get_live(after: float = 0) -> dict:
     """The current (or last) pass as it happens: signal samples newer than `after`, data received so far."""
     folder = passes.active_folder(settings.PASSES_DIR)
     return {
-        "in_pass": tracker.in_pass(),
+        "receiving": tracker.receiving(),
         "pass_started": tracker.pass_started,
         "last_los": tracker.last_los,
         "history": [s for s in tracker.history if s["t"] > after],

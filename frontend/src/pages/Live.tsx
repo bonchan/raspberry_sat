@@ -50,7 +50,7 @@ export default function Live() {
   const current = passes.find(p => p.aos - 60 <= now && now <= p.los + 60)
   const next = passes.find(p => p.scheduled && p.aos > now)
 
-  if (live.in_pass && tracker) {
+  if (live.receiving && tracker) {
     const aos = current?.aos ?? live.pass_started
     const los = current?.los ?? tracker.next_los_time
     return (
@@ -89,6 +89,19 @@ export default function Live() {
     <>
       {status.satdump.state !== 'running' && (
         <section><p className="error">SatDump is not running ({status.satdump.state}). See Status.</p></section>
+      )}
+      {status.overhead && tracker && (
+        <section>
+          <h2>{tracker.object_name} is overhead, not recorded</h2>
+          <p className="hint">
+            This pass stays under the minimum elevation{current && ` (it peaks at ${Math.round(current.max_el)}°)`},
+            so SatDump leaves the radio off and there is no signal to show.
+          </p>
+          <div className="narrow">
+            <SkyPlot track={current?.track} current={tracker.sat_current_pos} />
+            <SkyLegend />
+          </div>
+        </section>
       )}
       {recent && (
         <section>

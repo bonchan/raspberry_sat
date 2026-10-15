@@ -41,26 +41,33 @@ class Tracker:
         self.pass_started = 0.0         # when the current or last pass began
         self.last_los = 0.0             # when the last pass ended (or SatDump stopped during one)
         self.history: list[dict] = []   # one sample per poll during the current or last pass
-        self._was_in_pass = False
+        self._was_receiving = False
 
-    def in_pass(self) -> bool:
+    def overhead(self) -> bool:
+        """The tracked satellite is above the horizon, whether SatDump records this pass or not."""
         t = (self.data or {}).get("object_tracker") or {}
         return not t.get("next_event_is_aos", True) and t.get("next_los_time", 0) > time.time()
+
+    def receiving(self) -> bool:
+        """SatDump is decoding or recording a pass right now. Its tracker follows every pass,
+        but passes under the minimum elevation are skipped: no SDR, no pipeline, no data."""
+        data = self.data or {}
+        return "live_pipeline" in data or "recording" in data
 
     def update(self, data: dict | None) -> None:
         now = time.time()
         self.data = data
         if data is not None:
             self.updated_at = now
-        now_in_pass = self.in_pass()
-        if now_in_pass and not self._was_in_pass:
+        receiving = self.receiving()
+        if receiving and not self._was_receiving:
             self.pass_started, self.history = now, []
-        if self._was_in_pass and not now_in_pass:
+        if self._was_receiving and not receiving:
             self.last_los = now
-        if now_in_pass and data is not None:
+        if receiving and data is not None:
             pos = (data.get("object_tracker") or {}).get("sat_current_pos") or {}
             self.history.append({"t": round(now, 1), "az": pos.get("az"), "el": pos.get("el"), **signal(data)})
-        self._was_in_pass = now_in_pass
+        self._was_receiving = receiving
 
 
 tracker = Tracker()
@@ -81,7 +88,7 @@ async def poll_tracker() -> None:
 
 
 def safe_to_restart() -> bool:
-    return not tracker.in_pass() and not passes.output_busy(settings.PASSES_DIR)
+    return not tracker.receiving() and not passes.output_busy(settings.PASSES_DIR)
 
 
 async def housekeeping() -> None:
@@ -102,7 +109,7 @@ async def scan_passes() -> None:
     reported: set[str] = set()          # folders whose error was already logged
     while True:
         await asyncio.sleep(SCAN_INTERVAL)
-        if tracker.in_pass() or time.time() - tracker.last_los < passes.SETTLE:
+        if tracker.receiving() or time.time() - tracker.last_los < passes.SETTLE:
             continue                    # SatDump is receiving, or still decoding: leave its folders alone
         try:
             done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR)
