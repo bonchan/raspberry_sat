@@ -26,6 +26,19 @@ export function NumberField({ label, hint, value, onChange, step = 'any' }:
   )
 }
 
+export function SelectField<T extends string>({ label, hint, value, options, onChange }:
+  Base & { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select value={value} onChange={e => onChange(e.target.value as T)}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      {hint && <small>{hint}</small>}
+    </label>
+  )
+}
+
 export function CheckField({ label, hint, value, onChange }:
   Base & { value: boolean; onChange: (v: boolean) => void }) {
   return (

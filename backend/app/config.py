@@ -4,6 +4,7 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -70,6 +71,7 @@ class Storage(BaseModel):
 
 class Display(BaseModel):
     show_low_passes: bool = True           # list passes that stay under the minimum elevation
+    language: Literal["en", "es"] = "en"   # of the web interface
 
 
 def default_satellites() -> list[Satellite]:

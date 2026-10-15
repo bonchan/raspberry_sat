@@ -55,6 +55,13 @@ def test_selected_station_is_the_one_used():
         Config(stations=[])
 
 
+def test_language_is_english_or_spanish():
+    assert Config().display.language == "en"
+    assert Config.model_validate({"display": {"language": "es"}}).display.language == "es"
+    with pytest.raises(ValidationError):
+        Config.model_validate({"display": {"language": "fr"}})
+
+
 def test_api_get_put(config_file):
     client = TestClient(app)
     body = client.get("/api/config").json()

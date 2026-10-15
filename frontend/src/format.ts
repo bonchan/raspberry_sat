@@ -1,3 +1,5 @@
+import { currentLanguage, locale } from './i18n'
+
 export function duration(seconds: number): string {
   const s = Math.max(0, Math.round(seconds))
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
@@ -6,11 +8,24 @@ export function duration(seconds: number): string {
   return `${r} s`
 }
 
+// local times, in the interface language (always 24-hour)
 export const clock = (unix: number) =>
-  new Date(unix * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  new Date(unix * 1000).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hour12: false })
+
+export const clockSeconds = (unix: number) =>
+  new Date(unix * 1000).toLocaleTimeString(locale(), { hour12: false })
 
 export const dateTime = (unix: number) =>
-  new Date(unix * 1000).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+  new Date(unix * 1000).toLocaleString(locale(), { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+
+export const longDate = (unix: number) =>
+  new Date(unix * 1000).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short', hour12: false })
+
+/** "Wednesday 14" / "miércoles 14" */
+export const weekdayAndDay = (unix: number) => {
+  const d = new Date(unix * 1000)
+  return `${d.toLocaleDateString(locale(), { weekday: 'long' })} ${d.getDate()}`
+}
 
 export const gb = (bytes: number) => (bytes / 1e9).toFixed(1) + ' GB'
 
@@ -26,11 +41,11 @@ export const percent = (share: number) => Math.round(share * 100) + '%'
 /** "13:10" in UTC */
 export const utcClock = (unix: number) => new Date(unix * 1000).toISOString().slice(11, 16)
 
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-export const compass = (az: number) => COMPASS[Math.round(az / 45) % 8]
-
 export const utc = (unix: number) =>
   new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 
-export const longDate = (unix: number) =>
-  new Date(unix * 1000).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+const COMPASS = {
+  en: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'],
+  es: ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'],
+}
+export const compass = (az: number) => COMPASS[currentLanguage()][Math.round(az / 45) % 8]

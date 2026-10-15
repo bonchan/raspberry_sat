@@ -1,9 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, type LogLine } from '../api'
+import { clockSeconds } from '../format'
+import { useT } from '../i18n'
 
 const MAX_LINES = 3000
 
 export default function Logs() {
+  const t = useT()
   const [lines, setLines] = useState<LogLine[]>([])
   const [showDebug, setShowDebug] = useState(false)
   const last = useRef(0)
@@ -40,11 +43,11 @@ export default function Logs() {
   return (
     <>
       <section>
-        <h2>SatDump log</h2>
+        <h2>{t('logs.title')}</h2>
         <div className="row">
           <label className="field check"><input type="checkbox" checked={showDebug}
-            onChange={e => setShowDebug(e.target.checked)} /><span>Debug lines</span></label>
-          <span className="hint">Last {MAX_LINES} lines. The full log is in logs/satdump.log in the data folder.</span>
+            onChange={e => setShowDebug(e.target.checked)} /><span>{t('logs.debug')}</span></label>
+          <span className="hint">{t('logs.hint', { n: MAX_LINES })}</span>
         </div>
         <div className="console" ref={box}
           onScroll={e => {
@@ -53,7 +56,7 @@ export default function Logs() {
           }}>
           {shown.map(l => (
             <div key={l.seq} className={`line ${l.level} ${l.source}`}>
-              <span className="time">{new Date(l.time * 1000).toLocaleTimeString()}</span>
+              <span className="time">{clockSeconds(l.time)}</span>
               <span className="level">{l.source === 'app' ? 'app' : l.level}</span>
               <span className="text">{l.text}</span>
             </div>
@@ -66,6 +69,7 @@ export default function Logs() {
 }
 
 function GeneratedConfig() {
+  const t = useT()
   const [text, setText] = useState('')
   return (
     <section>
@@ -74,8 +78,8 @@ function GeneratedConfig() {
           api.getSatdumpConfig().then(c => setText(JSON.stringify(c, null, 2)), e => setText(String(e)))
         }
       }}>
-        <summary>SatDump configuration generated from the settings</summary>
-        <pre className="console">{text || 'Loading…'}</pre>
+        <summary>{t('logs.generated')}</summary>
+        <pre className="console">{text || t('common.loading')}</pre>
       </details>
     </section>
   )

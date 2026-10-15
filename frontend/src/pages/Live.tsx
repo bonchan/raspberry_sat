@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, satdumpImage, type Live as LiveData, type LiveSample, type UpcomingPass } from '../api'
 import { useNow, usePolling, useTick } from '../hooks'
 import { clock, duration, size, utcClock } from '../format'
+import { useT, type Key } from '../i18n'
 import SkyPlot, { SkyLegend } from '../SkyPlot'
 
 const FRAME_BYTES = 1024            // one Meteor LRPT frame (CADU) in SatDump's .cadu file
@@ -38,12 +39,13 @@ function useLive() {
 }
 
 export default function Live() {
+  const t = useT()
   const { data: status } = usePolling(api.getStatus, 1000)
   const { data: schedule } = usePolling(api.getSchedule, 60000)
   const { live, samples } = useLive()
   const now = useNow()
 
-  if (!status || !live) return <section><p className="hint">Loading…</p></section>
+  if (!status || !live) return <section><p className="hint">{t('common.loading')}</p></section>
 
   const tracker = status.tracker?.object_tracker
   const passes = schedule?.passes ?? []
@@ -56,12 +58,12 @@ export default function Live() {
     return (
       <>
         <section>
-          <h2>Receiving {tracker.object_name}</h2>
+          <h2>{t('live.receiving', { name: tracker.object_name })}</h2>
           <Progress aos={aos} los={los} now={now} />
         </section>
         <div className="live-grid">
           <section>
-            <h2>Sky</h2>
+            <h2>{t('live.sky')}</h2>
             <SkyPlot track={current?.track} current={tracker.sat_current_pos} />
             <p className="hint center">
               az {tracker.sat_current_pos.az.toFixed(0)}°, el {tracker.sat_current_pos.el.toFixed(0)}°
@@ -70,13 +72,13 @@ export default function Live() {
             <SkyLegend />
           </section>
           <section>
-            <h2>Signal</h2>
+            <h2>{t('live.signal')}</h2>
             <SignalTiles sample={samples[samples.length - 1]} caduBytes={live.cadu_bytes}
               frequency={status.tracker?.frequency} />
           </section>
         </div>
         <section>
-          <h2>This pass</h2>
+          <h2>{t('live.thisPass')}</h2>
           <SignalChart samples={samples} start={aos} end={los} track={current?.track} />
         </section>
         <Spectrum />
@@ -88,14 +90,13 @@ export default function Live() {
   return (
     <>
       {status.satdump.state !== 'running' && (
-        <section><p className="error">SatDump is not running ({status.satdump.state}). See Status.</p></section>
+        <section><p className="error">{t('live.notRunning', { state: t(`state.${status.satdump.state}` as Key) })}</p></section>
       )}
       {status.overhead && tracker && (
         <section>
-          <h2>{tracker.object_name} is overhead, not recorded</h2>
+          <h2>{t('live.overheadTitle', { name: tracker.object_name })}</h2>
           <p className="hint">
-            This pass stays under the minimum elevation{current && ` (it peaks at ${Math.round(current.max_el)}°)`},
-            so SatDump leaves the radio off and there is no signal to show.
+            {t('live.overheadHint', { peak: current ? t('live.peak', { el: Math.round(current.max_el) }) : '' })}
           </p>
           <div className="narrow">
             <SkyPlot track={current?.track} current={tracker.sat_current_pos} />
@@ -105,12 +106,10 @@ export default function Live() {
       )}
       {recent && (
         <section>
-          <h2>Last pass</h2>
+          <h2>{t('live.lastPass')}</h2>
           <p>
-            Ended at {clock(live.last_los)} ({utcClock(live.last_los)} UTC).{' '}
-            {live.folder
-              ? 'SatDump is decoding it; the images appear in Passes about 5 minutes after it finishes.'
-              : <Link to="/passes">See it in Passes →</Link>}
+            {t('live.ended', { local: clock(live.last_los), utc: utcClock(live.last_los) })}{' '}
+            {live.folder ? t('live.decoding') : <Link to="/passes">{t('live.seeInPasses')}</Link>}
           </p>
           <SignalChart samples={samples} start={live.pass_started} end={live.last_los} />
         </section>
@@ -121,31 +120,36 @@ export default function Live() {
 }
 
 function NextPass({ next, now }: { next?: UpcomingPass; now: number }) {
-  if (!next) return <section><h2>Next pass</h2><p className="hint">No pass high enough in the next 24 hours.</p></section>
+  const t = useT()
+  if (!next) return <section><h2>{t('live.nextPass')}</h2><p className="hint">{t('live.noNext')}</p></section>
   return (
     <section>
-      <h2>Next pass</h2>
+      <h2>{t('live.nextPass')}</h2>
       <p>
-        <b>{next.name}</b> in {duration(next.aos - now)}: {clock(next.aos)} ({utcClock(next.aos)} UTC),
-        {' '}{Math.round((next.los - next.aos) / 60)} min, up to {Math.round(next.max_el)}°.
+        <b>{next.name}</b>{' '}
+        {t('live.nextDetail', {
+          d: duration(next.aos - now), local: clock(next.aos), utc: utcClock(next.aos),
+          min: Math.round((next.los - next.aos) / 60), el: Math.round(next.max_el),
+        })}
       </p>
       <div className="narrow">
         <SkyPlot track={next.track} />
         <SkyLegend />
       </div>
-      <p className="hint">This page switches to the live view when the pass starts.</p>
+      <p className="hint">{t('live.switches')}</p>
     </section>
   )
 }
 
 function Progress({ aos, los, now }: { aos: number; los: number; now: number }) {
+  const t = useT()
   const share = Math.min(1, Math.max(0, (now - aos) / Math.max(1, los - aos)))
   return (
     <>
       <div className="progress"><div style={{ width: `${share * 100}%` }} /></div>
       <div className="progress-labels">
         <span>AOS {utcClock(aos)} UTC</span>
-        <span>{duration(los - now)} left</span>
+        <span>{t('live.left', { d: duration(los - now) })}</span>
         <span>LOS {utcClock(los)} UTC</span>
       </div>
     </>
@@ -163,28 +167,32 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
 }
 
 function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; caduBytes: number; frequency?: number }) {
+  const t = useT()
   const s = sample ?? { t: 0 }
   const waiting = '…'
   return (
     <>
       <div className="tiles">
         <Tile label="SNR" value={s.snr !== undefined ? `${s.snr.toFixed(1)} dB` : waiting}
-          sub={s.peak_snr !== undefined ? `peak ${s.peak_snr.toFixed(1)} dB` : undefined}
+          sub={s.peak_snr !== undefined ? t('live.peakSnr', { v: s.peak_snr.toFixed(1) }) : undefined}
           tone={s.snr === undefined ? undefined : s.snr >= 4 ? 'ok' : s.snr >= 2 ? 'warn' : 'bad'} />
-        <Tile label="Viterbi" value={s.viterbi_lock === undefined ? waiting : s.viterbi_lock ? 'locked' : 'searching'}
+        <Tile label="Viterbi"
+          value={s.viterbi_lock === undefined ? waiting : s.viterbi_lock ? t('live.locked') : t('live.searching')}
           sub={s.viterbi_ber !== undefined ? `BER ${s.viterbi_ber.toFixed(3)}` : undefined}
           tone={s.viterbi_lock === undefined ? undefined : s.viterbi_lock ? 'ok' : 'bad'} />
-        <Tile label="Deframer" value={s.deframer_lock === undefined ? waiting : s.deframer_lock ? 'synced' : 'no sync'}
+        <Tile label={t('live.deframer')}
+          value={s.deframer_lock === undefined ? waiting : s.deframer_lock ? t('live.synced') : t('live.noSync')}
           tone={s.deframer_lock === undefined ? undefined : s.deframer_lock ? 'ok' : 'bad'} />
-        <Tile label="Reed-Solomon" value={s.rs_avg === undefined ? waiting : s.rs_avg >= 0 ? `${s.rs_avg} fixed` : 'failing'}
-          sub="average corrections per frame"
+        <Tile label="Reed-Solomon"
+          value={s.rs_avg === undefined ? waiting : s.rs_avg >= 0 ? t('live.rsFixed', { n: s.rs_avg }) : t('live.rsFailing')}
+          sub={t('live.rsHint')}
           tone={s.rs_avg === undefined ? undefined : s.rs_avg >= 0 ? 'ok' : 'bad'} />
-        <Tile label="Frames" value={String(Math.floor(caduBytes / FRAME_BYTES))} sub={size(caduBytes)}
+        <Tile label={t('live.frames')} value={String(Math.floor(caduBytes / FRAME_BYTES))} sub={size(caduBytes)}
           tone={caduBytes > 0 ? 'ok' : undefined} />
-        <Tile label="Frequency offset" value={s.freq !== undefined ? `${Math.round(s.freq)} Hz` : waiting}
-          sub={frequency ? `tuned ${(frequency / 1e6).toFixed(3)} MHz` : undefined} />
+        <Tile label={t('live.freqOffset')} value={s.freq !== undefined ? `${Math.round(s.freq)} Hz` : waiting}
+          sub={frequency ? t('live.tuned', { f: (frequency / 1e6).toFixed(3) }) : undefined} />
       </div>
-      {sample === undefined && <p className="hint">Waiting for SatDump's demodulator to report.</p>}
+      {sample === undefined && <p className="hint">{t('live.waitingDemod')}</p>}
     </>
   )
 }
@@ -193,8 +201,9 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
 function SignalChart({ samples, start, end, track }: {
   samples: LiveSample[]; start: number; end: number; track?: [number, number][]
 }) {
+  const t = useT()
   const W = 600, H = 170, TOP = 6, BOTTOM = 146, STRIP = 152
-  const x = (t: number) => ((t - start) / Math.max(1, end - start)) * W
+  const x = (time: number) => ((time - start) / Math.max(1, end - start)) * W
   const snrs = samples.flatMap(s => (s.snr === undefined ? [] : [s.snr]))
   const ymax = Math.max(10, Math.ceil(Math.max(0, ...snrs) + 1))
   const ySnr = (v: number) => BOTTOM - (Math.max(0, v) / ymax) * (BOTTOM - TOP)
@@ -219,8 +228,8 @@ function SignalChart({ samples, start, end, track }: {
         ))}
       </svg>
       <p className="hint chart-legend">
-        <span className="key snr" /> SNR (0–{ymax} dB) <span className="key el" /> elevation (0–90°)
-        <span className="key sync" /> frames syncing <span className="key nosync" /> no sync
+        <span className="key snr" /> {t('live.chartSnr', { max: ymax })} <span className="key el" /> {t('live.chartEl')}
+        <span className="key sync" /> {t('live.chartSync')} <span className="key nosync" /> {t('live.chartNoSync')}
         <span className="chart-times">{utcClock(start)}–{utcClock(end)} UTC</span>
       </p>
     </>
@@ -228,11 +237,12 @@ function SignalChart({ samples, start, end, track }: {
 }
 
 function Spectrum() {
+  const t = useT()
   const tick = useTick(1000)
   return (
     <section>
-      <h2>Spectrum</h2>
-      <img className="fft" src={satdumpImage('fft', tick)} alt="Live spectrum from SatDump" />
+      <h2>{t('live.spectrum')}</h2>
+      <img className="fft" src={satdumpImage('fft', tick)} alt={t('live.spectrum')} />
     </section>
   )
 }

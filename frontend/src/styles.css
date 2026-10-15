@@ -32,7 +32,7 @@ button:hover:not(:disabled) { border-color: var(--accent); }
 button:disabled { opacity: .4; cursor: not-allowed; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 600; }
 
-input[type=text], input[type=number] {
+input[type=text], input[type=number], select {
   background: var(--bg); color: var(--text); border: 1px solid var(--line);
   border-radius: 6px; padding: 6px 8px; font: inherit; width: 100%;
 }

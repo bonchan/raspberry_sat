@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { api, type UpcomingPass } from './api'
 import { useNow, usePolling } from './hooks'
-import { clock, compass, duration, utcClock } from './format'
+import { clock, compass, duration, utcClock, weekdayAndDay } from './format'
+import { useT, type Key } from './i18n'
 import SkyPlot, { SkyLegend } from './SkyPlot'
 
 // how good a pass is, from its highest elevation
@@ -14,18 +15,12 @@ function quality(p: UpcomingPass): Quality {
   return p.max_el >= EXCELLENT ? 'excellent' : p.max_el >= GOOD ? 'good' : 'fair'
 }
 
-const QUALITY_LABEL: Record<Quality, string> = { low: 'too low', fair: 'fair', good: 'good', excellent: 'excellent' }
-
-/** "Today", or "Wednesday 14", in local time */
-function dayLabel(unix: number, now: number): string {
-  const d = new Date(unix * 1000)
-  if (d.toDateString() === new Date(now * 1000).toDateString()) return 'Today'
-  return `${d.toLocaleDateString('en-US', { weekday: 'long' })} ${d.getDate()}`
-}
+const sameDay = (a: number, b: number) => new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString()
 
 interface Props { minElevation?: number; station?: string; showLow?: boolean }
 
 export default function UpcomingPasses({ minElevation, station, showLow = true }: Props) {
+  const t = useT()
   const { data, error } = usePolling(api.getSchedule, 60000)
   const now = useNow()
   const [selected, setSelected] = useState<string | null>(null)
@@ -38,7 +33,7 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
   const rows: ReactNode[] = []
   let day = ''
   for (const p of passes) {
-    const label = dayLabel(p.aos, now)
+    const label = sameDay(p.aos, now) ? t('up.today') : weekdayAndDay(p.aos)
     if (label !== day) {
       day = label
       rows.push(<tr key={`day-${label}`} className="day"><td colSpan={6}>{label}</td></tr>)
@@ -51,23 +46,23 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
         <td>{p.name}</td>
         <td>
           {clock(p.aos)} <span className="hint">{utcClock(p.aos)} UTC</span>
-          <div className="hint">{live ? 'now' : `in ${duration(p.aos - now)}`}</div>
+          <div className="hint">{live ? t('up.now') : t('common.in', { d: duration(p.aos - now) })}</div>
         </td>
         <td>{Math.round((p.los - p.aos) / 60)} min</td>
         <td>{Math.round(p.max_el)}°</td>
         <td>{compass(p.aos_az)} → {compass(p.los_az)}</td>
-        <td><span className={`quality q-${q}`}>{QUALITY_LABEL[q]}</span></td>
+        <td><span className={`quality q-${q}`}>{t(`quality.${q}` as Key)}</span></td>
       </tr>,
     )
   }
 
   return (
     <section>
-      <h2>Upcoming passes{station && ` at ${station}`} (24 h)</h2>
+      <h2>{station ? t('up.titleAt', { station }) : t('up.title')}</h2>
       {error && <p className="error">{error}</p>}
       {data?.error && <p className="hint">{data.error}</p>}
-      {data?.missing?.length ? <p className="hint">No orbit data for: {data.missing.join(', ')}.</p> : null}
-      {data && !data.error && passes.length === 0 && <p className="hint">No passes in the next 24 hours.</p>}
+      {data?.missing?.length ? <p className="hint">{t('up.missing', { list: data.missing.join(', ') })}</p> : null}
+      {data && !data.error && passes.length === 0 && <p className="hint">{t('up.none')}</p>}
       {passes.length > 0 && (
         <div className="upcoming">
           <div>
@@ -77,15 +72,18 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
           </div>
           <table className="passes">
             <thead>
-              <tr><th>Satellite</th><th>Starts</th><th>Length</th><th>Max el.</th><th>Direction</th><th>Quality</th></tr>
+              <tr>
+                <th>{t('up.satellite')}</th><th>{t('up.starts')}</th><th>{t('up.length')}</th>
+                <th>{t('up.maxEl')}</th><th>{t('up.direction')}</th><th>{t('up.quality')}</th>
+              </tr>
             </thead>
             <tbody>{rows}</tbody>
           </table>
         </div>
       )}
       <p className="hint">
-        Quality by highest elevation: fair under {GOOD}°, good {GOOD}–{EXCELLENT}°, excellent above {EXCELLENT}°.
-        {showLow && ' Passes marked "too low" stay under the minimum elevation, so SatDump skips them.'}
+        {t('up.qualityHint', { good: GOOD, excellent: EXCELLENT })}
+        {showLow && ' ' + t('up.lowHint')}
       </p>
     </section>
   )
