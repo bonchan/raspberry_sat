@@ -249,6 +249,26 @@ const en = {
   'settings.showLow': 'Show passes too low to record',
   'settings.showLowHint': 'in the upcoming passes list',
   'settings.displayHint': "Display settings don't restart SatDump.",
+
+  'danger.title': 'Danger zone',
+  'danger.update': 'Update',
+  'danger.updateButton': 'Review and update',
+  'danger.restartApp': 'Restart the app',
+  'danger.restartAppHint': 'Restarts this web app and SatDump. The page is back in a few seconds.',
+  'danger.restartAppButton': 'Restart app',
+  'danger.reboot': 'Reboot the Pi',
+  'danger.rebootHint': 'Restarts the whole Raspberry Pi. The page is back in about a minute.',
+  'danger.rebootButton': 'Reboot',
+  'danger.poweroff': 'Shut down the Pi',
+  'danger.poweroffHint': 'Turns the Raspberry Pi off, for example before moving it. It only comes back on when its power is unplugged and plugged in again.',
+  'danger.poweroffButton': 'Shut down',
+  'danger.confirmRestartApp': 'Restart the app and SatDump now?',
+  'danger.confirmReboot': 'Reboot the Raspberry Pi now?',
+  'danger.confirmPoweroff': 'Shut down the Raspberry Pi now? To turn it back on, unplug its power and plug it in again.',
+  'danger.passWarning': 'A pass is being received right now and will be cut short.',
+  'danger.restartingApp': 'Restarting… the page is back in a few seconds.',
+  'danger.rebooting': 'Rebooting… the page is back in about a minute.',
+  'danger.poweringOff': 'Shutting down. Wait until the green light on the Pi stops blinking (about 20 seconds) before unplugging it.',
 }
 
 export type Key = keyof typeof en
@@ -489,6 +509,26 @@ const es: Record<Key, string> = {
   'settings.showLow': 'Mostrar pasadas demasiado bajas para grabar',
   'settings.showLowHint': 'en la lista de próximas pasadas',
   'settings.displayHint': 'Los ajustes de visualización no reinician SatDump.',
+
+  'danger.title': 'Zona peligrosa',
+  'danger.update': 'Actualizar',
+  'danger.updateButton': 'Revisar y actualizar',
+  'danger.restartApp': 'Reiniciar la aplicación',
+  'danger.restartAppHint': 'Reinicia esta aplicación web y SatDump. La página vuelve en unos segundos.',
+  'danger.restartAppButton': 'Reiniciar aplicación',
+  'danger.reboot': 'Reiniciar la Pi',
+  'danger.rebootHint': 'Reinicia toda la Raspberry Pi. La página vuelve en un minuto aproximadamente.',
+  'danger.rebootButton': 'Reiniciar',
+  'danger.poweroff': 'Apagar la Pi',
+  'danger.poweroffHint': 'Apaga la Raspberry Pi, por ejemplo antes de moverla. Solo vuelve a encenderse desenchufando y volviendo a enchufar la alimentación.',
+  'danger.poweroffButton': 'Apagar',
+  'danger.confirmRestartApp': '¿Reiniciar la aplicación y SatDump ahora?',
+  'danger.confirmReboot': '¿Reiniciar la Raspberry Pi ahora?',
+  'danger.confirmPoweroff': '¿Apagar la Raspberry Pi ahora? Para volver a encenderla, desenchufala y volvé a enchufarla.',
+  'danger.passWarning': 'Se está recibiendo una pasada y se va a cortar.',
+  'danger.restartingApp': 'Reiniciando… la página vuelve en unos segundos.',
+  'danger.rebooting': 'Reiniciando… la página vuelve en un minuto aproximadamente.',
+  'danger.poweringOff': 'Apagando. Esperá a que la luz verde de la Pi deje de parpadear (unos 20 segundos) antes de desenchufarla.',
 }
 
 const TEXTS: Record<Lang, Record<Key, string>> = { en, es }

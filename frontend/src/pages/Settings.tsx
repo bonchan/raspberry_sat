@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError, type Config, type Satellite, type Station } from '../api'
 import { CheckField, NumberField, SelectField, TextField } from '../fields'
 import { LANGUAGES, useLanguage, useT } from '../i18n'
+import DangerZone from '../DangerZone'
 
 type Section = keyof Omit<Config, 'satellites' | 'stations' | 'active_station'>
 
@@ -204,6 +205,8 @@ export default function Settings() {
         </div>
         <p className="hint">{t('settings.displayHint')}</p>
       </section>
+
+      <DangerZone />
     </div>
   )
 }

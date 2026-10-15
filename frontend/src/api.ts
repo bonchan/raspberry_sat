@@ -123,6 +123,7 @@ export const api = {
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
   getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
+  power: (action: 'restart-app' | 'reboot' | 'poweroff') => request<{ action: string }>('POST', `/system/${action}`),
   getUpdate: () => request<UpdateState>('GET', '/update'),
   checkUpdate: () => request<UpdateState>('POST', '/update/check'),
   applyUpdate: () => request<UpdateState>('POST', '/update/apply'),

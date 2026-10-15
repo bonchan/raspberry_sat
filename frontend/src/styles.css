@@ -170,7 +170,21 @@ table.passes tr.live td { font-weight: 600; }
 .chart-legend .key.nosync { background: var(--danger); height: 8px; opacity: .6; }
 .chart-times { float: right; }
 
-button.danger { border-color: var(--danger); color: var(--danger); }
+button.danger, a.button.danger { border-color: var(--danger); color: var(--danger); }
+button.danger:hover:not(:disabled), a.button.danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+a.button {
+  display: inline-block; background: #2a2f38; border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 14px; text-decoration: none; white-space: nowrap;
+}
+.danger-zone { border-color: var(--danger); }
+.danger-zone h2 { color: var(--danger); }
+.danger-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 10px 0; border-top: 1px solid var(--line);
+}
+.danger-row:first-of-type { border-top: none; }
+.danger-row p { margin: 2px 0 0; }
+.danger-row > div { flex: 1; min-width: 220px; }
 a { color: var(--accent); }
 
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
