@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { api } from './api'
 import { LanguageContext, setCurrentLanguage, type Lang } from './i18n'
+import { ConfirmProvider } from './Dialog'
 import Layout from './Layout'
 import Upcoming from './pages/Upcoming'
 import Status from './pages/Status'
@@ -44,21 +45,23 @@ function App() {
 
   return (
     <LanguageContext.Provider value={{ lang, setLang }}>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Upcoming />} />
-            <Route path="status" element={<Status />} />
-            <Route path="live" element={<Live />} />
-            <Route path="passes" element={<Passes />} />
-            <Route path="passes/:id" element={<PassDetail />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="logs" element={<Logs />} />
-            <Route path="update" element={<Update />} />
-            <Route path="networks" element={<Networks />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <ConfirmProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<Upcoming />} />
+              <Route path="status" element={<Status />} />
+              <Route path="live" element={<Live />} />
+              <Route path="passes" element={<Passes />} />
+              <Route path="passes/:id" element={<PassDetail />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="logs" element={<Logs />} />
+              <Route path="update" element={<Update />} />
+              <Route path="networks" element={<Networks />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ConfirmProvider>
     </LanguageContext.Provider>
   )
 }

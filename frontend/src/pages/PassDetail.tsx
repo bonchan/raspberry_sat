@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, passFile, type PassDetail as Pass, type PassImage } from '../api'
+import { useConfirm } from '../Dialog'
 import { longDate, percent, size, utc } from '../format'
 import { translate, useLanguage, useT, type Key, type Lang } from '../i18n'
 
@@ -37,6 +38,7 @@ function groupImages(images: PassImage[], main: string | null): Group[] {
 
 export default function PassDetail() {
   const t = useT()
+  const ask = useConfirm()
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const [pass, setPass] = useState<Pass | null>(null)
@@ -53,7 +55,10 @@ export default function PassDetail() {
   if (!pass) return <section><p className="hint">{t('common.loading')}</p></section>
 
   async function remove() {
-    if (!pass || !confirm(t('detail.confirmDelete', { size: size(pass.size) }))) return
+    if (!pass) return
+    const ok = await ask({ title: t('detail.delete'), message: t('detail.confirmDelete', { size: size(pass.size) }),
+                           confirmLabel: t('detail.delete'), danger: true })
+    if (!ok) return
     try {
       await api.deletePass(pass.id)
       navigate('/passes')

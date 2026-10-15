@@ -86,7 +86,17 @@ img.fft { display: block; width: 512px; max-width: 100%; aspect-ratio: 1; backgr
 .center { text-align: center; }
 .narrow { max-width: 340px; }
 
-.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.topbar .badges { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.topbar .badges:empty + .clock { margin-left: auto; }
+/* phones: name and clock on top, the tabs, then the badges (only when there are any) */
+@media (max-width: 760px) {
+  .topbar { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "brand clock" "nav nav" "badges badges"; gap: 8px; }
+  .topbar .brand { grid-area: brand; }
+  .topbar .clock { grid-area: clock; margin-left: 0; flex-direction: column; align-items: flex-end; gap: 0; line-height: 1.2; }
+  .topbar nav { grid-area: nav; }
+  .topbar .badges { grid-area: badges; margin-left: 0; }
+  .topbar .badges:empty { display: none; }
+}
 .badge {
   padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
   background: var(--warn); color: #1a1405; text-decoration: none;
@@ -222,6 +232,20 @@ table.passes tr.live td { font-weight: 600; }
 
 button.danger, a.button.danger { border-color: var(--danger); color: var(--danger); }
 button.danger:hover:not(:disabled), a.button.danger:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+button.danger.solid { background: var(--danger); color: #fff; font-weight: 600; }
+
+/* confirmation dialog (Dialog.tsx) */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .6);
+  display: grid; place-items: center; padding: 16px;
+}
+.dialog {
+  width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 18px; box-shadow: 0 10px 40px rgba(0, 0, 0, .5);
+}
+.dialog h3 { margin: 0 0 8px; font-size: 16px; }
+.dialog p { margin: 0 0 18px; white-space: pre-line; color: var(--text); opacity: .9; }
+.dialog-buttons { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 a.button {
   display: inline-block; background: #2a2f38; border: 1px solid var(--line); border-radius: 6px;
   padding: 8px 14px; text-decoration: none; white-space: nowrap;

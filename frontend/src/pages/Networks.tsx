@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError, type NearbyNetwork, type NetworksState, type NewNetwork, type SavedNetwork } from '../api'
+import { useConfirm } from '../Dialog'
 import { CheckField, NumberField, TextField } from '../fields'
 import { useT } from '../i18n'
 
@@ -9,6 +10,7 @@ const message = (e: unknown) => e instanceof ApiError && e.details.length ? e.de
 
 export default function Networks() {
   const t = useT()
+  const ask = useConfirm()
   const [state, setState] = useState<NetworksState | null>(null)
   const [nearby, setNearby] = useState<NearbyNetwork[] | null>(null)
   const [scanning, setScanning] = useState(false)
@@ -79,8 +81,12 @@ export default function Networks() {
               {state.saved.map(n => (
                 <SavedRow key={n.uuid} network={n} busy={busy}
                   onPriority={p => act(async () => { await api.setNetworkPriority(n.uuid, p) })}
-                  onForget={() => confirm(t('net.confirmForget', { ssid: n.ssid }))
-                    && act(async () => { await api.forgetNetwork(n.uuid) })} />
+                  onForget={async () => {
+                    if (await ask({ title: t('net.forget'), message: t('net.confirmForget', { ssid: n.ssid }),
+                                    confirmLabel: t('net.forget'), danger: true })) {
+                      await act(async () => { await api.forgetNetwork(n.uuid) })
+                    }
+                  }} />
               ))}
             </tbody>
           </table>

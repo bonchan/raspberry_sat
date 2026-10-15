@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react'
 import { api, ApiError, type PendingCommit, type UpdateState } from '../api'
+import { useConfirm } from '../Dialog'
 import { usePolling } from '../hooks'
 import { longDate } from '../format'
 import { useT } from '../i18n'
 
 export default function Update() {
   const t = useT()
+  const ask = useConfirm()
   // every few seconds, to follow an update while it runs; checking upstream is a separate button
   const { data: polled, error } = usePolling(api.getUpdate, 3000)
   const [fresh, setFresh] = useState<UpdateState | null>(null)
@@ -88,7 +90,10 @@ export default function Update() {
           <>
             <p className="hint">{t('update.explain')}</p>
             <button className="primary" disabled={blocked || busy !== null}
-              onClick={() => confirm(t('update.confirm', { short: commits[0]?.short ?? '' })) && run('apply')}>
+              onClick={async () => {
+                if (await ask({ title: t('update.title'), message: t('update.confirm', { short: commits[0]?.short ?? '' }),
+                                confirmLabel: t('update.button') })) run('apply')
+              }}>
               {t('update.button')}
             </button>
           </>

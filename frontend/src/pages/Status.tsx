@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type SatdumpProcess, type Status as StatusData } from '../api'
+import { useConfirm } from '../Dialog'
 import { useNow, usePolling } from '../hooks'
 import { duration, gb } from '../format'
 import { useT, type Key } from '../i18n'
@@ -45,12 +46,16 @@ export default function Status() {
 
 function Receiver({ status }: { status: StatusData }) {
   const t = useT()
+  const ask = useConfirm()
   const p = status.satdump
   const now = useNow()
   const [busy, setBusy] = useState(false)
 
   async function control(action: 'start' | 'stop' | 'restart') {
-    if (action !== 'start' && status.receiving && !confirm(t('status.confirmInterrupt'))) return
+    if (action !== 'start' && status.receiving) {
+      const label = t(action === 'stop' ? 'status.stop' : 'status.restart')
+      if (!(await ask({ title: label, message: t('status.confirmInterrupt'), confirmLabel: label, danger: true }))) return
+    }
     setBusy(true)
     try { await api.satdump(action) } finally { setBusy(false) }
   }

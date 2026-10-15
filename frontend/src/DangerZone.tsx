@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from './api'
+import { useConfirm } from './Dialog'
 import { usePolling } from './hooks'
 import { useT, type Key } from './i18n'
 
@@ -18,6 +19,7 @@ const ACTIONS: { action: Action; title: Key; hint: Key; button: Key; confirm: Ke
 /** Bottom of Settings: update, restart the app, reboot or shut down the Pi. */
 export default function DangerZone() {
   const t = useT()
+  const ask = useConfirm()
   const { data: update } = usePolling(api.getUpdate, 60000)
   const { data: status } = usePolling(api.getStatus, 5000)
   const [busy, setBusy] = useState(false)
@@ -28,7 +30,7 @@ export default function DangerZone() {
 
   async function run(a: (typeof ACTIONS)[number]) {
     const warning = status?.receiving ? t('danger.passWarning') + '\n\n' : ''
-    if (!confirm(warning + t(a.confirm))) return
+    if (!(await ask({ title: t(a.title), message: warning + t(a.confirm), confirmLabel: t(a.button), danger: true }))) return
     setBusy(true); setError(''); setDone('')
     try {
       await api.power(a.action)

@@ -54,11 +54,11 @@ export default function Layout() {
             <NavLink key={l.to} to={l.to} end={l.end}>{t(l.label)}</NavLink>
           ))}
         </nav>
-        <div className="topbar-right">
+        <div className="badges">
           <UpdateBadge />
           <SatdumpBadge />
-          <Clock />
         </div>
+        <Clock />
       </header>
       <main>
         <Outlet />

@@ -27,6 +27,8 @@ const en = {
   'common.in': 'in {d}',
   'common.remove': 'Remove',
   'common.close': 'Close',
+  'dialog.cancel': 'Cancel',
+  'dialog.confirm': 'Confirm',
 
   'state.running': 'running',
   'state.stopping': 'stopping (finishing the last pass)',
@@ -356,6 +358,8 @@ const es: Record<Key, string> = {
   'common.in': 'en {d}',
   'common.remove': 'Quitar',
   'common.close': 'Cerrar',
+  'dialog.cancel': 'Cancelar',
+  'dialog.confirm': 'Confirmar',
 
   'state.running': 'en marcha',
   'state.stopping': 'deteniéndose (termina la última pasada)',
