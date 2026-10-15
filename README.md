@@ -63,6 +63,14 @@ cd ~/raspberry_sat && git pull && bash scripts/update.sh
 
 This also refreshes the systemd service file, so changes to it arrive with a normal pull.
 
+Or from the web page: the header shows "Update available" when `origin/main` has new commits
+(checked every 6 hours, or with "Check for updates" on the Update page). The Update page lists
+the new commits with their messages and changed files; **Update now** runs `git pull` and
+`update.sh` as a separate systemd unit (`raspberry_sat-update`; `journalctl -u raspberry_sat-update`)
+so restarting the app does not interrupt it. It refuses while a pass is being received or decoded,
+when the checkout has local changes, or when the Pi has commits of its own. It needs passwordless
+sudo for the app's user, which Raspberry Pi OS gives the first user.
+
 Logs: the Logs page, `~/raspberry_sat_data/logs/satdump.log` for SatDump's full output, and
 `journalctl -u raspberry_sat -f` for the app itself.
 

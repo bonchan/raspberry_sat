@@ -78,6 +78,18 @@ export interface Live {
   folder: string | null; cadu_bytes: number
 }
 
+export interface CommitInfo { hash: string; short: string; time: number; subject: string }
+export interface PendingCommit extends CommitInfo {
+  author: string; body: string; files: { status: string; path: string }[]
+}
+export interface UpdateState {
+  checked_at?: number; error?: string | null
+  current?: CommitInfo | null; branch?: string | null; upstream?: string | null
+  behind?: number; ahead?: number; commits?: PendingCommit[]; diffstat?: string; dirty?: string[]
+  running: boolean
+  last_run: { log: string[]; result: 'ok' | 'failed' | null; changed_at: number } | null
+}
+
 export class ApiError extends Error {
   constructor(message: string, public details: string[] = []) { super(message) }
 }
@@ -111,6 +123,9 @@ export const api = {
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
   getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
+  getUpdate: () => request<UpdateState>('GET', '/update'),
+  checkUpdate: () => request<UpdateState>('POST', '/update/check'),
+  applyUpdate: () => request<UpdateState>('POST', '/update/apply'),
   getSchedule: () => request<Schedule>('GET', '/schedule'),
   getLive: (after: number) => request<Live>('GET', `/live?after=${after}`),
   getPasses: () => request<PassList>('GET', '/passes'),

@@ -15,7 +15,9 @@ export default function Status() {
   const { data: status, error } = usePolling(api.getStatus, 2000)
   const { data: system } = usePolling(api.getSystem, 30000)
   const { data: config } = usePolling(api.getConfig, 60000)
+  const { data: update } = usePolling(api.getUpdate, 60000)
   const running = status?.satdump.state === 'running'
+  const behind = update?.behind ?? 0
 
   return (
     <>
@@ -34,6 +36,12 @@ export default function Status() {
             <dt>{t('status.data')}</dt><dd>{system.data_dir}</dd>
             <dt>{t('status.disk')}</dt>
             <dd>{t('status.diskUsage', { used: gb(system.disk.used), free: gb(system.disk.free), total: gb(system.disk.total) })}</dd>
+            <dt>{t('status.updates')}</dt>
+            <dd>
+              {behind === 0 ? t('status.upToDate')
+                : behind === 1 ? t('status.updatesOne') : t('status.updatesMany', { n: behind })}{' '}
+              <Link to="/update">{t('status.review')}</Link>
+            </dd>
           </dl>
         </section>
       )}

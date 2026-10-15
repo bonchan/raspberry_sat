@@ -10,6 +10,7 @@ import Passes from './pages/Passes'
 import PassDetail from './pages/PassDetail'
 import Settings from './pages/Settings'
 import Logs from './pages/Logs'
+import Update from './pages/Update'
 import './styles.css'
 
 const STORED_LANGUAGE = 'rsat-language'
@@ -50,6 +51,7 @@ function App() {
             <Route path="passes/:id" element={<PassDetail />} />
             <Route path="settings" element={<Settings />} />
             <Route path="logs" element={<Logs />} />
+            <Route path="update" element={<Update />} />
           </Route>
         </Routes>
       </BrowserRouter>

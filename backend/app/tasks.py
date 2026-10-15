@@ -6,7 +6,7 @@ import time
 
 import httpx
 
-from app import passes, settings
+from app import passes, settings, updater
 from app.supervisor import supervisor
 
 log = logging.getLogger(__name__)
@@ -17,6 +17,7 @@ POLL_INTERVAL = 1
 HOUSEKEEPING_INTERVAL = 15
 SCAN_INTERVAL = 30
 DAILY_RESTART = 24 * 3600   # SatDump only refreshes its orbit data (TLEs) when it starts
+UPDATE_CHECK_INTERVAL = 6 * 3600
 
 
 SIGNAL_KEYS = ("snr", "peak_snr", "freq", "viterbi_ber", "viterbi_lock", "deframer_lock", "rs_avg")
@@ -102,6 +103,17 @@ async def housekeeping() -> None:
                 await supervisor.restart("daily restart, refreshes orbit data")
         except Exception:
             log.exception("housekeeping failed")
+
+
+async def check_updates() -> None:
+    """git fetch now and then, so the page can say when there is something new."""
+    await asyncio.sleep(60)
+    while True:
+        try:
+            await asyncio.to_thread(updater.check, True)
+        except Exception:
+            log.exception("update check failed")
+        await asyncio.sleep(UPDATE_CHECK_INTERVAL)
 
 
 async def scan_passes() -> None:

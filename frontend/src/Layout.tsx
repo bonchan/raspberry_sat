@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useNow } from './hooks'
+import { api } from './api'
+import { useNow, usePolling } from './hooks'
 import { useT, type Key } from './i18n'
 import { clock } from './format'
 
@@ -23,6 +24,14 @@ function Clock() {
   )
 }
 
+// shown only when the last check found new commits upstream
+function UpdateBadge() {
+  const t = useT()
+  const { data } = usePolling(api.getUpdate, 10 * 60 * 1000)
+  if (!data?.behind && !data?.running) return null
+  return <NavLink className="badge" to="/update">{t('update.badge')}</NavLink>
+}
+
 export default function Layout() {
   const t = useT()
   return (
@@ -34,6 +43,7 @@ export default function Layout() {
             <NavLink key={l.to} to={l.to} end={l.end}>{t(l.label)}</NavLink>
           ))}
         </nav>
+        <UpdateBadge />
         <Clock />
       </header>
       <main>
