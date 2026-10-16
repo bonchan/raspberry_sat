@@ -402,6 +402,7 @@ def summary(meta: dict) -> dict:
         "max_el": orbit.get("max_el"),
         "peak_snr": signal.get("peak_snr"),
         "locked": signal.get("locked"),
+        "discord_url": (meta.get("discord") or {}).get("url"),    # see discord.py
     }
 
 

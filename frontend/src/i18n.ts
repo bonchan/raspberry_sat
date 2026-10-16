@@ -205,6 +205,7 @@ const en = {
   'passes.snr': 'SNR {snr} dB',
   'passes.locked': 'lock {p}',
   'passes.images': '{n} images',
+  'passes.onDiscord': 'Open on Discord',
 
   'detail.back': '← All passes',
   'detail.time': 'Time',
@@ -604,6 +605,7 @@ const es: Record<Key, string> = {
   'passes.snr': 'SNR {snr} dB',
   'passes.locked': 'sincronía {p}',
   'passes.images': '{n} imágenes',
+  'passes.onDiscord': 'Abrir en Discord',
 
   'detail.back': '← Todas las pasadas',
   'detail.time': 'Hora',

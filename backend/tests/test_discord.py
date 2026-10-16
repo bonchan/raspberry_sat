@@ -207,6 +207,7 @@ def test_post_button(config_file, fake):
     r = client.post(f"/api/passes/{folder.name}/discord")
     assert r.status_code == 200 and r.json()["channel"] == "satellites"
     assert client.get(f"/api/passes/{folder.name}").json()["discord"]["images"] == 3
+    assert client.get("/api/passes").json()["passes"][0]["discord_url"] == r.json()["url"]
     fake(fail=(404, {"code": 10003, "message": "Unknown Channel"}))
     r = client.post(f"/api/passes/{folder.name}/discord")
     assert r.status_code == 502 and "Copy Channel ID" in r.json()["detail"]

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { api, passFile, type PassSummary } from '../api'
 import { usePolling } from '../hooks'
 import { longDate, percent, size } from '../format'
+import DiscordIcon from '../DiscordIcon'
 import { useT } from '../i18n'
 import { elevationQuality } from '../UpcomingPasses'
 
@@ -35,15 +36,25 @@ export default function Passes() {
   )
 }
 
+// the satellite name is the card's link, stretched over the whole card (CSS), so the Discord link
+// can sit on top of it: a link inside a link is not allowed
 function PassCard({ pass }: { pass: PassSummary }) {
   const t = useT()
   return (
-    <Link className="card" to={`/passes/${encodeURIComponent(pass.id)}`}>
+    <div className="card pass-card">
       {pass.main
         ? <img src={passFile(pass.id, 'thumb', pass.main)} alt="" loading="lazy" />
         : <div className="noimage">{t('passes.noImages')}</div>}
       <div className="caption">
-        <b>{pass.satellite}</b>
+        <div className="title-row">
+          <Link className="card-link" to={`/passes/${encodeURIComponent(pass.id)}`}><b>{pass.satellite}</b></Link>
+          {pass.discord_url && (
+            <a className="discord-link" href={pass.discord_url} target="_blank" rel="noreferrer"
+              title={t('passes.onDiscord')} aria-label={t('passes.onDiscord')}>
+              <DiscordIcon size={18} />
+            </a>
+          )}
+        </div>
         <span>{longDate(pass.time)}</span>
         {(pass.max_el != null || pass.peak_snr != null) && (
           <span>
@@ -60,6 +71,6 @@ function PassCard({ pass }: { pass: PassSummary }) {
           {t('passes.images', { n: pass.image_count })} · {size(pass.size)}
         </span>
       </div>
-    </Link>
+    </div>
   )
 }

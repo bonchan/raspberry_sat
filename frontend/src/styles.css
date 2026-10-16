@@ -278,7 +278,16 @@ a { color: var(--accent); }
   display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
   border-radius: 8px; overflow: hidden; color: inherit; text-decoration: none;
 }
-a.card:hover { border-color: var(--accent); }
+a.card:hover, .pass-card:hover { border-color: var(--accent); }
+.pass-card { position: relative; }
+.card-link { color: inherit; text-decoration: none; }
+.card-link::after { content: ""; position: absolute; inset: 0; }     /* the whole card opens the pass */
+.discord-link { position: relative; z-index: 1; display: flex; color: #5865f2; }     /* Discord blurple */
+.discord-link:hover { color: #8c94f7; }
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+section > .title-row { margin-bottom: 12px; }
+.title-row h2 { margin: 0; }
+button.with-icon { display: inline-flex; align-items: center; gap: 8px; }
 .card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; display: block; cursor: pointer; }
 .card .noimage { aspect-ratio: 4 / 3; display: grid; place-items: center; background: #000; color: var(--dim); }
 .caption { display: grid; gap: 2px; padding: 8px 10px 10px; }

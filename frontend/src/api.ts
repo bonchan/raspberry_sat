@@ -68,6 +68,7 @@ export interface PassSummary {
   id: string; satellite: string; time: number; main: string | null
   coverage: number | null; image_count: number; size: number
   max_el: number | null; peak_snr: number | null; locked: number | null
+  discord_url: string | null        // the Discord message, once posted
 }
 /** the pass as the orbits describe it; track is [az, el] every 10 s from AOS to LOS */
 export interface PassOrbit {

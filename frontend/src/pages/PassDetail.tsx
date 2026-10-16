@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, passFile, type DiscordMode, type PassDetail as Pass, type PassDiscord, type PassImage } from '../api'
 import { useConfirm } from '../Dialog'
+import DiscordIcon from '../DiscordIcon'
 import { clock, compass, duration, longDate, percent, size, utc } from '../format'
 import { translate, useLanguage, useT, type Key, type Lang } from '../i18n'
 import SignalChart from '../SignalChart'
@@ -81,7 +82,10 @@ export default function PassDetail() {
     <>
       <section>
         <p><Link to="/passes">{t('detail.back')}</Link></p>
-        <h2>{pass.satellite}</h2>
+        <div className="title-row">
+          <h2>{pass.satellite}</h2>
+          <DiscordButton pass={pass} mode={discordMode} onChange={d => setPass({ ...pass, discord: d })} />
+        </div>
         <div className="pass-top">
           <dl className="facts">
             <dt>{t('detail.time')}</dt><dd>{longDate(pass.time)} ({utc(pass.time)})</dd>
@@ -112,7 +116,7 @@ export default function PassDetail() {
             <dt>{t('detail.size')}</dt><dd>{size(pass.size)}</dd>
             <dt>{t('detail.folder')}</dt>
             <dd>{pass.id}{pass.source_name !== pass.id && <span className="hint"> {t('detail.was', { name: pass.source_name })}</span>}</dd>
-            <DiscordFact pass={pass} mode={discordMode} onChange={d => setPass({ ...pass, discord: d })} />
+            <DiscordFact pass={pass} mode={discordMode} />
           </dl>
           {orbit && <SkyPlot track={orbit.track} />}
         </div>
@@ -155,14 +159,14 @@ export default function PassDetail() {
   )
 }
 
-/** Whether and where the pass is on Discord. The post button shows when posting is by hand, or when
- *  posting is automatic and it failed. */
-function DiscordFact({ pass, mode, onChange }: { pass: Pass; mode: DiscordMode; onChange: (d: PassDiscord) => void }) {
+/** Next to the satellite name: posts the pass. Shows when posting is by hand, or when posting is
+ *  automatic and it failed. */
+function DiscordButton({ pass, mode, onChange }: { pass: Pass; mode: DiscordMode; onChange: (d: PassDiscord) => void }) {
   const t = useT()
   const ask = useConfirm()
   const [posting, setPosting] = useState(false)
   const d = pass.discord
-  if (mode === 'off' && !d) return null
+  if (!(mode === 'manual' || (mode === 'auto' && d?.error))) return null
 
   async function post() {
     if (d?.posted_at && !(await ask({ title: t('detail.discordPostAgain'), message: t('detail.discordConfirmAgain'),
@@ -177,11 +181,20 @@ function DiscordFact({ pass, mode, onChange }: { pass: Pass; mode: DiscordMode; 
     }
   }
 
-  const button = mode === 'manual' || (mode === 'auto' && !!d?.error)
   const label = posting ? t('detail.discordPosting')
     : d?.error ? t('detail.discordRetry')
     : d?.posted_at ? t('detail.discordPostAgain')
     : t('detail.discordPost')
+  return (
+    <button className="with-icon" disabled={posting} onClick={post}><DiscordIcon />{label}</button>
+  )
+}
+
+/** Whether and where the pass is on Discord, and why the last try failed. */
+function DiscordFact({ pass, mode }: { pass: Pass; mode: DiscordMode }) {
+  const t = useT()
+  const d = pass.discord
+  if (mode === 'off' && !d) return null
   return (
     <>
       <dt>{t('detail.discord')}</dt>
@@ -194,7 +207,6 @@ function DiscordFact({ pass, mode, onChange }: { pass: Pass; mode: DiscordMode; 
             </>
           : t('detail.discordNotPosted')}
         {d?.error && <div className="error">{t('detail.discordFailed', { error: d.error })}</div>}
-        {button && <div className="row"><button disabled={posting} onClick={post}>{label}</button></div>}
       </dd>
     </>
   )
