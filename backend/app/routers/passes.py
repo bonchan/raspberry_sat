@@ -39,6 +39,7 @@ def get_pass(pass_id: str) -> dict:
     if meta is None:
         raise HTTPException(409, "this pass is still being received or decoded")
     meta["files"] = passes.other_files(folder)
+    meta["samples"] = passes.load_samples(folder)
     return meta
 
 

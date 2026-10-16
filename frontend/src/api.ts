@@ -75,6 +75,7 @@ export interface PassDetail {
   id: string; satellite: string; time: number; main: string | null; coverage: number | null
   size: number; source_name: string; images: PassImage[]; files: { path: string; bytes: number }[]
   orbit?: PassOrbit | null; signal?: PassSignal | null
+  samples: LiveSample[]             // one per second while it was received; empty for older passes
 }
 export interface PassList { passes: PassSummary[]; in_progress: { id: string; last_activity: number }[] }
 

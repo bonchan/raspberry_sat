@@ -17,6 +17,7 @@ from PIL import Image
 
 SETTLE = 300                # seconds without a new file before a pass counts as finished
 META = "pass.json"
+SAMPLES = "signal.json"     # the signal samples taken during the pass, for the chart on the pass page
 THUMBS = ".thumbs"          # thumbnails, and the large versions under .thumbs/large/
 IMAGE_TYPES = {".png", ".jpg", ".jpeg"}
 THUMB_WIDTH = 480
@@ -49,7 +50,7 @@ def is_finished(folder: Path) -> bool:
 
 def is_ours(folder: Path, f: Path) -> bool:
     rel = f.relative_to(folder)
-    return rel.parts[0] == THUMBS or rel.as_posix() == META
+    return rel.parts[0] == THUMBS or rel.as_posix() in (META, SAMPLES)
 
 
 def satdump_files(folder: Path) -> list[Path]:
@@ -229,7 +230,7 @@ def pass_time(folder: Path, source_name: str, dataset: dict) -> float:
 
 # (time of a pass) -> name of the satellite that was up then, or None; see tasks.guess_satellite
 SatelliteGuess = Callable[[float], str | None]
-# (time of a pass, satellite) -> {"orbit": ..., "signal": ...} as far as known; see tasks.pass_facts
+# (time of a pass, satellite) -> {"orbit": ..., "signal": ..., "samples": [...]} as far as known; see tasks.pass_facts
 PassFacts = Callable[[float, str], dict]
 
 
@@ -333,9 +334,28 @@ def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts
         "signal": None,         # peak and mean SNR, share of the recording with lock
     }
     if facts:
-        meta.update(facts(started, satellite))
+        found = facts(started, satellite)
+        samples = found.pop("samples", None)
+        if samples:
+            write_samples(folder, samples)
+        meta.update(found)
     write_meta(folder, meta)
     return folder
+
+
+def write_samples(folder: Path, samples: list[dict]) -> None:
+    def short(v):
+        return round(v, 3) if isinstance(v, float) else v
+    data = [{k: short(v) for k, v in s.items()} for s in samples]
+    (folder / SAMPLES).write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+
+
+def load_samples(folder: Path) -> list[dict]:
+    try:
+        data = json.loads((folder / SAMPLES).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return data if isinstance(data, list) else []
 
 
 def finalize_ready(passes_dir: Path, guess: SatelliteGuess | None = None,

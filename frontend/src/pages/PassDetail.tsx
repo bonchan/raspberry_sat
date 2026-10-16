@@ -4,6 +4,7 @@ import { api, passFile, type PassDetail as Pass, type PassImage } from '../api'
 import { useConfirm } from '../Dialog'
 import { clock, compass, duration, longDate, percent, size, utc } from '../format'
 import { translate, useLanguage, useT, type Key, type Lang } from '../i18n'
+import SignalChart from '../SignalChart'
 import SkyPlot from '../SkyPlot'
 import { elevationQuality } from '../UpcomingPasses'
 
@@ -122,6 +123,15 @@ export default function PassDetail() {
           <div className="gallery">
             {groups.map(g => <GroupCard key={g.key} passId={pass.id} group={g} onOpen={setOpen} />)}
           </div>
+        </section>
+      )}
+
+      {pass.samples?.length > 0 && (
+        <section>
+          <h2>{t('detail.signalChart')}</h2>
+          {/* the elevation curve spans AOS to LOS; without an orbit, the samples set the span */}
+          <SignalChart samples={pass.samples} track={orbit?.track}
+            start={orbit?.aos ?? pass.samples[0].t} end={orbit?.los ?? pass.samples[pass.samples.length - 1].t} />
         </section>
       )}
 

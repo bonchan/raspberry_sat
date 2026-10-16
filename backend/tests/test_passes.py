@@ -124,14 +124,20 @@ def test_finalize_stores_orbit_and_signal(tmp_path):
     signal = {"peak_snr": 12.1, "mean_snr": 7.4, "locked": 0.9, "seconds": 780}
     seen = []
 
+    samples = [{"t": 1000.5, "snr": 6.123456, "deframer_lock": True},
+               {"t": 1001.5, "snr": 7.0, "deframer_lock": False}]
+
     def facts(started, satellite):
         seen.append((started, satellite))
-        return {"orbit": orbit, "signal": signal}
+        return {"orbit": orbit, "signal": signal, "samples": samples}
 
     folder = passes.finalize(make_pass(tmp_path), facts=facts)
     meta = passes.load_pass(folder)
     assert seen == [(STARTED, "METEOR-M2-3")]
     assert meta["orbit"] == orbit and meta["signal"] == signal
+    assert "samples" not in meta                        # kept out of pass.json, which the list reads
+    assert passes.load_samples(folder)[0] == {"t": 1000.5, "snr": 6.123, "deframer_lock": True}
+    assert passes.SAMPLES not in [f["path"] for f in passes.other_files(folder)]
     listed = passes.list_passes(tmp_path)["passes"][0]
     assert (listed["max_el"], listed["peak_snr"], listed["locked"]) == (47.3, 12.1, 0.9)
 

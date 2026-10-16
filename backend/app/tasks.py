@@ -100,7 +100,8 @@ def signal_summary(history: list[dict]) -> dict | None:
 
 def pass_facts(started: float, satellite: str) -> dict:
     """For pass.json: the pass's orbit (highest elevation, sky track) and, when this app watched it,
-    its signal. No "orbit" key when there is no orbit data to tell; null when no pass matches."""
+    its signal summary and samples (saved next to it as signal.json). No "orbit" key when there is
+    no orbit data to tell; null when no pass matches."""
     facts: dict = {}
     try:
         tles = orbits.load_tles(settings.SATDUMP_TLES)
@@ -114,6 +115,7 @@ def pass_facts(started: float, satellite: str) -> dict:
     # the tracker keeps the last pass's samples until the next one starts
     if tracker.history and abs(tracker.pass_started - started) < 15 * 60:
         facts["signal"] = signal_summary(tracker.history)
+        facts["samples"] = list(tracker.history)
     return facts
 
 
