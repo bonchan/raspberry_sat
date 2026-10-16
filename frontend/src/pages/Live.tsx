@@ -44,6 +44,7 @@ export default function Live() {
   const t = useT()
   const { data: status } = usePolling(api.getStatus, 1000)
   const { data: schedule } = usePolling(api.getSchedule, 60000)
+  const { data: config } = usePolling(api.getConfig, 60000)
   const { live, samples } = useLive()
   const now = useNow()
 
@@ -122,6 +123,9 @@ export default function Live() {
         </section>
       )}
       <NextPass next={next} />
+      {status.satdump.state === 'running' && config && (
+        <IdleReceiver stopsWhenIdle={config.tracking.stop_sdr_when_idle} frequency={status.tracker?.frequency} />
+      )}
     </>
   )
 }
@@ -194,11 +198,61 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
 
 function Spectrum() {
   const t = useT()
-  const tick = useTick(1000)
   return (
     <section>
       <h2>{t('live.spectrum')}</h2>
-      <img className="fft" src={satdumpImage('fft', tick)} alt={t('live.spectrum')} />
+      <SpectrumImage />
+    </section>
+  )
+}
+
+/** SatDump's FFT, reloaded every second while shown. */
+function SpectrumImage() {
+  const t = useT()
+  const tick = useTick(1000)
+  const [failed, setFailed] = useState(false)
+  return (
+    <>
+      <img className="fft" src={satdumpImage('fft', tick)} alt={t('live.spectrum')} style={failed ? { display: 'none' } : undefined}
+        onError={() => setFailed(true)} onLoad={() => setFailed(false)} />
+      {failed && <p className="hint">{t('live.noSpectrum')}</p>}
+    </>
+  )
+}
+
+const IDLE_SPECTRUM = 'rsat-idle-spectrum'      // this browser's choice, kept across visits
+
+function storedFlag(key: string): boolean {
+  try { return localStorage.getItem(key) === '1' } catch { return false }
+}
+
+function storeFlag(key: string, on: boolean) {
+  try { localStorage.setItem(key, on ? '1' : '0') } catch { /* private mode */ }
+}
+
+/** Between passes: the band's spectrum on request, when SatDump keeps the receiver on. */
+function IdleReceiver({ stopsWhenIdle, frequency }: { stopsWhenIdle: boolean; frequency?: number }) {
+  const t = useT()
+  const [on, setOn] = useState(() => storedFlag(IDLE_SPECTRUM))
+  function toggle() {
+    storeFlag(IDLE_SPECTRUM, !on)
+    setOn(!on)
+  }
+  return (
+    <section>
+      <h2>{t('live.idleTitle')}</h2>
+      {stopsWhenIdle ? (
+        <p className="hint">{t('live.idleOff')} <Link to="/settings">{t('live.idleSettings')}</Link></p>
+      ) : (
+        <>
+          <p className="hint">{t('live.idleHint')}</p>
+          <div className="row">
+            <button onClick={toggle}>{on ? t('live.idleHide') : t('live.idleShow')}</button>
+            {frequency ? <span className="hint">{t('live.tuned', { f: (frequency / 1e6).toFixed(3) })}</span> : null}
+          </div>
+          {on && <SpectrumImage />}
+        </>
+      )}
     </section>
   )
 }
