@@ -75,8 +75,8 @@ export default function Networks() {
         <h2>{t('net.saved')}</h2>
         {state.saved.length === 0 && <p className="hint">{t('net.noneSaved')}</p>}
         {state.saved.length > 0 && (
-          <table className="sats">
-            <thead><tr><th>{t('net.network')}</th><th>{t('net.priority')}</th><th></th></tr></thead>
+          <table className="sats networks">
+            <thead><tr><th>{t('net.network')}</th><th>{t('net.priorityColumn')}</th><th></th></tr></thead>
             <tbody>
               {state.saved.map(n => (
                 <SavedRow key={n.uuid} network={n} busy={busy}

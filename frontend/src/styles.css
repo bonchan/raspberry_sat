@@ -63,7 +63,9 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 .sats td { padding: 4px 6px; }
 .sats td:first-child, .sats th:first-child { width: 36px; }
 .sats tr.selected { background: #24303f; }
+.networks td:first-child, .networks th:first-child { width: 50%; }   /* name and "in use" on one line */
 @media (max-width: 760px) {
+  .networks td:first-child { width: auto; grid-column: 1 / -1; }
   .sats thead { display: none; }
   .sats tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   /* stations: radio + name / latitude, longitude, altitude / remove */
