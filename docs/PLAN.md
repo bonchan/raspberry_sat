@@ -79,6 +79,10 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
   a free number; other SDR types have other gain controls. Notes at `Sdr.gain` in `backend/app/config.py`.
 - **Gain per pass:** record the gain (and other receiver settings) in each pass's `pass.json` and show it in
   the gallery, to compare passes when tuning.
+- **Pass quality thresholds as settings:** the good / excellent colours on Upcoming passes start at a fixed
+  30° / 60° highest elevation (`GOOD` / `EXCELLENT` in `frontend/src/UpcomingPasses.tsx`). What counts as good
+  depends on the antenna and what blocks the sky; once real results show it, move them to Display settings
+  next to "show low passes".
 - **Releases only:** an update channel that follows tags instead of every commit on `main`.
 - **Fallback hotspot with captive portal** when the Pi has no network (dropped for now; the phone-hotspot
   trick on the Networks page covers moving the Pi).
