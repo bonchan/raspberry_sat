@@ -83,6 +83,15 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
   30° / 60° highest elevation (`GOOD` / `EXCELLENT` in `frontend/src/UpcomingPasses.tsx`). What counts as good
   depends on the antenna and what blocks the sky; once real results show it, move them to Display settings
   next to "show low passes".
+- **Images of the whole pass:** SatDump only draws the lines it decoded, so a pass lost at the start or end
+  gives a shorter image; it has no option to cover the whole pass. Three ways, none chosen yet:
+  - pad the images ourselves from AOS to LOS, placing the received part by time (orbit in `pass.json`,
+    sync per second in `signal.json`); approximate to a few lines, and passes still differ in length unless
+    padded to a fixed maximum. Shows at a glance where passes get lost (antenna, obstructions);
+  - `fill_missing` (SatDump 1.2.0+, Meteor LRPT pipeline parameter) blends short dropout gaps in the middle,
+    up to `max_fill_lines` (default 50), and keeps the original too; could be a receiver setting;
+  - a projection onto a fixed lat/lon box: same size and area every pass, for comparing weather or
+    animations; parts of a pass outside the box are cut off.
 - **Releases only:** an update channel that follows tags instead of every commit on `main`.
 - **Fallback hotspot with captive portal** when the Pi has no network (dropped for now; the phone-hotspot
   trick on the Networks page covers moving the Pi).
