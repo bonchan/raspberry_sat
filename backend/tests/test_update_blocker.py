@@ -28,18 +28,18 @@ def test_free_when_the_next_pass_is_far(station):
 
 
 def test_blocked_shortly_before_a_recorded_pass(station):
-    station.append(a_pass(300))
+    station.append(a_pass(120))
     blocked = tasks.update_blocker()
     assert blocked["reason"] == "pass_soon" and blocked["satellite"] == "METEOR-M2 4"
 
 
 def test_low_passes_do_not_block(station):
-    station.append(a_pass(300, scheduled=False))
+    station.append(a_pass(120, scheduled=False))
     assert tasks.update_blocker() is None
 
 
 def test_no_pass_blocks_while_satdump_is_stopped(station, monkeypatch):
-    station.append(a_pass(300))
+    station.append(a_pass(120))
     monkeypatch.setattr(tasks.supervisor, "wanted", False)
     assert tasks.update_blocker() is None
 

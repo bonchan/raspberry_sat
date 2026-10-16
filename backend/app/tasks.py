@@ -102,7 +102,7 @@ def safe_to_restart() -> bool:
     return not tracker.receiving() and not passes.output_busy(settings.PASSES_DIR)
 
 
-UPDATE_LEAD = 15 * 60       # seconds kept free before a recorded pass: an update takes a few minutes
+UPDATE_LEAD = 5 * 60       # seconds kept free before a recorded pass: an update takes a few minutes
 
 
 def update_blocker() -> dict | None:
