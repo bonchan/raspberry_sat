@@ -126,10 +126,31 @@ export default function Updates() {
             {!data.running && data.last_run?.result === 'ok' && <span className="ok"> · {t('update.ok')}</span>}
             {!data.running && data.last_run?.result === 'failed' && <span className="error"> · {t('update.failed')}</span>}
           </summary>
-          {data.last_run && <pre className="console update-log">{data.last_run.log.join('\n')}</pre>}
+          {data.last_run && <UpdateLog lines={data.last_run.log} open={logOpen} />}
         </details>
       )}
     </section>
+  )
+}
+
+/** Follows new lines like a terminal, scrolling only its own box; scrolling up to read stops that until
+    scrolled back to the bottom. */
+function UpdateLog({ lines, open }: { lines: string[]; open: boolean }) {
+  const ref = useRef<HTMLPreElement>(null)
+  const follow = useRef(true)
+  const text = lines.join('\n')
+
+  useEffect(() => { if (open) follow.current = true }, [open])
+  useEffect(() => {
+    const box = ref.current
+    if (box && open && follow.current) box.scrollTop = box.scrollHeight
+  }, [text, open])
+
+  return (
+    <pre ref={ref} className="console update-log" onScroll={e => {
+      const box = e.currentTarget
+      follow.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24
+    }}>{text}</pre>
   )
 }
 

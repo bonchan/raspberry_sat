@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import time
 
 import httpx
@@ -43,12 +44,22 @@ def bot(**kwargs) -> Discord:
     return Discord(mode="manual", bot_token="secret", channel_id=CHANNEL, **kwargs)
 
 
-class FakeDiscord:
-    """Answers like Discord's API and keeps the requests."""
+def payload(request: httpx.Request) -> dict:
+    """The message's JSON, sent alone or as the payload_json part next to the files."""
+    body = request.read()
+    if request.headers["content-type"].startswith("application/json"):
+        return json.loads(body)
+    return json.loads(re.search(rb'name="payload_json"\r\n\r\n(.*?)\r\n--', body, re.S).group(1))
 
-    def __init__(self, fail: tuple[int, dict] | None = None):
+
+class FakeDiscord:
+    """Answers like Discord's API and keeps the requests. no_embed_links: drops the embeds, as Discord
+    does when the bot lacks Embed Links."""
+
+    def __init__(self, fail: tuple[int, dict] | None = None, no_embed_links=False):
         self.requests: list[httpx.Request] = []
         self.fail = fail
+        self.no_embed_links = no_embed_links
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -56,13 +67,14 @@ class FakeDiscord:
             return httpx.Response(self.fail[0], json=self.fail[1])
         if request.method == "GET":
             return httpx.Response(200, json={"id": CHANNEL, "guild_id": SERVER, "name": "satellites"})
-        return httpx.Response(200, json={"id": "111", "channel_id": CHANNEL})
+        embeds = [] if self.no_embed_links else payload(request).get("embeds", [])
+        return httpx.Response(200, json={"id": "111", "channel_id": CHANNEL, "embeds": embeds})
 
 
 @pytest.fixture
 def fake(monkeypatch):
-    def install(fail=None):
-        f = FakeDiscord(fail)
+    def install(fail=None, no_embed_links=False):
+        f = FakeDiscord(fail, no_embed_links)
         monkeypatch.setattr(discord, "transport", httpx.MockTransport(f))
         return f
     return install
@@ -92,8 +104,11 @@ def test_any_image_that_exists_is_posted(tmp_path):
     passes.write_meta(folder, meta)
     assert picked(folder) == ["msu_mr_rgb_MCIR_corrected.png", "msu_mr_rgb_Broken.png",
                               "msu_mr_rgb_MSA_corrected.png", "MSU-MR-1.png"]
-    files = discord.encode_images(folder, discord.pick_images(folder, passes.load_pass(folder), []))
-    assert files[1] == ("Broken.png", b"not a png", "image/png")       # sent as it is
+    images = discord.pick_images(folder, passes.load_pass(folder), [])
+    files = discord.encode_images(folder, images)
+    assert files[1] == ("Broken.png", b"not a png", "image/png")       # sent as it is, with no name box
+    assert [e["footer"]["text"] for e in discord.image_embeds(files, images, "en")] == [
+        "MCIR · corrected", "MSA · corrected", "MSU-MR-1 · raw"]
     (folder / "MSU-MR" / "MSU-MR-1.png").unlink()
     assert "MSU-MR-1.png" not in picked(folder)
 
@@ -124,17 +139,21 @@ def test_message_text():
             "orbit": {"aos": STARTED, "los": STARTED + 780, "tca": STARTED + 390, "max_el": 54.4,
                       "aos_az": 315, "los_az": 135},
             "signal": {"peak_snr": 12.34, "mean_snr": 8.1, "locked": 0.92, "seconds": 700}}
-    images = [{"name": "MCIR"}, {"name": "MSA"}]
-    text = discord.message_text(meta, images, "roof_top", "en")
+    text = discord.message_text(meta, True, "roof_top", "en")
     assert text.startswith("## METEOR-M2-3\n")
     assert f"<t:{int(STARTED)}:F> · 13:10 UTC" in text
     assert "Highest elevation **54°**" in text and "NW → SE" in text and "(13 min)" in text
     assert "peak 12.3 dB, average 8.1 dB · locked 92%" in text
     assert "Received 87% of the main image" in text
-    assert "Images: MCIR · MSA" in text
     assert text.endswith("-# Station roof\\_top")
-    assert "NO → SE" in discord.message_text(meta, images, "x", "es")
-    assert "No images" in discord.message_text({"time": STARTED}, [], "x", "en")
+    assert "NO → SE" in discord.message_text(meta, True, "x", "es")
+    assert "No images" in discord.message_text({"time": STARTED}, False, "x", "en")
+
+
+def test_image_names_as_the_pass_page_has_them():
+    assert discord.caption({"name": "MSA", "variants": ["corrected", "map"]}, "en") == "MSA · corrected + map"
+    assert discord.caption({"name": "MSA", "variants": ["corrected", "map"]}, "es") == "MSA · corregida + mapa"
+    assert discord.caption({"name": "MSU-MR-1", "variants": []}, "es") == "MSU-MR-1 · cruda"
 
 
 def test_images_shrink_to_fit(tmp_path, monkeypatch):
@@ -161,8 +180,22 @@ def test_post_pass_sends_one_message_and_notes_it(tmp_path, fake):
     assert post.headers["Authorization"] == "Bot secret"
     assert post.headers["User-Agent"].startswith("DiscordBot (")
     body = post.read()
-    assert body.count(b'filename="') == 3 and b"payload_json" in body and b"## METEOR-M2-3" in body
+    assert body.count(b'filename="') == 3 and b"## METEOR-M2-3" in body
+    # each image in a box with its name under it
+    embeds = payload(post)["embeds"]
+    assert [e["image"]["url"] for e in embeds] == [
+        "attachment://MCIR_corrected.jpg", "attachment://MSA_corrected.jpg", "attachment://MSU-MR-1.jpg"]
+    assert [e["footer"]["text"] for e in embeds] == ["MCIR · corrected", "MSA · corrected", "MSU-MR-1 · raw"]
+    assert "warning" not in note
     assert passes.load_pass(folder)["discord"]["url"] == note["url"]
+
+
+def test_missing_embed_links_is_noted(tmp_path, fake):
+    folder = finished_pass(tmp_path)
+    fake(no_embed_links=True)
+    note = asyncio.run(discord.post_pass(folder, Config(discord=bot())))
+    assert "Embed Links" in note["warning"]
+    assert "Embed Links" in asyncio.run(discord.send_test(bot(), "en"))["warning"]
 
 
 def test_failure_is_explained_and_noted(tmp_path, fake):
@@ -181,8 +214,11 @@ def test_wrong_token(fake):
 
 def test_test_message_is_plain_json(fake):
     api = fake()
-    assert asyncio.run(discord.send_test(bot(), "en"))["channel"] == "satellites"
-    assert json.loads(api.requests[1].read())["content"].startswith("raspberry_sat can post here")
+    sent = asyncio.run(discord.send_test(bot(), "en"))
+    assert sent["channel"] == "satellites" and "warning" not in sent
+    body = json.loads(api.requests[1].read())
+    assert body["content"].startswith("raspberry_sat can post here")
+    assert len(body["embeds"]) == 1          # shows whether the bot has Embed Links
 
 
 # ---------- settings ----------
