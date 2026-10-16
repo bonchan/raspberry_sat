@@ -55,10 +55,53 @@ def test_memory_used_leaves_out_the_cache(tmp_path, monkeypatch):
     assert system.memory() == {"total": 7999784 * 1024, "used": (7999784 - 7012340) * 1024}
 
 
-def test_no_sensors_off_the_pi(tmp_path, monkeypatch):
-    monkeypatch.setattr(system, "THERMAL", tmp_path / "missing")
-    monkeypatch.setattr(system, "MEMINFO", tmp_path / "missing")
+def test_uptime(tmp_path, monkeypatch):
+    (tmp_path / "uptime").write_text("12345.67 45678.90\n")
+    monkeypatch.setattr(system, "UPTIME", tmp_path / "uptime")
+    assert system.uptime() == 12345.67
+
+
+class Output:
+    def __init__(self, stdout, returncode=0):
+        self.stdout, self.returncode, self.stderr = stdout, returncode, ""
+
+
+def test_throttling_now_and_since_boot(monkeypatch):
+    # under-voltage and throttled now (bits 0, 2), and so since boot (16, 18)
+    monkeypatch.setattr(system.subprocess, "run", lambda *a, **k: Output("throttled=0x50005\n"))
+    assert system.throttling() == {"now": ["under_voltage", "throttled"], "since_boot": ["under_voltage", "throttled"]}
+
+
+def test_throttling_only_since_boot(monkeypatch):
+    monkeypatch.setattr(system.subprocess, "run", lambda *a, **k: Output("throttled=0x10000\n"))
+    assert system.throttling() == {"now": [], "since_boot": ["under_voltage"]}
+
+
+def test_clock_synced(monkeypatch):
+    monkeypatch.setattr(system.subprocess, "run", lambda *a, **k: Output("yes\n"))
+    assert system.clock_synced() is True
+    monkeypatch.setattr(system.subprocess, "run", lambda *a, **k: Output("no\n"))
+    assert system.clock_synced() is False
+
+
+def test_network_wifi_signal(monkeypatch):
+    monkeypatch.setattr(system.networks, "devices", lambda: [
+        {"device": "wlan0", "type": "wifi", "connected": True},
+        {"device": "eth0", "type": "ethernet", "connected": False}])
+    monkeypatch.setattr(system.networks, "wifi_link", lambda: {"ssid": "Casa", "signal": 64})
+    assert system.network() == {"ethernet": False, "wifi": {"ssid": "Casa", "signal": 64}}
+
+
+def test_nothing_to_read_off_the_pi(tmp_path, monkeypatch):
+    for name in ("THERMAL", "MEMINFO", "UPTIME"):
+        monkeypatch.setattr(system, name, tmp_path / "missing")
+
+    def missing(*a, **k):
+        raise FileNotFoundError(a[0][0])
+
+    monkeypatch.setattr(system.subprocess, "run", missing)          # also what nmcli runs through
     monkeypatch.setattr(system.settings, "DATA_DIR", tmp_path / "data")
     body = TestClient(app).get("/api/system").json()
-    assert body["temperature"] is None and body["memory"] is None
+    for key in ("temperature", "memory", "uptime", "throttling", "clock_synced", "network"):
+        assert body[key] is None, key
     assert body["disk"]["total"] > 0

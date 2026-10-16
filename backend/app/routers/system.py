@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 
-from app import settings
+from app import networks, settings
 from app.supervisor import supervisor
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -14,6 +14,10 @@ router = APIRouter(prefix="/system", tags=["system"])
 SERVICE = "raspberry_sat"
 THERMAL = Path("/sys/class/thermal/thermal_zone0/temp")
 MEMINFO = Path("/proc/meminfo")
+UPTIME = Path("/proc/uptime")
+
+# `vcgencmd get_throttled`: these bits for what is happening now, the same bits + 16 for since boot
+THROTTLE_BITS = {0: "under_voltage", 1: "freq_capped", 2: "throttled", 3: "soft_temp_limit"}
 
 # --no-block: systemctl only queues the job, so it is not cut short when our own service stops.
 # A reboot or power off stops this service first, which lets SatDump finish a pass it is decoding.
@@ -58,6 +62,53 @@ def memory() -> dict | None:
     return {"total": total, "used": total - available}
 
 
+def uptime() -> float | None:
+    """Seconds since the Pi booted; a short one after an unattended night means it rebooted by itself."""
+    try:
+        return float(UPTIME.read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def run(*cmd: str) -> str | None:
+    """A quick read-only command's output, None when it is missing or fails (off the Pi)."""
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def throttling() -> dict | None:
+    """Under-voltage and slow-downs reported by the firmware, now and since boot. Under-voltage means the
+    power supply or its cable sags under load; since-boot flags only clear with a reboot."""
+    out = run("vcgencmd", "get_throttled")              # throttled=0x50000
+    try:
+        value = int(out.partition("=")[2], 16) if out else None
+    except ValueError:
+        value = None
+    if value is None:
+        return None
+    return {"now": [name for bit, name in THROTTLE_BITS.items() if value >> bit & 1],
+            "since_boot": [name for bit, name in THROTTLE_BITS.items() if value >> (bit + 16) & 1]}
+
+
+def clock_synced() -> bool | None:
+    """Whether the clock is set from the network. The Pi keeps no time while off, and a wrong clock
+    puts every pass prediction at the wrong time."""
+    return {"yes": True, "no": False}.get(run("timedatectl", "show", "--property=NTPSynchronized", "--value") or "")
+
+
+def network() -> dict | None:
+    """How the Pi is connected: Ethernet, and the Wi-Fi network with its signal (0-100 %)."""
+    try:
+        connected = {d["type"] for d in networks.devices() if d["connected"]}
+        wifi = networks.wifi_link() if "wifi" in connected else None
+    except (networks.NetworkError, ValueError):
+        return None
+    return {"ethernet": "ethernet" in connected, "wifi": wifi}
+
+
 @router.get("")
 def get_system() -> dict:
     settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -69,6 +120,10 @@ def get_system() -> dict:
         "disk": {"total": disk.total, "used": disk.used, "free": disk.free},
         "temperature": temperature(),
         "memory": memory(),
+        "uptime": uptime(),
+        "throttling": throttling(),
+        "clock_synced": clock_synced(),
+        "network": network(),
     }
 
 

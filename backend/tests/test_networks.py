@@ -55,6 +55,10 @@ def test_scan_one_entry_per_name(fake):
     assert found[2]["security"] == ""
 
 
+def test_wifi_link_is_the_network_in_use(fake):
+    assert networks.wifi_link() == {"ssid": "Casa:5G", "signal": 80}
+
+
 def test_add_new_network(fake):
     assert networks.save_network("Obra", "secret123", 5, False, "") == "added"
     args, sudo = fake.changes[0]

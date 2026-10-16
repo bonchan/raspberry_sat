@@ -67,6 +67,16 @@ def wifi_device() -> str | None:
     return next((d["device"] for d in devices() if d["type"] == "wifi"), None)
 
 
+def wifi_link() -> dict | None:
+    """The Wi-Fi network in use and its signal (0-100 %). No scan: NetworkManager keeps the signal
+    of the network it is connected to up to date by itself."""
+    for row in rows(nmcli("-t", "-f", "IN-USE,SSID,SIGNAL", "device", "wifi", "list", "--rescan", "no", timeout=5)):
+        in_use, ssid, signal = (row + ["", "", ""])[:3]
+        if in_use == "*":
+            return {"ssid": ssid, "signal": int(signal or 0)}
+    return None
+
+
 def saved_networks() -> list[dict]:
     out = []
     for fields in rows(nmcli("-t", "-f", "NAME,UUID,TYPE,AUTOCONNECT,AUTOCONNECT-PRIORITY,ACTIVE", "connection", "show")):

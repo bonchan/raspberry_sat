@@ -24,9 +24,15 @@ export interface Config {
 export interface SystemInfo {
   hostname: string; version: string; data_dir: string
   disk: { total: number; used: number; free: number }
-  temperature: number | null                      // °C, null off the Pi
+  // each null off the Pi (or when the tool behind it is missing)
+  temperature: number | null                      // °C
   memory: { total: number; used: number } | null  // bytes; the page cache counts as free
+  uptime: number | null                           // seconds since boot
+  throttling: { now: ThrottleFlag[]; since_boot: ThrottleFlag[] } | null
+  clock_synced: boolean | null                    // set from the network (NTP)
+  network: { ethernet: boolean; wifi: { ssid: string; signal: number } | null } | null  // signal 0-100 %
 }
+export type ThrottleFlag = 'under_voltage' | 'freq_capped' | 'throttled' | 'soft_temp_limit'
 
 export type SatdumpState = 'stopped' | 'running' | 'stopping' | 'waiting' | 'not_installed'
 export interface SatdumpProcess {
