@@ -68,7 +68,7 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
       {data && !data.error && passes.length === 0 && <p className="hint">{t('up.none')}</p>}
       {passes.length > 0 && (
         <div className="upcoming">
-          <div>
+          <div className="upcoming-sky">
             <SkyPlot track={shown?.track} minElevation={minElevation} />
             {shown && <p className="hint center">{shown.name}, {clock(shown.aos)} ({utcClock(shown.aos)} UTC)</p>}
             <SkyLegend />
