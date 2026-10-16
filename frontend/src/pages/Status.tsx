@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { api, type SatdumpProcess, type Status as StatusData } from '../api'
 import { useConfirm } from '../Dialog'
 import { useNow, usePolling } from '../hooks'
-import { duration, gb } from '../format'
+import { duration, gb, percent } from '../format'
 import { useT, type Key } from '../i18n'
 import Updates from '../Updates'
 
@@ -15,7 +15,7 @@ const STATE_CLASS: Record<SatdumpProcess['state'], string> = {
 export default function Status() {
   const t = useT()
   const { data: status, error } = usePolling(api.getStatus, 2000)
-  const { data: system } = usePolling(api.getSystem, 30000)
+  const { data: system } = usePolling(api.getSystem, 10000)
   const { hash, key } = useLocation()
   const loaded = !!status && !!system
 
@@ -37,6 +37,20 @@ export default function Status() {
             <dt>{t('status.data')}</dt><dd>{system.data_dir}</dd>
             <dt>{t('status.disk')}</dt>
             <dd>{t('status.diskUsage', { used: gb(system.disk.used), free: gb(system.disk.free), total: gb(system.disk.total) })}</dd>
+            {system.memory && <>
+              <dt>{t('status.memory')}</dt>
+              <dd>{t('status.memoryUsage', { used: gb(system.memory.used), total: gb(system.memory.total),
+                                             share: percent(system.memory.used / system.memory.total) })}</dd>
+            </>}
+            {system.temperature !== null && <>
+              <dt>{t('status.temperature')}</dt>
+              <dd>
+                <span className={system.temperature >= 80 ? 'error' : system.temperature >= 70 ? 'caution' : ''}>
+                  {system.temperature.toFixed(1)} °C
+                </span>
+                {system.temperature >= 70 && <span className="hint"> · {t('status.hot')}</span>}
+              </dd>
+            </>}
           </dl>
         </section>
       )}

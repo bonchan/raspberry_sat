@@ -24,6 +24,8 @@ export interface Config {
 export interface SystemInfo {
   hostname: string; version: string; data_dir: string
   disk: { total: number; used: number; free: number }
+  temperature: number | null                      // °C, null off the Pi
+  memory: { total: number; used: number } | null  // bytes; the page cache counts as free
 }
 
 export type SatdumpState = 'stopped' | 'running' | 'stopping' | 'waiting' | 'not_installed'
