@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, passFile, type PassDetail as Pass, type PassImage } from '../api'
 import { useConfirm } from '../Dialog'
-import { longDate, percent, size, utc } from '../format'
+import { clock, compass, duration, longDate, percent, size, utc } from '../format'
 import { translate, useLanguage, useT, type Key, type Lang } from '../i18n'
+import SkyPlot from '../SkyPlot'
+import { elevationQuality } from '../UpcomingPasses'
 
 // which variant of a composite to show first
 const VARIANT_ORDER = ['corrected,map', 'corrected', 'map', '']
@@ -68,22 +70,46 @@ export default function PassDetail() {
   }
 
   const main = pass.images.find(i => i.path === pass.main)
+  const { orbit, signal } = pass
 
   return (
     <>
       <section>
         <p><Link to="/passes">{t('detail.back')}</Link></p>
         <h2>{pass.satellite}</h2>
-        <dl className="facts">
-          <dt>{t('detail.time')}</dt><dd>{longDate(pass.time)} ({utc(pass.time)})</dd>
-          {pass.coverage !== null && <>
-            <dt>{t('detail.received')}</dt><dd>{t('detail.receivedValue', { p: percent(pass.coverage) })}</dd>
-          </>}
-          <dt>{t('detail.images')}</dt><dd>{pass.images.length}</dd>
-          <dt>{t('detail.size')}</dt><dd>{size(pass.size)}</dd>
-          <dt>{t('detail.folder')}</dt>
-          <dd>{pass.id}{pass.source_name !== pass.id && <span className="hint"> {t('detail.was', { name: pass.source_name })}</span>}</dd>
-        </dl>
+        <div className="pass-top">
+          <dl className="facts">
+            <dt>{t('detail.time')}</dt><dd>{longDate(pass.time)} ({utc(pass.time)})</dd>
+            {orbit && <>
+              <dt>{t('detail.maxEl')}</dt>
+              <dd>
+                <span className={`el q-${elevationQuality(orbit.max_el)}`}>{orbit.max_el.toFixed(1)}°</span>{' '}
+                {t('detail.at', { time: clock(orbit.tca) })}
+              </dd>
+              <dt>{t('detail.overSky')}</dt>
+              <dd>
+                {clock(orbit.aos)} – {clock(orbit.los)} ({duration(orbit.los - orbit.aos)}),{' '}
+                {t('detail.direction', { from: compass(orbit.aos_az), to: compass(orbit.los_az) })}
+              </dd>
+            </>}
+            {signal && <>
+              <dt>{t('detail.signal')}</dt>
+              <dd>{t('detail.signalValue', { peak: signal.peak_snr.toFixed(1), mean: signal.mean_snr.toFixed(1) })}</dd>
+              {signal.locked !== null && <>
+                <dt>{t('detail.locked')}</dt>
+                <dd>{t('detail.lockedValue', { p: percent(signal.locked), d: duration(signal.seconds) })}</dd>
+              </>}
+            </>}
+            {pass.coverage !== null && <>
+              <dt>{t('detail.received')}</dt><dd>{t('detail.receivedValue', { p: percent(pass.coverage) })}</dd>
+            </>}
+            <dt>{t('detail.images')}</dt><dd>{pass.images.length}</dd>
+            <dt>{t('detail.size')}</dt><dd>{size(pass.size)}</dd>
+            <dt>{t('detail.folder')}</dt>
+            <dd>{pass.id}{pass.source_name !== pass.id && <span className="hint"> {t('detail.was', { name: pass.source_name })}</span>}</dd>
+          </dl>
+          {orbit && <SkyPlot track={orbit.track} />}
+        </div>
         {main && (
           <img className="hero" src={passFile(pass.id, 'large', main.path)} alt={main.name}
             onClick={() => setOpen(main)} />

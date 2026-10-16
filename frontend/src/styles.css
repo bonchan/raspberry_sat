@@ -190,6 +190,9 @@ table.passes tr.live td { font-weight: 600; }
 .swatch.q-good { background: var(--good); }
 .swatch.q-excellent { background: var(--excellent); }
 .swatch.q-low { background: var(--line); }
+.el.q-fair { color: var(--fair); }
+.el.q-good { color: var(--good); }
+.el.q-excellent { color: var(--excellent); }
 
 /* live pass */
 .live-grid { display: grid; grid-template-columns: minmax(240px, 380px) 1fr; gap: 16px; }
@@ -277,6 +280,8 @@ a.card:hover { border-color: var(--accent); }
 .card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; display: block; cursor: pointer; }
 .card .noimage { aspect-ratio: 4 / 3; display: grid; place-items: center; background: #000; color: var(--dim); }
 .caption { display: grid; gap: 2px; padding: 8px 10px 10px; }
+.pass-top { display: grid; grid-template-columns: 1fr minmax(160px, 240px); gap: 16px; align-items: start; }
+@media (max-width: 600px) { .pass-top { grid-template-columns: 1fr; } }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .chip { padding: 2px 8px; font-size: 12px; border-radius: 10px; }
 .chip.on { background: var(--accent); border-color: var(--accent); color: #06121f; }

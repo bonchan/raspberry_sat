@@ -58,13 +58,23 @@ export interface PassImage {
   path: string; instrument: string; name: string; variants: string[]; bytes: number
   width?: number; height?: number; mean?: number; coverage?: number; error?: string
 }
+// null for passes finished before these were saved (signal), or that no orbit matched
 export interface PassSummary {
   id: string; satellite: string; time: number; main: string | null
   coverage: number | null; image_count: number; size: number
+  max_el: number | null; peak_snr: number | null; locked: number | null
 }
+/** the pass as the orbits describe it; track is [az, el] every 10 s from AOS to LOS */
+export interface PassOrbit {
+  norad: number; aos: number; los: number; tca: number; max_el: number
+  aos_az: number; los_az: number; track: [number, number][]
+}
+/** SNR in dB; locked: share of the recording with the deframer locked */
+export interface PassSignal { peak_snr: number; mean_snr: number; locked: number | null; seconds: number }
 export interface PassDetail {
   id: string; satellite: string; time: number; main: string | null; coverage: number | null
   size: number; source_name: string; images: PassImage[]; files: { path: string; bytes: number }[]
+  orbit?: PassOrbit | null; signal?: PassSignal | null
 }
 export interface PassList { passes: PassSummary[]; in_progress: { id: string; last_activity: number }[] }
 

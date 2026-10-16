@@ -119,6 +119,36 @@ def test_repair_names_unknown_passes(tmp_path):
     assert fixed == [(folder.name, folder.name.replace("unknown-meteor", "meteor-m2-4"))]
 
 
+def test_finalize_stores_orbit_and_signal(tmp_path):
+    orbit = {"aos": STARTED - 60, "los": STARTED + 840, "max_el": 47.3, "track": [[10.0, 0.0], [190.0, 0.0]]}
+    signal = {"peak_snr": 12.1, "mean_snr": 7.4, "locked": 0.9, "seconds": 780}
+    seen = []
+
+    def facts(started, satellite):
+        seen.append((started, satellite))
+        return {"orbit": orbit, "signal": signal}
+
+    folder = passes.finalize(make_pass(tmp_path), facts=facts)
+    meta = passes.load_pass(folder)
+    assert seen == [(STARTED, "METEOR-M2-3")]
+    assert meta["orbit"] == orbit and meta["signal"] == signal
+    listed = passes.list_passes(tmp_path)["passes"][0]
+    assert (listed["max_el"], listed["peak_snr"], listed["locked"]) == (47.3, 12.1, 0.9)
+
+
+def test_add_orbits_to_earlier_passes(tmp_path):
+    folder = passes.finalize(make_pass(tmp_path))
+    meta = passes.load_pass(folder)
+    del meta["orbit"]                                   # as saved before pass.json had one
+    passes.write_meta(folder, meta)
+
+    assert passes.add_orbits(tmp_path, lambda started, satellite: {}) == 0      # no orbit data yet
+    assert "orbit" not in passes.load_pass(folder)
+    assert passes.add_orbits(tmp_path, lambda started, satellite: {"orbit": {"max_el": 33.0}}) == 1
+    assert passes.load_pass(folder)["orbit"] == {"max_el": 33.0}
+    assert passes.add_orbits(tmp_path, lambda started, satellite: {"orbit": {"max_el": 99.0}}) == 0   # done once
+
+
 def test_finalize_ready_leaves_fresh_folders(tmp_path):
     make_pass(tmp_path, name="old")
     make_pass(tmp_path, name="fresh", satellite="METEOR-M2-4", age=10)

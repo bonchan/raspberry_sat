@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { api } from './api'
 import { useNow, usePolling } from './hooks'
 import { useT, type Key } from './i18n'
-import { clock } from './format'
+import { clockSeconds, utcClock } from './format'
 
 const links: { to: string; label: Key; end?: boolean }[] = [
   { to: '/', label: 'nav.upcoming', end: true },
@@ -13,14 +13,13 @@ const links: { to: string; label: Key; end?: boolean }[] = [
   { to: '/logs', label: 'nav.logs' },
 ]
 
-// its own component, so only the clock re-renders every second
+// its own component, so only the clock re-renders every second. Local time unmarked, UTC marked, as everywhere else
 function Clock() {
-  const t = useT()
   const now = useNow()
   return (
     <span className="clock">
-      <b>{new Date(now * 1000).toISOString().slice(11, 19)} UTC</b>
-      <span className="hint">{t('clock.local', { time: clock(now) })}</span>
+      <b>{clockSeconds(now)}</b>
+      <span className="hint">{utcClock(now)} UTC</span>
     </span>
   )
 }

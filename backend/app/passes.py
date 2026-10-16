@@ -229,6 +229,8 @@ def pass_time(folder: Path, source_name: str, dataset: dict) -> float:
 
 # (time of a pass) -> name of the satellite that was up then, or None; see tasks.guess_satellite
 SatelliteGuess = Callable[[float], str | None]
+# (time of a pass, satellite) -> {"orbit": ..., "signal": ...} as far as known; see tasks.pass_facts
+PassFacts = Callable[[float, str], dict]
 
 
 def known_satellite(name: str) -> bool:
@@ -272,7 +274,25 @@ def repair(passes_dir: Path, guess: SatelliteGuess | None = None) -> list[tuple[
     return fixed
 
 
-def finalize(folder: Path, guess: SatelliteGuess | None = None) -> Path:
+def add_orbits(passes_dir: Path, facts: PassFacts) -> int:
+    """Give finished passes saved before pass.json had an orbit one (highest elevation, sky track).
+    A pass no orbit matches gets null and is not tried again; without orbit data (no TLEs yet)
+    nothing is written, so the next start tries again. Returns how many passes got an orbit."""
+    added = 0
+    for folder in pass_folders(passes_dir):
+        meta = read_json(folder / META)
+        if meta is None or "orbit" in meta:
+            continue
+        found = facts(float(meta.get("time") or 0), str(meta.get("satellite") or ""))
+        if "orbit" not in found:
+            continue
+        meta["orbit"] = found["orbit"]
+        write_meta(folder, meta)
+        added += meta["orbit"] is not None
+    return added
+
+
+def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts | None = None) -> Path:
     """Rename the folder, make thumbnails, write pass.json. Returns the folder's new path."""
     source_name = folder.name
     dataset = read_json(folder / "dataset.json") or {}
@@ -309,12 +329,17 @@ def finalize(folder: Path, guess: SatelliteGuess | None = None) -> Path:
         "images": images,
         "size": sum(f.stat().st_size for f in folder.rglob("*") if f.is_file()),
         "finished_at": time.time(),
+        "orbit": None,          # AOS, LOS, highest elevation, sky track
+        "signal": None,         # peak and mean SNR, share of the recording with lock
     }
+    if facts:
+        meta.update(facts(started, satellite))
     write_meta(folder, meta)
     return folder
 
 
-def finalize_ready(passes_dir: Path, guess: SatelliteGuess | None = None) -> tuple[list[Path], list[tuple[str, str]]]:
+def finalize_ready(passes_dir: Path, guess: SatelliteGuess | None = None,
+                   facts: PassFacts | None = None) -> tuple[list[Path], list[tuple[str, str]]]:
     """Finish every pass that has gone quiet. Returns (finished folders, [(folder name, error)])."""
     done, errors = [], []
     now = time.time()
@@ -322,7 +347,7 @@ def finalize_ready(passes_dir: Path, guess: SatelliteGuess | None = None) -> tup
         if is_finished(folder) or now - last_activity(folder) < SETTLE:
             continue
         try:
-            done.append(finalize(folder, guess))
+            done.append(finalize(folder, guess, facts))
         except Exception as e:      # one bad folder must not stop the others
             errors.append((folder.name, f"{type(e).__name__}: {e}"))
     return done, errors
@@ -339,6 +364,7 @@ def load_pass(folder: Path) -> dict | None:
 
 
 def summary(meta: dict) -> dict:
+    orbit, signal = meta.get("orbit") or {}, meta.get("signal") or {}
     return {
         "id": meta["id"],
         "satellite": meta.get("satellite", "unknown"),
@@ -347,6 +373,9 @@ def summary(meta: dict) -> dict:
         "coverage": meta.get("coverage"),
         "image_count": len(meta.get("images", [])),
         "size": meta.get("size", 0),
+        "max_el": orbit.get("max_el"),
+        "peak_snr": signal.get("peak_snr"),
+        "locked": signal.get("locked"),
     }
 
 

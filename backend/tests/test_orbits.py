@@ -106,3 +106,24 @@ def test_low_pass_is_overhead_but_not_received():
                                        "sat_current_pos": {"az": 200.0, "el": 6.0}}})
     assert tracker.overhead() and not tracker.receiving()
     assert tracker.history == [] and tracker.last_los == 0
+
+
+def test_pass_geometry_of_a_received_pass():
+    from app.orbits import pass_geometry
+    config = station_config()
+    first = predict(config, parse_tles(TLE), EPOCH, hours=24)[0]
+    # SatDump's recording starts a little after AOS, once the satellite is high enough
+    found = pass_geometry(config, parse_tles(TLE), first["aos"] + 120, "Meteor-M2-3")
+    assert found["norad"] == 57166
+    assert abs(found["max_el"] - first["max_el"]) < 0.3 and found["track"]
+    assert pass_geometry(config, parse_tles(TLE), first["los"] + 3600) is None
+
+
+def test_signal_summary():
+    from app.tasks import signal_summary
+    history = [{"t": 100.0, "snr": 4.0, "deframer_lock": False},
+               {"t": 101.0, "snr": 9.0, "deframer_lock": True},
+               {"t": 160.0, "snr": 8.0, "deframer_lock": True},
+               {"t": 161.0, "snr": 3.0, "deframer_lock": True}]
+    assert signal_summary(history) == {"peak_snr": 9.0, "mean_snr": 6.0, "locked": 0.75, "seconds": 61}
+    assert signal_summary([{"t": 1.0}]) is None

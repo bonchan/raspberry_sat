@@ -4,6 +4,7 @@ SatDump only exposes its schedule as a small picture, so we predict the passes o
 Skyfield: same orbits, same station, same minimum elevations.
 """
 
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -72,6 +73,41 @@ def satellite_up(config: Config, tles: dict[int, tuple[str, str, str]], when: fl
         if el > best_el:
             best, best_el = s.name or name, el
     return best
+
+
+def simple_name(name: str) -> str:
+    """"METEOR-M2 4", "Meteor-M2-4" and "meteor m2 4" all become "meteorm24"."""
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def pass_geometry(config: Config, tles: dict[int, tuple[str, str, str]], when: float, satellite: str = "") -> dict | None:
+    """The orbit of a received pass: AOS, LOS, highest elevation and sky track of the configured satellite
+    that was over the station at `when` (a time during the recording), the named one first. Uses the
+    current TLEs, which are close enough for passes a few weeks back."""
+    ts = timescale()
+    station = wgs84.latlon(config.station.lat, config.station.lon, elevation_m=config.station.alt)
+    t0 = ts.from_datetime(datetime.fromtimestamp(when, timezone.utc) - LOOKBACK)
+    t1 = ts.from_datetime(datetime.fromtimestamp(when, timezone.utc) + LOOKBACK)
+    wanted = simple_name(satellite)
+    found = []                  # (named, max_el, pass)
+    for s in config.satellites:
+        if s.norad not in tles:
+            continue
+        name, l1, l2 = tles[s.norad]
+        sat = EarthSatellite(l1, l2, name, ts)
+        times, events = sat.find_events(station, t0, t1, altitude_degrees=0.0)
+        rise = None
+        for t, event in zip(times, events):
+            if event == 0:
+                rise = t
+            elif event == 2 and rise is not None:
+                if unix(rise) - 120 <= when <= unix(t):
+                    p = describe_pass(sat, station, rise, t)
+                    p["norad"] = s.norad
+                    named = wanted != "" and wanted in (simple_name(s.name), simple_name(name))
+                    found.append((named, p["max_el"], p))
+                rise = None
+    return max(found, key=lambda f: (f[0], f[1]))[2] if found else None
 
 
 def predict(config: Config, tles: dict[int, tuple[str, str, str]], now: float, hours: float = 24) -> list[dict]:

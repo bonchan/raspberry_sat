@@ -84,6 +84,39 @@ class Tracker:
 tracker = Tracker()
 
 
+def signal_summary(history: list[dict]) -> dict | None:
+    """Peak and mean SNR (dB) of a pass's samples, and the share of them with the deframer locked."""
+    snr = [s["snr"] for s in history if isinstance(s.get("snr"), (int, float))]
+    if not snr:
+        return None
+    locks = [bool(s["deframer_lock"]) for s in history if "deframer_lock" in s]
+    return {
+        "peak_snr": round(max(snr), 1),
+        "mean_snr": round(sum(snr) / len(snr), 1),
+        "locked": round(sum(locks) / len(locks), 3) if locks else None,
+        "seconds": round(history[-1]["t"] - history[0]["t"]),
+    }
+
+
+def pass_facts(started: float, satellite: str) -> dict:
+    """For pass.json: the pass's orbit (highest elevation, sky track) and, when this app watched it,
+    its signal. No "orbit" key when there is no orbit data to tell; null when no pass matches."""
+    facts: dict = {}
+    try:
+        tles = orbits.load_tles(settings.SATDUMP_TLES)
+    except OSError:
+        tles = None                 # SatDump has not downloaded orbit data yet
+    if tles is not None:
+        try:
+            facts["orbit"] = orbits.pass_geometry(load_config(settings.CONFIG_FILE), tles, started, satellite)
+        except Exception:
+            log.exception("could not work out the orbit of a pass")
+    # the tracker keeps the last pass's samples until the next one starts
+    if tracker.history and abs(tracker.pass_started - started) < 15 * 60:
+        facts["signal"] = signal_summary(tracker.history)
+    return facts
+
+
 async def poll_tracker() -> None:
     while True:
         if supervisor.state == "running":
@@ -164,6 +197,12 @@ async def scan_passes() -> None:
             supervisor.note("info", f"pass {old} lacked a time or satellite name from SatDump; now {new}")
     except Exception:
         log.exception("repairing pass times failed")
+    try:
+        added = await asyncio.to_thread(passes.add_orbits, settings.PASSES_DIR, pass_facts)
+        if added:
+            supervisor.note("info", f"added the orbit (highest elevation, sky track) to {added} earlier passes")
+    except Exception:
+        log.exception("adding orbits to earlier passes failed")
 
     def report_error(name: str, error: str) -> None:
         if name not in reported:
@@ -179,7 +218,7 @@ async def scan_passes() -> None:
         if folder is not None:
             if folder.is_dir() and not passes.is_finished(folder):
                 try:
-                    report_ready(await asyncio.to_thread(passes.finalize, folder, guess_satellite))
+                    report_ready(await asyncio.to_thread(passes.finalize, folder, guess_satellite, pass_facts))
                 except Exception as e:
                     report_error(folder.name, f"{type(e).__name__}: {e}")
             continue
@@ -187,7 +226,8 @@ async def scan_passes() -> None:
         if tracker.receiving() or time.time() - tracker.last_los < passes.SETTLE:
             continue                    # SatDump is receiving, or may still be decoding: leave its folders alone
         try:
-            done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR, guess_satellite)
+            done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR, guess_satellite,
+                                                   pass_facts)
         except Exception:
             log.exception("pass scan failed")
             continue
@@ -202,4 +242,8 @@ def report_ready(folder) -> None:
     text = f"pass {folder.name} ready: {len(meta.get('images', []))} images"
     if meta.get("coverage") is not None:
         text += f", {meta['coverage']:.0%} of the main image received"
+    if meta.get("orbit"):
+        text += f", highest elevation {meta['orbit']['max_el']:.0f}°"
+    if meta.get("signal"):
+        text += f", peak SNR {meta['signal']['peak_snr']} dB"
     supervisor.note("info", text)

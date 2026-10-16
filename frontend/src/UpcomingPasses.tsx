@@ -10,9 +10,13 @@ const GOOD = 30
 const EXCELLENT = 60
 type Quality = 'low' | 'fair' | 'good' | 'excellent'
 
+/** for a pass high enough to be recorded; also colours received passes */
+export function elevationQuality(maxEl: number): Exclude<Quality, 'low'> {
+  return maxEl >= EXCELLENT ? 'excellent' : maxEl >= GOOD ? 'good' : 'fair'
+}
+
 function quality(p: UpcomingPass): Quality {
-  if (!p.scheduled) return 'low'
-  return p.max_el >= EXCELLENT ? 'excellent' : p.max_el >= GOOD ? 'good' : 'fair'
+  return p.scheduled ? elevationQuality(p.max_el) : 'low'
 }
 
 interface Props { minElevation?: number; station?: string; showLow?: boolean }
