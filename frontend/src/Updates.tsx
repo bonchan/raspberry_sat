@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, ApiError, type PendingCommit, type UpdateState } from './api'
 import { useConfirm } from './Dialog'
 import { usePolling } from './hooks'
-import { longDate } from './format'
+import { clock, longDate } from './format'
 import { useT } from './i18n'
 
 /** The Updates section of the Status tab: what is new upstream, Update now, and the last update's log. */
@@ -49,7 +49,8 @@ export default function Updates() {
   const commits = data.commits ?? []
   const dirty = data.dirty ?? []
   const updated = data.current && firstSeen.current && data.current.hash !== firstSeen.current
-  const blocked = data.running || dirty.length > 0 || (data.ahead ?? 0) > 0 || behind === 0
+  const wait = data.blocked
+  const blocked = data.running || !!wait || dirty.length > 0 || (data.ahead ?? 0) > 0 || behind === 0
 
   return (
     <section id="updates">
@@ -99,6 +100,12 @@ export default function Updates() {
       {behind > 0 && (
         <>
           <p className="hint">{t('update.explain')}</p>
+          {wait && (
+            <p className="caution">
+              {wait.reason === 'pass_soon' ? t('update.waitPass', { satellite: wait.satellite, time: clock(wait.aos) })
+                : t(wait.reason === 'receiving' ? 'update.waitReceiving' : 'update.waitDecoding')}
+            </p>
+          )}
           <button className="primary" disabled={blocked || busy !== null}
             onClick={async () => {
               if (await ask({ title: t('update.title'), message: t('update.confirm', { short: commits[0]?.short ?? '' }),

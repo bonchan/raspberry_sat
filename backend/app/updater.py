@@ -120,15 +120,15 @@ def last_run() -> dict | None:
     return {"log": lines[-LOG_TAIL:], "result": result, "changed_at": path.stat().st_mtime}
 
 
-def start(busy: bool) -> None:
-    """Start pulling and rebuilding. `busy`: SatDump is receiving or decoding a pass right now."""
+def start(blocked: str | None = None) -> None:
+    """Start pulling and rebuilding. `blocked`: why it has to wait for a pass (tasks.update_blocker)."""
     state = check(fetch=False)
     if state["error"]:
         raise UpdateError(state["error"])
     if running():
         raise UpdateError("an update is already running")
-    if busy:
-        raise UpdateError("SatDump is receiving or decoding a pass; update after it finishes")
+    if blocked:
+        raise UpdateError(blocked)
     if state["dirty"]:
         raise UpdateError("the checkout on the Pi has local changes: " + ", ".join(state["dirty"]))
     if state["ahead"]:

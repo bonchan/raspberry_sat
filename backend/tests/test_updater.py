@@ -60,15 +60,15 @@ def test_local_changes_block_the_update(repos):
     updater.check(fetch=True)
     assert updater.check(fetch=False)["dirty"] == ["README.md"]
     with pytest.raises(updater.UpdateError, match="local changes"):
-        updater.start(busy=False)
+        updater.start()
 
 
 def test_nothing_to_do_or_busy(repos):
     with pytest.raises(updater.UpdateError, match="busy|receiving|up to date"):
-        updater.start(busy=False)
+        updater.start()
     pi, dev = repos
     commit(dev, "a.txt", "a\n", "Add a")
     run(dev, "push", "-q", "origin", "HEAD:main")
     updater.check(fetch=True)
-    with pytest.raises(updater.UpdateError, match="receiving or decoding"):
-        updater.start(busy=True)
+    with pytest.raises(updater.UpdateError, match="pass is being received"):
+        updater.start("a pass is being received; update after it ends")

@@ -96,7 +96,11 @@ export interface UpdateState {
   behind?: number; ahead?: number; commits?: PendingCommit[]; diffstat?: string; dirty?: string[]
   running: boolean
   last_run: { log: string[]; result: 'ok' | 'failed' | null; changed_at: number } | null
+  blocked: UpdateBlocker | null     // why Update now has to wait for a pass
 }
+export type UpdateBlocker =
+  | { reason: 'receiving' | 'decoding'; message: string }
+  | { reason: 'pass_soon'; satellite: string; aos: number; message: string }
 
 export interface NetDevice { device: string; type: 'wifi' | 'ethernet'; connected: boolean; state: string; connection: string }
 export interface SavedNetwork { uuid: string; name: string; ssid: string; autoconnect: boolean; priority: number; active: boolean }

@@ -102,6 +102,31 @@ def safe_to_restart() -> bool:
     return not tracker.receiving() and not passes.output_busy(settings.PASSES_DIR)
 
 
+UPDATE_LEAD = 15 * 60       # seconds kept free before a recorded pass: an update takes a few minutes
+
+
+def update_blocker() -> dict | None:
+    """Why an update has to wait, or None. An update loads the CPU while it rebuilds the page, then restarts
+    the app and SatDump: not while a pass is received or decoded, nor shortly before the next recorded one."""
+    if tracker.receiving():
+        return {"reason": "receiving", "message": "a pass is being received; update after it ends"}
+    if passes.output_busy(settings.PASSES_DIR):
+        return {"reason": "decoding", "message": "SatDump is still decoding the last pass; update when it is done"}
+    if not supervisor.wanted:
+        return None                 # SatDump stopped by hand records nothing
+    try:
+        upcoming = orbits.schedule.get(load_config(settings.CONFIG_FILE), settings.SATDUMP_TLES)["passes"]
+    except Exception:
+        log.exception("could not predict passes for the update check")
+        return None
+    now = time.time()
+    soon = next((p for p in upcoming if p["scheduled"] and p["aos"] - now < UPDATE_LEAD), None)
+    if soon is None:
+        return None
+    return {"reason": "pass_soon", "satellite": soon["name"], "aos": soon["aos"],
+            "message": f"{soon['name']} passes over soon; update after that pass"}
+
+
 async def housekeeping() -> None:
     while True:
         await asyncio.sleep(HOUSEKEEPING_INTERVAL)

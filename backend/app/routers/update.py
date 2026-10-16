@@ -8,7 +8,8 @@ router = APIRouter(prefix="/update", tags=["update"])
 
 
 def view(state: dict | None) -> dict:
-    return {**(state or {}), "running": updater.running(), "last_run": updater.last_run()}
+    return {**(state or {}), "running": updater.running(), "last_run": updater.last_run(),
+            "blocked": tasks.update_blocker()}
 
 
 @router.get("")
@@ -27,9 +28,9 @@ async def check_now() -> dict:
 
 @router.post("/apply")
 async def apply() -> dict:
-    busy = not tasks.safe_to_restart()
+    blocked = await asyncio.to_thread(tasks.update_blocker)
     try:
-        await asyncio.to_thread(updater.start, busy)
+        await asyncio.to_thread(updater.start, blocked["message"] if blocked else None)
     except updater.UpdateError as e:
         raise HTTPException(409, str(e))
     return await asyncio.to_thread(view, updater.cached())
