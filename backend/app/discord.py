@@ -11,9 +11,10 @@ import json
 import re
 import time
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import httpx
+from PIL import Image
 
 from app import passes
 from app.config import Config, Discord
@@ -91,16 +92,38 @@ def stamp(unix: float, style: str) -> str:
     return f"<t:{int(unix)}:{style}>"
 
 
-def pick_images(meta: dict, wanted: list[str]) -> list[dict]:
-    """One image per composite: the main one first, then by name; black and unreadable images left out.
-    `wanted`: composite names to post (any case); empty = all. At most MAX_FILES."""
-    names = {n.casefold() for n in wanted}
+def words(text: str) -> str:
+    """'MCIR  Corrected + map' -> 'mcir corrected map'"""
+    return " ".join(re.sub(r"[+_,]", " ", text).casefold().split())
+
+
+# variant words as the pass page shows them in Spanish, to the ones in SatDump's file names
+VARIANT_WORDS = {"cruda": "raw", "corregida": "corrected", "mapa": "map", "proyectada": "projected"}
+
+
+def entry_match(entry: str, image: dict) -> str | None:
+    """How an "Images to post" entry names `image`: "image" for this very file ("MCIR corrected",
+    "MCIR corrected map", "MCIR raw", or its file name), "composite" for its composite ("MCIR"), else None."""
+    path = PurePosixPath(image["path"])
+    if entry.strip().casefold() in {image["path"].casefold(), path.name.casefold(), path.stem.casefold()}:
+        return "image"
+    key, name = words(entry), words(image["name"])
+    if key == name:
+        return "composite"
+    if key.startswith(name + " "):
+        asked = {VARIANT_WORDS.get(w, w) for w in key[len(name) + 1:].split()}
+        if asked == set(image["variants"] or ["raw"]):
+            return "image"
+    return None
+
+
+def pick_images(folder: Path, meta: dict, wanted: list[str]) -> list[dict]:
+    """The images to post, at most MAX_FILES. Any image whose file is there, however it looks.
+    `wanted` empty: one per composite, the main image first, then by name, each composite's variant
+    from VARIANT_ORDER. Otherwise in the order of `wanted`; an entry naming a composite gets that variant."""
+    images = [i for i in meta.get("images", []) if (folder / i["path"]).is_file()]
     groups: dict[tuple[str, str], list[dict]] = {}
-    for image in meta.get("images", []):
-        if "error" in image or image.get("mean", 0) < passes.DARK:
-            continue
-        if names and image["name"].casefold() not in names:
-            continue
+    for image in images:
         groups.setdefault((image["instrument"], image["name"]), []).append(image)
 
     def rank(image: dict) -> int:
@@ -109,8 +132,15 @@ def pick_images(meta: dict, wanted: list[str]) -> list[dict]:
         variants = image["variants"]
         return VARIANT_ORDER.index(variants) if variants in VARIANT_ORDER else len(VARIANT_ORDER)
 
-    chosen = [min(group, key=rank) for group in groups.values()]
-    chosen.sort(key=lambda i: (i["path"] != meta.get("main"), i["name"].casefold()))
+    if not wanted:
+        chosen = [min(group, key=rank) for group in groups.values()]
+        chosen.sort(key=lambda i: (i["path"] != meta.get("main"), i["name"].casefold()))
+        return chosen[:MAX_FILES]
+    chosen = []
+    for entry in wanted:
+        found = [i for i in images if entry_match(entry, i) == "image"] or \
+                [min(g, key=rank) for g in groups.values() if entry_match(entry, g[0]) == "composite"]
+        chosen += [i for i in found if i not in chosen]
     return chosen[:MAX_FILES]
 
 
@@ -140,33 +170,43 @@ def message_text(meta: dict, images: list[dict], station: str, lang: str) -> str
 
 
 def file_name(image: dict, taken: set[str]) -> str:
-    """'MCIR_corrected.jpg': what readers see when they open the image."""
+    """'MCIR_corrected': what readers see when they open the image, without the extension."""
     base = re.sub(r"[^A-Za-z0-9.-]+", "_", " ".join([image["name"], *image["variants"]])).strip("_") or "image"
-    name, n = base + ".jpg", 2
+    name, n = base, 2
     while name in taken:
-        name, n = f"{base}-{n}.jpg", n + 1
+        name, n = f"{base}-{n}", n + 1
     taken.add(name)
     return name
 
 
-def jpeg(src: Path, width: int | None) -> bytes:
-    img, _ = passes.rgb_copy(src, width)
+CONTENT_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+
+# (file name, bytes, content type)
+Upload = tuple[str, bytes, str]
+
+
+def encode(src: Path, name: str, width: int | None) -> Upload:
+    """A JPEG at most `width` wide; SatDump's file as it is when it cannot be read as an image."""
+    try:
+        img, _ = passes.rgb_copy(src, width)
+    except (OSError, ValueError, Image.DecompressionBombError):
+        return name + src.suffix.lower(), src.read_bytes(), CONTENT_TYPES.get(src.suffix.lower(), "image/png")
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=QUALITY, optimize=True)
-    return buf.getvalue()
+    return name + ".jpg", buf.getvalue(), "image/jpeg"
 
 
-def encode_images(folder: Path, images: list[dict]) -> list[tuple[str, bytes]]:
-    """The images as JPEGs named for Discord, as large as fits in one message (the last ones are left
-    out if even the smallest size is too much)."""
+def encode_images(folder: Path, images: list[dict]) -> list[Upload]:
+    """The images named for Discord, as large as fits in one message (the last ones are left out if even
+    the smallest size is too much)."""
     taken: set[str] = set()
     names = [file_name(i, taken) for i in images]
-    files: list[tuple[str, bytes]] = []
+    files: list[Upload] = []
     for width in WIDTHS:
-        files = [(name, jpeg(folder / i["path"], width)) for name, i in zip(names, images)]
-        if sum(len(data) for _, data in files) <= MAX_BYTES:
+        files = [encode(folder / i["path"], name, width) for name, i in zip(names, images)]
+        if sum(len(f[1]) for f in files) <= MAX_BYTES:
             return files
-    while files and sum(len(data) for _, data in files) > MAX_BYTES:
+    while files and sum(len(f[1]) for f in files) > MAX_BYTES:
         files.pop()
     return files
 
@@ -211,7 +251,7 @@ async def call(client: httpx.AsyncClient, method: str, path: str, token: str, **
     return r.json()
 
 
-async def send(cfg: Discord, text: str, files: list[tuple[str, bytes]]) -> dict:
+async def send(cfg: Discord, text: str, files: list[Upload]) -> dict:
     """Post one message to the configured channel. Returns {"url": link to the message, "channel": its name}."""
     if not cfg.bot_token or not cfg.channel_id:
         raise DiscordError("set the bot token and the channel ID in Settings first")
@@ -221,11 +261,10 @@ async def send(cfg: Discord, text: str, files: list[tuple[str, bytes]]) -> dict:
             channel = await call(client, "GET", f"/channels/{cfg.channel_id}", cfg.bot_token)
             path = f"/channels/{cfg.channel_id}/messages"
             if files:
-                payload["attachments"] = [{"id": n, "filename": name} for n, (name, _) in enumerate(files)]
+                payload["attachments"] = [{"id": n, "filename": f[0]} for n, f in enumerate(files)]
                 message = await call(client, "POST", path, cfg.bot_token,
                                      data={"payload_json": json.dumps(payload)},
-                                     files=[(f"files[{n}]", (name, data, "image/jpeg"))
-                                            for n, (name, data) in enumerate(files)])
+                                     files=[(f"files[{n}]", f) for n, f in enumerate(files)])
             else:
                 message = await call(client, "POST", path, cfg.bot_token, json=payload)
         except httpx.HTTPError as e:
@@ -254,7 +293,7 @@ async def post_pass(folder: Path, config: Config) -> dict:
         meta = passes.load_pass(folder)
         if meta is None:
             raise DiscordError("this pass is still being received or decoded")
-        images = pick_images(meta, config.discord.composites)
+        images = pick_images(folder, meta, config.discord.composites)
         try:
             files = await asyncio.to_thread(encode_images, folder, images)
         except OSError as e:
@@ -271,6 +310,6 @@ async def post_pass(folder: Path, config: Config) -> dict:
         return note
 
 
-def worth_posting(meta: dict, cfg: Discord) -> bool:
+def worth_posting(folder: Path, cfg: Discord) -> bool:
     """For automatic posting: the pass has images to show, or empty passes are posted too."""
-    return cfg.post_failed or bool(pick_images(meta, cfg.composites))
+    return cfg.post_failed or bool(pick_images(folder, passes.load_pass(folder) or {}, cfg.composites))

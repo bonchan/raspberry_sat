@@ -70,27 +70,53 @@ def fake(monkeypatch):
 
 # ---------- what gets posted ----------
 
+def picked(folder, wanted=()):
+    return [i["path"].removeprefix("MSU-MR/") for i in
+            discord.pick_images(folder, passes.load_pass(folder), list(wanted))]
+
+
 def test_one_image_per_composite_main_first(tmp_path):
-    meta = passes.load_pass(finished_pass(tmp_path))
-    picked = discord.pick_images(meta, [])
-    assert [i["path"] for i in picked] == [
-        "MSU-MR/msu_mr_rgb_MCIR_corrected.png",     # the main image, not the raw MCIR
-        "MSU-MR/msu_mr_rgb_MSA_corrected.png",      # corrected before corrected + map
-        "MSU-MR/MSU-MR-1.png",
+    assert picked(finished_pass(tmp_path)) == [
+        "msu_mr_rgb_MCIR_corrected.png",     # the main image, not the raw MCIR
+        "msu_mr_rgb_MSA_corrected.png",      # corrected before corrected + map
+        "MSU-MR-1.png",
     ]
 
 
-def test_black_images_and_unwanted_composites_are_left_out(tmp_path):
-    meta = passes.load_pass(finished_pass(tmp_path, night=True))
-    assert [i["name"] for i in discord.pick_images(meta, [])] == ["MCIR"]
-    meta = passes.load_pass(finished_pass(tmp_path / "day"))
-    assert [i["name"] for i in discord.pick_images(meta, ["msa"])] == ["MSA"]
+def test_any_image_that_exists_is_posted(tmp_path):
+    # black (a bad pass, or night) and unreadable images go too; a deleted file does not
+    folder = finished_pass(tmp_path, night=True)
+    (folder / "MSU-MR" / "msu_mr_rgb_Broken.png").write_bytes(b"not a png")
+    meta = passes.read_json(folder / passes.META)
+    meta["images"].append(passes.describe_image("MSU-MR/msu_mr_rgb_Broken.png") | {"error": "unreadable"})
+    passes.write_meta(folder, meta)
+    assert picked(folder) == ["msu_mr_rgb_MCIR_corrected.png", "msu_mr_rgb_Broken.png",
+                              "msu_mr_rgb_MSA_corrected.png", "MSU-MR-1.png"]
+    files = discord.encode_images(folder, discord.pick_images(folder, passes.load_pass(folder), []))
+    assert files[1] == ("Broken.png", b"not a png", "image/png")       # sent as it is
+    (folder / "MSU-MR" / "MSU-MR-1.png").unlink()
+    assert "MSU-MR-1.png" not in picked(folder)
 
 
-def test_at_most_ten_images():
-    images = [{"path": f"X/{n}.png", "instrument": "X", "name": f"c{n:02d}", "variants": [], "mean": 100}
-              for n in range(15)]
-    assert len(discord.pick_images({"images": images, "main": None}, [])) == discord.MAX_FILES
+def test_images_to_post_name_composites_or_exact_versions(tmp_path):
+    folder = finished_pass(tmp_path)
+    assert picked(folder, ["MCIR corrected"]) == ["msu_mr_rgb_MCIR_corrected.png"]
+    assert picked(folder, ["mcir raw"]) == ["msu_mr_rgb_MCIR.png"]
+    assert picked(folder, ["MSA corrected + map"]) == ["msu_mr_rgb_MSA_corrected_map.png"]
+    assert picked(folder, ["MSA map corregida"]) == ["msu_mr_rgb_MSA_corrected_map.png"]    # any order, Spanish
+    assert picked(folder, ["msu_mr_rgb_MSA_corrected.png"]) == ["msu_mr_rgb_MSA_corrected.png"]
+    # in the order given; a composite name gets its best variant; unknown names are skipped
+    assert picked(folder, ["MSU-MR-1", "nope", "MCIR", "MCIR corrected", "MSA"]) == [
+        "MSU-MR-1.png", "msu_mr_rgb_MCIR_corrected.png", "msu_mr_rgb_MSA_corrected.png"]
+
+
+def test_at_most_ten_images(tmp_path):
+    images = []
+    for n in range(15):
+        (tmp_path / "X").mkdir(exist_ok=True)
+        (tmp_path / "X" / f"{n}.png").write_bytes(b"")
+        images.append({"path": f"X/{n}.png", "instrument": "X", "name": f"c{n:02d}", "variants": []})
+    assert len(discord.pick_images(tmp_path, {"images": images, "main": None}, [])) == discord.MAX_FILES
 
 
 def test_message_text():
@@ -113,9 +139,10 @@ def test_message_text():
 
 def test_images_shrink_to_fit(tmp_path, monkeypatch):
     folder = finished_pass(tmp_path)
-    images = discord.pick_images(passes.load_pass(folder), [])
+    images = discord.pick_images(folder, passes.load_pass(folder), [])
     files = discord.encode_images(folder, images)
-    assert [name for name, _ in files] == ["MCIR_corrected.jpg", "MSA_corrected.jpg", "MSU-MR-1.jpg"]
+    assert [(name, kind) for name, _, kind in files] == [
+        ("MCIR_corrected.jpg", "image/jpeg"), ("MSA_corrected.jpg", "image/jpeg"), ("MSU-MR-1.jpg", "image/jpeg")]
     monkeypatch.setattr(discord, "MAX_BYTES", len(files[0][1]) + 1)
     assert len(discord.encode_images(folder, images)) == 1     # the rest is left out
 

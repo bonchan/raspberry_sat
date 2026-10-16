@@ -79,10 +79,16 @@ The app posts as a bot of your own, over Discord's HTTP API (no gateway connecti
 
    Switching one on switches the other off; both off posts nothing. Save.
 
-A message carries at most 10 images: one per composite (the main image first, then by name; geometry-corrected
-when there is one; black ones left out), full size as JPEG, smaller if together they pass 20 MB. Times show in
-each reader's own time zone. "Images to post" limits it to some composites. Where each pass was posted, or why it
-failed, is on its page; a failed automatic post can be retried there.
+A message carries at most 10 images, full size as JPEG, smaller if together they pass 20 MB. Every image whose
+file is there goes, however dark or broken it looks (a file that cannot be read as an image goes as it is).
+With "Images to post" empty: one per composite, the main image first, then by name, geometry-corrected when
+there is one. Otherwise the images listed there, in that order, comma separated; each one is
+- a composite, `MCIR`: its geometry-corrected version when there is one
+- one version of it, as the pass page labels them: `MCIR corrected`, `MCIR corrected map`, `MCIR map`, `MCIR raw`
+- or SatDump's file name, `msu_mr_rgb_MCIR_corrected.png`
+
+Times show in each reader's own time zone. Where each pass was posted, or why it failed, is on its page; a
+failed automatic post can be retried there.
 
 ## Moving the Pi to another site
 

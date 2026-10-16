@@ -68,7 +68,7 @@ class Discord(BaseModel):
     application_id: str = ""               # developer portal → General Information; only builds the invite link
     bot_token: str = ""                    # developer portal → Bot → Reset Token
     channel_id: str = ""                   # Discord, Developer Mode on: right-click the channel → Copy Channel ID
-    composites: list[str] = []             # composite names to post (MCIR, MSA, ...); empty = all of them
+    composites: list[str] = []             # what to post, in order: "MCIR", "MCIR corrected", ...; empty = one per composite
     post_failed: bool = False              # also post passes that produced no images
 
     @field_validator("bot_token")

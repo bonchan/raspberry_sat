@@ -243,7 +243,7 @@ async def pass_finished(folder) -> None:
     """Say a pass is ready, and post it to Discord when that is automatic."""
     report_ready(folder)
     config = load_config(settings.CONFIG_FILE)
-    if config.discord.mode != "auto" or not discord.worth_posting(passes.load_pass(folder) or {}, config.discord):
+    if config.discord.mode != "auto" or not discord.worth_posting(folder, config.discord):
         return
     try:
         note = await discord.post_pass(folder, config)
