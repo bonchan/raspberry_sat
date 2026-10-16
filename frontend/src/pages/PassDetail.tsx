@@ -206,9 +206,7 @@ function DiscordFact({ pass, mode }: { pass: Pass; mode: DiscordMode }) {
               {d.url && <> · <a href={d.url} target="_blank" rel="noreferrer">{t('detail.discordOpen')}</a></>}
             </>
           : t('detail.discordNotPosted')}
-        {d?.error && <div className="error">{t('detail.discordFailed', { error: d.error })}</div>}
-        {d?.posted_at && d.warning && !d.error && <div className="warning">{d.warning}</div>}
-      </dd>
+        {d?.error && <div className="error">{t('detail.discordFailed', { error: d.error })}</div>}      </dd>
     </>
   )
 }

@@ -70,8 +70,7 @@ The app posts as a bot of your own, over Discord's HTTP API (no gateway connecti
 3. **Bot**: **Reset Token**, copy the token (it is shown once). No privileged intents are needed.
 4. In the app: Settings → Discord, paste the application ID and the token, then **Add the bot to a server**:
    Discord opens, pick the server (you need Manage Server there) and authorize. The bot asks for
-   View Channels, Send Messages, Embed Links and Attach Files. A bot added before Embed Links was asked
-   for: open the link again, or give it Embed Links in the channel.
+   View Channels, Send Messages and Attach Files.
 5. In Discord: User Settings → Advanced → **Developer Mode** on. Right-click the channel → **Copy Channel ID**
    and paste it into Settings (a copied channel link works too). Private channel: add the bot to it.
 6. **Send a test message**, then switch on one of:
@@ -80,10 +79,8 @@ The app posts as a bot of your own, over Discord's HTTP API (no gateway connecti
 
    Switching one on switches the other off; both off posts nothing. Save.
 
-A message carries at most 10 images, full size as JPEG, smaller if together they pass 20 MB, each in a box
-with its name under it (`MCIR · corrected`; this needs Embed Links, the test message and the pass page say
-when it is missing). Every image whose file is there goes, however dark or broken it looks (a file that cannot
-be read as an image goes as it is, without a name).
+A message carries at most 10 images, full size as JPEG, smaller if together they pass 20 MB. Every image whose
+file is there goes, however dark or broken it looks (a file that cannot be read as an image goes as it is).
 With "Images to post" empty: one per composite, the main image first, then by name, geometry-corrected when
 there is one. Otherwise the images listed there, in that order, comma separated; each one is
 - a composite, `MCIR`: its geometry-corrected version when there is one

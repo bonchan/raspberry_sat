@@ -50,7 +50,6 @@ TEXT = {
         "no_images": "No images: nothing was decoded.",
         "station": "Station {name}",
         "test": "raspberry_sat can post here. Passes will appear in this channel.",
-        "test_embed": "Each image's name will show under it, in a box like this one.",
     },
     "es": {
         "max_el": "Elevación máxima **{el}°** a las {tca}",
@@ -61,17 +60,8 @@ TEXT = {
         "no_images": "Sin imágenes: no se decodificó nada.",
         "station": "Estación {name}",
         "test": "raspberry_sat puede publicar acá. Las pasadas van a aparecer en este canal.",
-        "test_embed": "El nombre de cada imagen va a aparecer debajo de ella, en un recuadro como este.",
     },
 }
-# variant names as the pass page shows them ("" = no variant: SatDump's raw image)
-VARIANT_LABELS = {
-    "en": {"": "raw", "corrected": "corrected", "map": "map", "projected": "projected"},
-    "es": {"": "cruda", "corrected": "corregida", "map": "mapa", "projected": "proyectada"},
-}
-COLOR = 0x4DA3FF                # the side bar of each image's box: the web page's accent colour
-NO_EMBEDS = ("the bot lacks Embed Links in that channel, so the images show without their names: "
-             "give it Embed Links, or open the invite link in Settings again")
 COMPASS = {
     "en": ["N", "NE", "E", "SE", "S", "SW", "W", "NW"],
     "es": ["N", "NE", "E", "SE", "S", "SO", "O", "NO"],
@@ -106,14 +96,7 @@ def words(text: str) -> str:
 
 
 # variant words as the pass page shows them in Spanish, to the ones in SatDump's file names
-VARIANT_WORDS = {label: variant or "raw" for variant, label in VARIANT_LABELS["es"].items()}
-
-
-def caption(image: dict, lang: str) -> str:
-    """'MCIR · corrected + map': the name under the image, the composite and its variant as the pass page has them."""
-    labels = VARIANT_LABELS.get(lang, VARIANT_LABELS["en"])
-    variant = " + ".join(labels.get(v, v) for v in image["variants"]) or labels[""]
-    return f"{image['name']} · {variant}"
+VARIANT_WORDS = {"cruda": "raw", "corregida": "corrected", "mapa": "map", "proyectada": "projected"}
 
 
 def entry_match(entry: str, image: dict) -> str | None:
@@ -160,7 +143,7 @@ def pick_images(folder: Path, meta: dict, wanted: list[str]) -> list[dict]:
 
 
 def message_text(meta: dict, has_images: bool, station: str, lang: str) -> str:
-    """The text above the images; each image's name goes under it (embeds)."""
+    """The text above the images."""
     t = texts(lang)
     when = float(meta.get("time") or 0)
     utc = datetime.fromtimestamp(when, timezone.utc).strftime("%H:%M UTC")
@@ -235,7 +218,7 @@ HINTS = {
     10003: "no channel has that ID; copy it again (right-click the channel → Copy Channel ID)",
     50001: "the bot cannot see that channel; add it to the server with the invite link in Settings, "
            "and check that the channel lets it in",
-    50013: "the bot may not post there; give it Send Messages, Attach Files and Embed Links in that channel",
+    50013: "the bot may not post there; give it Send Messages and Attach Files in that channel",
     40005: "the images are too large for one message",
 }
 
@@ -267,21 +250,11 @@ async def call(client: httpx.AsyncClient, method: str, path: str, token: str, **
     return r.json()
 
 
-def image_embeds(files: list[Upload], images: list[dict], lang: str) -> list[dict]:
-    """A box per image with its name under it. Only for the JPEGs made here: a file sent as it is
-    (unreadable) shows as a plain attachment."""
-    return [{"image": {"url": f"attachment://{name}"}, "footer": {"text": caption(image, lang)}, "color": COLOR}
-            for (name, _, kind), image in zip(files, images) if kind == "image/jpeg"]
-
-
-async def send(cfg: Discord, text: str, files: list[Upload], embeds: list[dict] = ()) -> dict:
-    """Post one message to the configured channel. Returns {"url": link to the message, "channel": its name},
-    and "warning" when Discord dropped the embeds (the bot lacks Embed Links there)."""
+async def send(cfg: Discord, text: str, files: list[Upload]) -> dict:
+    """Post one message to the configured channel. Returns {"url": link to the message, "channel": its name}."""
     if not cfg.bot_token or not cfg.channel_id:
         raise DiscordError("set the bot token and the channel ID in Settings first")
     payload = {"content": text, "allowed_mentions": {"parse": []}}
-    if embeds:
-        payload["embeds"] = list(embeds)
     async with httpx.AsyncClient(transport=transport, timeout=httpx.Timeout(20, write=180)) as client:
         try:
             channel = await call(client, "GET", f"/channels/{cfg.channel_id}", cfg.bot_token)
@@ -296,18 +269,12 @@ async def send(cfg: Discord, text: str, files: list[Upload], embeds: list[dict] 
         except httpx.HTTPError as e:
             raise DiscordError(f"could not reach Discord: {e}") from e
     server = channel.get("guild_id") or "@me"
-    sent = {"url": f"https://discord.com/channels/{server}/{cfg.channel_id}/{message.get('id')}",
+    return {"url": f"https://discord.com/channels/{server}/{cfg.channel_id}/{message.get('id')}",
             "channel": channel.get("name")}
-    # without Embed Links Discord posts the message anyway, minus the embeds
-    if embeds and len(message.get("embeds") or []) < len(embeds):
-        sent["warning"] = NO_EMBEDS
-    return sent
 
 
 async def send_test(cfg: Discord, lang: str) -> dict:
-    """A short message, with a box like the ones under the images, to see that Embed Links is there too."""
-    t = texts(lang)
-    return await send(cfg, t["test"], [], [{"description": t["test_embed"], "color": COLOR}])
+    return await send(cfg, texts(lang)["test"], [])
 
 
 def save_note(folder: Path, note: dict) -> None:
@@ -330,10 +297,9 @@ async def post_pass(folder: Path, config: Config) -> dict:
             files = await asyncio.to_thread(encode_images, folder, images)
         except OSError as e:
             raise DiscordError(f"could not read the images: {e}") from e
-        lang = config.display.language
-        text = message_text(meta, bool(files), config.station.name, lang)
+        text = message_text(meta, bool(files), config.station.name, config.display.language)
         try:
-            sent = await send(config.discord, text, files, image_embeds(files, images, lang))
+            sent = await send(config.discord, text, files)
         except DiscordError as e:
             # an earlier successful post stays noted next to the error
             save_note(folder, {**(meta.get(STATE) or {}), "error": str(e), "failed_at": time.time()})

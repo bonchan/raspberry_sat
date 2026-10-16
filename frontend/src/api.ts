@@ -77,8 +77,8 @@ export interface PassOrbit {
 }
 /** SNR in dB; locked: share of the recording with the deframer locked */
 export interface PassSignal { peak_snr: number; mean_snr: number; locked: number | null; seconds: number }
-/** where a message went; channel is its name; warning: posted, but without the image names (no Embed Links) */
-export interface DiscordSent { url: string; channel: string | null; warning?: string }
+/** where a message went; channel is its name */
+export interface DiscordSent { url: string; channel: string | null }
 /** a pass on Discord: set when it was posted, error when the last try failed (an earlier post stays noted) */
 export interface PassDiscord extends Partial<DiscordSent> {
   posted_at?: number; images?: number; error?: string; failed_at?: number
@@ -191,9 +191,8 @@ export const api = {
   testDiscord: (discord: Discord) => request<DiscordSent>('POST', '/discord/test', discord),
 }
 
-// what the bot may do in the server it is added to: View Channels, Send Messages, Embed Links (the
-// image names), Attach Files
-const BOT_PERMISSIONS = (1 << 10) | (1 << 11) | (1 << 14) | (1 << 15)
+// what the bot may do in the server it is added to: View Channels, Send Messages, Attach Files
+const BOT_PERMISSIONS = (1 << 10) | (1 << 11) | (1 << 15)
 
 /** Discord's page for adding the bot to a server */
 export const discordInvite = (applicationId: string) =>

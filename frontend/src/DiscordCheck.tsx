@@ -41,8 +41,6 @@ export default function DiscordCheck({ discord }: { discord: Discord }) {
           {t('settings.discordTestOk', { channel: sent.channel ?? '?' })}{' '}
           <a href={sent.url} target="_blank" rel="noreferrer">{t('detail.discordOpen')}</a>
         </p>
-      )}
-      {sent?.warning && <p className="warning">{sent.warning}</p>}
-    </div>
+      )}    </div>
   )
 }

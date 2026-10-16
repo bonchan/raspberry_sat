@@ -248,8 +248,6 @@ async def pass_finished(folder) -> None:
     try:
         note = await discord.post_pass(folder, config)
         supervisor.note("info", f"posted pass {folder.name} to Discord with {note['images']} images")
-        if note.get("warning"):
-            supervisor.note("warn", f"Discord: {note['warning']}")
     except discord.DiscordError as e:
         supervisor.note("error", f"could not post pass {folder.name} to Discord: {e}")
     except Exception:

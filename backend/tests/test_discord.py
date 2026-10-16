@@ -53,13 +53,11 @@ def payload(request: httpx.Request) -> dict:
 
 
 class FakeDiscord:
-    """Answers like Discord's API and keeps the requests. no_embed_links: drops the embeds, as Discord
-    does when the bot lacks Embed Links."""
+    """Answers like Discord's API and keeps the requests."""
 
-    def __init__(self, fail: tuple[int, dict] | None = None, no_embed_links=False):
+    def __init__(self, fail: tuple[int, dict] | None = None):
         self.requests: list[httpx.Request] = []
         self.fail = fail
-        self.no_embed_links = no_embed_links
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -67,14 +65,13 @@ class FakeDiscord:
             return httpx.Response(self.fail[0], json=self.fail[1])
         if request.method == "GET":
             return httpx.Response(200, json={"id": CHANNEL, "guild_id": SERVER, "name": "satellites"})
-        embeds = [] if self.no_embed_links else payload(request).get("embeds", [])
-        return httpx.Response(200, json={"id": "111", "channel_id": CHANNEL, "embeds": embeds})
+        return httpx.Response(200, json={"id": "111", "channel_id": CHANNEL})
 
 
 @pytest.fixture
 def fake(monkeypatch):
-    def install(fail=None, no_embed_links=False):
-        f = FakeDiscord(fail, no_embed_links)
+    def install(fail=None):
+        f = FakeDiscord(fail)
         monkeypatch.setattr(discord, "transport", httpx.MockTransport(f))
         return f
     return install
@@ -106,9 +103,7 @@ def test_any_image_that_exists_is_posted(tmp_path):
                               "msu_mr_rgb_MSA_corrected.png", "MSU-MR-1.png"]
     images = discord.pick_images(folder, passes.load_pass(folder), [])
     files = discord.encode_images(folder, images)
-    assert files[1] == ("Broken.png", b"not a png", "image/png")       # sent as it is, with no name box
-    assert [e["footer"]["text"] for e in discord.image_embeds(files, images, "en")] == [
-        "MCIR · corrected", "MSA · corrected", "MSU-MR-1 · raw"]
+    assert files[1] == ("Broken.png", b"not a png", "image/png")       # sent as it is
     (folder / "MSU-MR" / "MSU-MR-1.png").unlink()
     assert "MSU-MR-1.png" not in picked(folder)
 
@@ -149,13 +144,6 @@ def test_message_text():
     assert "NO → SE" in discord.message_text(meta, True, "x", "es")
     assert "No images" in discord.message_text({"time": STARTED}, False, "x", "en")
 
-
-def test_image_names_as_the_pass_page_has_them():
-    assert discord.caption({"name": "MSA", "variants": ["corrected", "map"]}, "en") == "MSA · corrected + map"
-    assert discord.caption({"name": "MSA", "variants": ["corrected", "map"]}, "es") == "MSA · corregida + mapa"
-    assert discord.caption({"name": "MSU-MR-1", "variants": []}, "es") == "MSU-MR-1 · cruda"
-
-
 def test_images_shrink_to_fit(tmp_path, monkeypatch):
     folder = finished_pass(tmp_path)
     images = discord.pick_images(folder, passes.load_pass(folder), [])
@@ -181,21 +169,11 @@ def test_post_pass_sends_one_message_and_notes_it(tmp_path, fake):
     assert post.headers["User-Agent"].startswith("DiscordBot (")
     body = post.read()
     assert body.count(b'filename="') == 3 and b"## METEOR-M2-3" in body
-    # each image in a box with its name under it
-    embeds = payload(post)["embeds"]
-    assert [e["image"]["url"] for e in embeds] == [
-        "attachment://MCIR_corrected.jpg", "attachment://MSA_corrected.jpg", "attachment://MSU-MR-1.jpg"]
-    assert [e["footer"]["text"] for e in embeds] == ["MCIR · corrected", "MSA · corrected", "MSU-MR-1 · raw"]
-    assert "warning" not in note
+    # plain attachments, no image names
+    sent = payload(post)
+    assert [a["filename"] for a in sent["attachments"]] == ["MCIR_corrected.jpg", "MSA_corrected.jpg", "MSU-MR-1.jpg"]
+    assert "embeds" not in sent and "MCIR" not in sent["content"]
     assert passes.load_pass(folder)["discord"]["url"] == note["url"]
-
-
-def test_missing_embed_links_is_noted(tmp_path, fake):
-    folder = finished_pass(tmp_path)
-    fake(no_embed_links=True)
-    note = asyncio.run(discord.post_pass(folder, Config(discord=bot())))
-    assert "Embed Links" in note["warning"]
-    assert "Embed Links" in asyncio.run(discord.send_test(bot(), "en"))["warning"]
 
 
 def test_failure_is_explained_and_noted(tmp_path, fake):
@@ -214,11 +192,8 @@ def test_wrong_token(fake):
 
 def test_test_message_is_plain_json(fake):
     api = fake()
-    sent = asyncio.run(discord.send_test(bot(), "en"))
-    assert sent["channel"] == "satellites" and "warning" not in sent
-    body = json.loads(api.requests[1].read())
-    assert body["content"].startswith("raspberry_sat can post here")
-    assert len(body["embeds"]) == 1          # shows whether the bot has Embed Links
+    assert asyncio.run(discord.send_test(bot(), "en"))["channel"] == "satellites"
+    assert json.loads(api.requests[1].read())["content"].startswith("raspberry_sat can post here")
 
 
 # ---------- settings ----------
