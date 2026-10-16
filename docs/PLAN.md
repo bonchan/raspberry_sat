@@ -36,7 +36,7 @@ raspberry_sat/
       passes.py               finish a pass when SatDump logs "Pipeline Processing Done!" (fallback: 5 min
                               without a new file): rename, thumbnails,
                               pass.json per pass instead of a SQLite index (metadata travels with the folder)
-      discord.py              webhook post: pass summary + chosen composites as JPEG (<10 MB)
+      discord.py              bot post (HTTP API): pass summary + one JPEG per composite, one message
       retention.py            delete passes older than N days / beyond max GB, oldest first; drop basebands
       tasks.py                asyncio loop: scan -> post -> retention every 30 s
       routers/                config, status (proxy to SatDump :8081), passes, images, logs, system (disk, restart)
@@ -60,7 +60,7 @@ raspberry_sat/
 - **satellites:** list of {name, NORAD, frequency, pipeline, min elevation, enabled}; defaults Meteor-M2-3 (57166) and M2-4 (59051), 137.9 MHz, `meteor_m2-x_lrpt` — IDs/frequencies checked against current TLEs during build
 - **tracking:** global min elevation, stop SDR when idle
 - **rotator:** enabled, address, port (Arduino rotator: board IP, 4533)
-- **discord:** enabled, webhook URL, which composites to post (picked from names seen in real passes), post empty/failed passes or not
+- **discord:** mode (off / automatic / by hand), application ID, bot token, channel ID, which composites to post (empty = all), post empty/failed passes or not
 - **storage:** keep days, max GB, keep baseband (default off)
 
 Saving config regenerates autotrack.json and restarts SatDump (only when no pass is in progress, otherwise queued until LOS).
@@ -69,7 +69,7 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
 1. **Skeleton:** monorepo, FastAPI health + config load/save, React shell with Settings page, install/update scripts, systemd unit, README. Goal: `install.sh` on a fresh Pi → page at `http://pi:8000`.
 2. **SatDump supervisor:** autotrack.json generation, process control, logs page, Status page (next pass, az/el, polar plot, schedule, FFT via proxy).
 3. **Passes:** scanner + pass.json + thumbnails + gallery + pass detail.
-4. **Discord:** posting, test-webhook button, posted state per pass.
+4. **Discord:** bot posting, test-message button, posted state per pass.
 5. **Retention:** cleanup job, disk usage on Status page.
 6. **Rotator + polish:** rotator settings, show rotator position, small UX fixes.
 

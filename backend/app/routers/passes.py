@@ -5,7 +5,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from app import passes, settings
+from app import discord, passes, settings
+from app.config import load_config
 
 router = APIRouter(prefix="/passes", tags=["passes"])
 
@@ -69,6 +70,21 @@ def get_file(pass_id: str, path: str) -> FileResponse:
     # images open in the browser, SatDump's data files download
     disposition = "inline" if f.suffix.lower() in passes.IMAGE_TYPES else "attachment"
     return FileResponse(f, filename=f.name, content_disposition_type=disposition)
+
+
+@router.post("/{pass_id}/discord")
+async def post_to_discord(pass_id: str) -> dict:
+    """Post the pass now (the button on the pass page). Returns where and when, as noted in pass.json."""
+    folder = folder_or_404(pass_id)
+    if not passes.is_finished(folder):
+        raise HTTPException(409, "this pass is still being received or decoded")
+    config = load_config(settings.CONFIG_FILE)
+    if config.discord.mode == "off":
+        raise HTTPException(409, "posting to Discord is off in Settings")
+    try:
+        return await discord.post_pass(folder, config)
+    except discord.DiscordError as e:
+        raise HTTPException(502, str(e)) from e
 
 
 @router.delete("/{pass_id}")

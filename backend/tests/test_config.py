@@ -26,7 +26,7 @@ def test_missing_file_gives_defaults(config_file):
 def test_save_and_load_round_trip(config_file):
     config = Config()
     config.station.lat = -34.6
-    config.discord.webhook_url = "https://example.invalid/hook"
+    config.discord.channel_id = "123456789012345678"
     save_config(config_file, config)
     assert load_config(config_file) == config
 
@@ -93,7 +93,7 @@ def test_api_restarts_satdump_only_for_settings_it_uses(config_file, monkeypatch
 
     body = client.get("/api/config").json()
     body["display"]["show_low_passes"] = False
-    body["discord"]["webhook_url"] = "https://example.invalid/hook"
+    body["discord"]["channel_id"] = "123456789012345678"
     client.put("/api/config", json=body)
     assert not supervisor.restart_pending
 

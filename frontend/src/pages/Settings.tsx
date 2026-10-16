@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError, type Config, type Satellite, type Station } from '../api'
-import { CheckField, NumberField, SelectField, TextField } from '../fields'
+import { CheckField, ListField, NumberField, SelectField, TextField } from '../fields'
 import { LANGUAGES, useLanguage, useT } from '../i18n'
 import DangerZone from '../DangerZone'
+import DiscordCheck from '../DiscordCheck'
 import ReceiverTest from '../ReceiverTest'
 
 type Section = keyof Omit<Config, 'satellites' | 'stations' | 'active_station'>
@@ -175,15 +176,25 @@ export default function Settings() {
 
       <section>
         <h2>{t('settings.discord')}</h2>
+        {/* one or the other, or neither: switching one on switches the other off */}
         <div className="grid">
-          <CheckField label={t('settings.post')} value={discord.enabled} onChange={v => set('discord', 'enabled', v)} />
-          <TextField label={t('settings.webhook')} placeholder="https://discord.com/api/webhooks/..." value={discord.webhook_url}
-            onChange={v => set('discord', 'webhook_url', v)} />
-          <TextField label={t('settings.images')} hint={t('settings.imagesHint')}
-            value={discord.composites.join(', ')}
-            onChange={v => set('discord', 'composites', v.split(',').map(s => s.trim()).filter(Boolean))} />
+          <CheckField label={t('settings.discordAuto')} hint={t('settings.discordAutoHint')} value={discord.mode === 'auto'}
+            onChange={v => set('discord', 'mode', v ? 'auto' : 'off')} />
+          <CheckField label={t('settings.discordManual')} hint={t('settings.discordManualHint')} value={discord.mode === 'manual'}
+            onChange={v => set('discord', 'mode', v ? 'manual' : 'off')} />
+        </div>
+        <div className="grid">
+          <TextField label={t('settings.appId')} hint={t('settings.appIdHint')} value={discord.application_id}
+            onChange={v => set('discord', 'application_id', v)} />
+          <TextField label={t('settings.botToken')} hint={t('settings.botTokenHint')} value={discord.bot_token} secret
+            onChange={v => set('discord', 'bot_token', v)} />
+          <TextField label={t('settings.channelId')} hint={t('settings.channelIdHint')} value={discord.channel_id}
+            onChange={v => set('discord', 'channel_id', v)} />
+          <ListField label={t('settings.images')} hint={t('settings.imagesHint')} value={discord.composites}
+            onChange={v => set('discord', 'composites', v)} />
           <CheckField label={t('settings.postFailed')} value={discord.post_failed} onChange={v => set('discord', 'post_failed', v)} />
         </div>
+        <DiscordCheck discord={discord} />
       </section>
 
       <section>

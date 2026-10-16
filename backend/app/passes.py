@@ -140,15 +140,21 @@ def large_path(folder: Path, rel: str) -> Path:
     return folder / THUMBS / "large" / (rel + ".jpg")
 
 
-def write_jpeg(src: Path, dst: Path, width: int) -> tuple[Image.Image, tuple[int, int]]:
-    """A JPEG copy at most `width` wide. Returns it and the original's size."""
+def rgb_copy(src: Path, width: int | None) -> tuple[Image.Image, tuple[int, int]]:
+    """An 8-bit RGB copy at most `width` wide (None: full size), and the original's size."""
     with Image.open(src) as im:
         size = im.size
         if im.mode.startswith("I"):     # 16-bit: scale to 8-bit, a plain convert would clip it to white
             im = im.convert("I").point(lambda v: v * (1 / 256)).convert("L")
         out = im.convert("RGB")
-    if out.width > width:
+    if width and out.width > width:
         out = out.resize((width, max(1, round(out.height * width / out.width))), Image.Resampling.LANCZOS)
+    return out, size
+
+
+def write_jpeg(src: Path, dst: Path, width: int) -> tuple[Image.Image, tuple[int, int]]:
+    """A JPEG copy at most `width` wide. Returns it and the original's size."""
+    out, size = rgb_copy(src, width)
     dst.parent.mkdir(parents=True, exist_ok=True)
     out.save(dst, "JPEG", quality=82, optimize=True)
     return out, size

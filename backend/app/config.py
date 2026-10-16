@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 log = logging.getLogger(__name__)
 
@@ -62,10 +62,35 @@ class Rotator(BaseModel):
 
 
 class Discord(BaseModel):
-    enabled: bool = False
-    webhook_url: str = ""
-    composites: list[str] = []             # image names to post; empty = a sensible default
+    # auto: each pass is posted once its images are made; manual: a button on the pass page posts it.
+    # Configs from before this choice had "enabled" and "webhook_url", never used: they load as "off".
+    mode: Literal["off", "auto", "manual"] = "off"
+    application_id: str = ""               # developer portal → General Information; only builds the invite link
+    bot_token: str = ""                    # developer portal → Bot → Reset Token
+    channel_id: str = ""                   # Discord, Developer Mode on: right-click the channel → Copy Channel ID
+    composites: list[str] = []             # composite names to post (MCIR, MSA, ...); empty = all of them
     post_failed: bool = False              # also post passes that produced no images
+
+    @field_validator("bot_token")
+    @classmethod
+    def bare_token(cls, v: str) -> str:
+        v = v.strip()
+        return v[4:].strip() if v.lower().startswith("bot ") else v
+
+    @field_validator("application_id", "channel_id")
+    @classmethod
+    def discord_id(cls, v: str) -> str:
+        # a copied link works too: https://discord.com/channels/<server>/<channel> gives the channel
+        v = v.strip().rstrip("/").rsplit("/", 1)[-1]
+        if v and not v.isdigit():
+            raise ValueError("must be a number, as Discord's Copy ID gives it")
+        return v
+
+    @model_validator(mode="after")
+    def can_post_when_on(self):
+        if self.mode != "off" and not (self.bot_token and self.channel_id):
+            raise ValueError("posting to Discord needs the bot token and the channel ID")
+        return self
 
 
 class Storage(BaseModel):

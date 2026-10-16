@@ -1,16 +1,32 @@
 // Small form inputs bound to a value + setter, so the settings page stays declarative.
 
+import { useEffect, useState } from 'react'
+
 interface Base { label: string; hint?: string }
 
-export function TextField({ label, hint, value, onChange, placeholder }:
-  Base & { value: string; onChange: (v: string) => void; placeholder?: string }) {
+// secret: shown as dots, for tokens
+export function TextField({ label, hint, value, onChange, placeholder, secret }:
+  Base & { value: string; onChange: (v: string) => void; placeholder?: string; secret?: boolean }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input type="text" value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} />
+      <input type={secret ? 'password' : 'text'} autoComplete={secret ? 'off' : undefined} value={value}
+        placeholder={placeholder} onChange={e => onChange(e.target.value)} />
       {hint && <small>{hint}</small>}
     </label>
   )
+}
+
+const splitList = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
+
+// a comma separated list; the box keeps what is typed (a trailing comma too) and follows outside changes (Discard)
+export function ListField({ label, hint, value, onChange }:
+  Base & { value: string[]; onChange: (v: string[]) => void }) {
+  const [text, setText] = useState(value.join(', '))
+  useEffect(() => {
+    if (JSON.stringify(splitList(text)) !== JSON.stringify(value)) setText(value.join(', '))
+  }, [value])
+  return <TextField label={label} hint={hint} value={text} onChange={v => { setText(v); onChange(splitList(v)) }} />
 }
 
 // an emptied box sends NaN, which the backend rejects with a readable error

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, passFile, type PassDetail as Pass, type PassImage } from '../api'
+import { api, ApiError, passFile, type DiscordMode, type PassDetail as Pass, type PassDiscord, type PassImage } from '../api'
 import { useConfirm } from '../Dialog'
 import { clock, compass, duration, longDate, percent, size, utc } from '../format'
 import { translate, useLanguage, useT, type Key, type Lang } from '../i18n'
@@ -47,10 +47,14 @@ export default function PassDetail() {
   const [pass, setPass] = useState<Pass | null>(null)
   const [error, setError] = useState('')
   const [open, setOpen] = useState<PassImage | null>(null)
+  const [discordMode, setDiscordMode] = useState<DiscordMode>('off')
 
   useEffect(() => {
     api.getPass(id).then(setPass, e => setError(String(e.message)))
   }, [id])
+  useEffect(() => {
+    api.getConfig().then(c => setDiscordMode(c.discord.mode), () => {})
+  }, [])
 
   const groups = useMemo(() => pass ? groupImages(pass.images, pass.main) : [], [pass])
 
@@ -108,6 +112,7 @@ export default function PassDetail() {
             <dt>{t('detail.size')}</dt><dd>{size(pass.size)}</dd>
             <dt>{t('detail.folder')}</dt>
             <dd>{pass.id}{pass.source_name !== pass.id && <span className="hint"> {t('detail.was', { name: pass.source_name })}</span>}</dd>
+            <DiscordFact pass={pass} mode={discordMode} onChange={d => setPass({ ...pass, discord: d })} />
           </dl>
           {orbit && <SkyPlot track={orbit.track} />}
         </div>
@@ -146,6 +151,51 @@ export default function PassDetail() {
       </section>
 
       {open && <Lightbox passId={pass.id} image={open} onClose={() => setOpen(null)} />}
+    </>
+  )
+}
+
+/** Whether and where the pass is on Discord. The post button shows when posting is by hand, or when
+ *  posting is automatic and it failed. */
+function DiscordFact({ pass, mode, onChange }: { pass: Pass; mode: DiscordMode; onChange: (d: PassDiscord) => void }) {
+  const t = useT()
+  const ask = useConfirm()
+  const [posting, setPosting] = useState(false)
+  const d = pass.discord
+  if (mode === 'off' && !d) return null
+
+  async function post() {
+    if (d?.posted_at && !(await ask({ title: t('detail.discordPostAgain'), message: t('detail.discordConfirmAgain'),
+                                      confirmLabel: t('detail.discordPostAgain') }))) return
+    setPosting(true)
+    try {
+      onChange(await api.postPass(pass.id))
+    } catch (e) {
+      onChange({ ...d, error: e instanceof ApiError && e.details.length ? e.details.join(' ') : String(e) })
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const button = mode === 'manual' || (mode === 'auto' && !!d?.error)
+  const label = posting ? t('detail.discordPosting')
+    : d?.error ? t('detail.discordRetry')
+    : d?.posted_at ? t('detail.discordPostAgain')
+    : t('detail.discordPost')
+  return (
+    <>
+      <dt>{t('detail.discord')}</dt>
+      <dd>
+        {d?.posted_at
+          ? <>
+              {t('detail.discordPosted', { time: longDate(d.posted_at) })}
+              {d.channel && <> {t('detail.discordIn', { channel: d.channel })}</>}
+              {d.url && <> · <a href={d.url} target="_blank" rel="noreferrer">{t('detail.discordOpen')}</a></>}
+            </>
+          : t('detail.discordNotPosted')}
+        {d?.error && <div className="error">{t('detail.discordFailed', { error: d.error })}</div>}
+        {button && <div className="row"><button disabled={posting} onClick={post}>{label}</button></div>}
+      </dd>
     </>
   )
 }

@@ -6,7 +6,7 @@ import time
 
 import httpx
 
-from app import orbits, passes, settings, updater
+from app import discord, orbits, passes, settings, updater
 from app.config import load_config
 from app.supervisor import supervisor
 
@@ -220,7 +220,7 @@ async def scan_passes() -> None:
         if folder is not None:
             if folder.is_dir() and not passes.is_finished(folder):
                 try:
-                    report_ready(await asyncio.to_thread(passes.finalize, folder, guess_satellite, pass_facts))
+                    await pass_finished(await asyncio.to_thread(passes.finalize, folder, guess_satellite, pass_facts))
                 except Exception as e:
                     report_error(folder.name, f"{type(e).__name__}: {e}")
             continue
@@ -234,9 +234,24 @@ async def scan_passes() -> None:
             log.exception("pass scan failed")
             continue
         for folder in done:
-            report_ready(folder)
+            await pass_finished(folder)
         for name, error in errors:
             report_error(name, error)
+
+
+async def pass_finished(folder) -> None:
+    """Say a pass is ready, and post it to Discord when that is automatic."""
+    report_ready(folder)
+    config = load_config(settings.CONFIG_FILE)
+    if config.discord.mode != "auto" or not discord.worth_posting(passes.load_pass(folder) or {}, config.discord):
+        return
+    try:
+        note = await discord.post_pass(folder, config)
+        supervisor.note("info", f"posted pass {folder.name} to Discord with {note['images']} images")
+    except discord.DiscordError as e:
+        supervisor.note("error", f"could not post pass {folder.name} to Discord: {e}")
+    except Exception:
+        log.exception("posting pass %s to Discord failed", folder.name)
 
 
 def report_ready(folder) -> None:

@@ -21,6 +21,10 @@ The plan and build order are in [docs/PLAN.md](docs/PLAN.md). Built so far:
    and table on Status), a Live page during passes (progress, sky position, SNR, Viterbi/deframer
    lock, Reed-Solomon, frames, signal chart over the pass, spectrum), and a UTC clock in the header.
 
+4. Discord: a bot posts each pass as one message with its facts (time, highest elevation, signal,
+   how much was received) and one image per composite, automatically once the pass is processed or
+   with a button on the pass page. See [Posting to Discord](#posting-to-discord).
+
 To try the gallery with passes made elsewhere (e.g. with the SatDump GUI), copy the pass folders
 into `~/raspberry_sat_data/passes/` on the Pi; they are picked up 5 minutes later:
 
@@ -56,6 +60,29 @@ Runtime data (config, passes) lives outside the checkout in `~/raspberry_sat_dat
    Node 22 + pnpm, the Python venv, builds the frontend and starts the `raspberry_sat` service.
    Takes a while on a Pi 4.
 3. Open `http://sat.local:8000`, go to Settings and enter your station position.
+
+## Posting to Discord
+
+The app posts as a bot of your own, over Discord's HTTP API (no gateway connection, nothing to keep running).
+
+1. At <https://discord.com/developers/applications>: **New Application**, give it a name (it is the bot's name).
+2. **General Information**: copy the **Application ID**.
+3. **Bot**: **Reset Token**, copy the token (it is shown once). No privileged intents are needed.
+4. In the app: Settings → Discord, paste the application ID and the token, then **Add the bot to a server**:
+   Discord opens, pick the server (you need Manage Server there) and authorize. The bot asks for
+   View Channels, Send Messages and Attach Files.
+5. In Discord: User Settings → Advanced → **Developer Mode** on. Right-click the channel → **Copy Channel ID**
+   and paste it into Settings (a copied channel link works too). Private channel: add the bot to it.
+6. **Send a test message**, then switch on one of:
+   - **Post automatically**: each pass is posted as soon as its images are made.
+   - **Post by hand**: a **Post to Discord** button on each pass page.
+
+   Switching one on switches the other off; both off posts nothing. Save.
+
+A message carries at most 10 images: one per composite (the main image first, then by name; geometry-corrected
+when there is one; black ones left out), full size as JPEG, smaller if together they pass 20 MB. Times show in
+each reader's own time zone. "Images to post" limits it to some composites. Where each pass was posted, or why it
+failed, is on its page; a failed automatic post can be retried there.
 
 ## Moving the Pi to another site
 

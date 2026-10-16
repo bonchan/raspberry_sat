@@ -11,7 +11,12 @@ export interface Satellite {
 }
 export interface Tracking { min_elevation: number; stop_sdr_when_idle: boolean }
 export interface Rotator { enabled: boolean; address: string; port: number }
-export interface Discord { enabled: boolean; webhook_url: string; composites: string[]; post_failed: boolean }
+/** auto: each pass is posted once processed; manual: a button on the pass page */
+export type DiscordMode = 'off' | 'auto' | 'manual'
+export interface Discord {
+  mode: DiscordMode; application_id: string; bot_token: string; channel_id: string
+  composites: string[]; post_failed: boolean
+}
 export interface Storage { keep_days: number; max_gb: number; keep_baseband: boolean }
 export interface Display { show_low_passes: boolean; language: 'en' | 'es'; upcoming_days: number }
 
@@ -71,11 +76,18 @@ export interface PassOrbit {
 }
 /** SNR in dB; locked: share of the recording with the deframer locked */
 export interface PassSignal { peak_snr: number; mean_snr: number; locked: number | null; seconds: number }
+/** where a message went; channel is its name */
+export interface DiscordSent { url: string; channel: string | null }
+/** a pass on Discord: set when it was posted, error when the last try failed (an earlier post stays noted) */
+export interface PassDiscord extends Partial<DiscordSent> {
+  posted_at?: number; images?: number; error?: string; failed_at?: number
+}
 export interface PassDetail {
   id: string; satellite: string; time: number; main: string | null; coverage: number | null
   size: number; source_name: string; images: PassImage[]; files: { path: string; bytes: number }[]
   orbit?: PassOrbit | null; signal?: PassSignal | null
   samples: LiveSample[]             // one per second while it was received; empty for older passes
+  discord?: PassDiscord             // missing until it is first posted
 }
 export interface PassList { passes: PassSummary[]; in_progress: { id: string; last_activity: number }[] }
 
@@ -174,7 +186,16 @@ export const api = {
   getPasses: () => request<PassList>('GET', '/passes'),
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),
+  postPass: (id: string) => request<PassDiscord>('POST', `/passes/${encodeURIComponent(id)}/discord`),
+  testDiscord: (discord: Discord) => request<DiscordSent>('POST', '/discord/test', discord),
 }
+
+// what the bot may do in the server it is added to: View Channels, Send Messages, Attach Files
+const BOT_PERMISSIONS = (1 << 10) | (1 << 11) | (1 << 15)
+
+/** Discord's page for adding the bot to a server */
+export const discordInvite = (applicationId: string) =>
+  `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(applicationId)}&scope=bot&permissions=${BOT_PERMISSIONS}`
 
 // image paths contain spaces and brackets: encode each part, keep the slashes
 const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/')
