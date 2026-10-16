@@ -73,7 +73,6 @@ const en = {
   'status.updatesOne': '1 new commit',
   'status.updatesMany': '{n} new commits',
   'status.upToDate': 'up to date',
-  'status.review': 'Review →',
 
   'update.badge': 'Update available',
   'update.title': 'Update',
@@ -404,7 +403,6 @@ const es: Record<Key, string> = {
   'status.updatesOne': '1 commit nuevo',
   'status.updatesMany': '{n} commits nuevos',
   'status.upToDate': 'al día',
-  'status.review': 'Revisar →',
 
   'update.badge': 'Actualización disponible',
   'update.title': 'Actualizar',

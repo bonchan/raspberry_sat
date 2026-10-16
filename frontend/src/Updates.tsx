@@ -112,7 +112,7 @@ export default function Updates() {
 
       {(data.running || data.last_run) && (
         <details className="update-details" open={logOpen}
-          onToggle={e => setLogOpen((e.target as HTMLDetailsElement).open)}>
+          onToggle={e => setLogOpen(e.currentTarget.open)}>
           <summary>
             {t('update.log')}
             {data.running && <span className="hint"> · {t('update.running')}</span>}

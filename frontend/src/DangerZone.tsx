@@ -52,7 +52,7 @@ export default function DangerZone() {
             {behind === 0 ? t('status.upToDate') : behind === 1 ? t('status.updatesOne') : t('status.updatesMany', { n: behind })}
           </p>
         </div>
-        <Link className="button danger" to="/update">{t('danger.updateButton')}</Link>
+        <Link className="button danger" to="/status#updates">{t('danger.updateButton')}</Link>
       </div>
       <div className="danger-row">
         <div>

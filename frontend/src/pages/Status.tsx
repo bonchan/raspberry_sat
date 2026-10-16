@@ -1,22 +1,28 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { api, type SatdumpProcess, type Status as StatusData } from '../api'
 import { useConfirm } from '../Dialog'
 import { useNow, usePolling } from '../hooks'
 import { duration, gb } from '../format'
 import { useT, type Key } from '../i18n'
+import Updates from '../Updates'
 
 const STATE_CLASS: Record<SatdumpProcess['state'], string> = {
   running: 'ok', stopping: 'hint', stopped: 'hint', waiting: 'error', not_installed: 'error',
 }
 
-/** SatDump, then the system it runs on. */
+/** SatDump, then the system it runs on and its updates. */
 export default function Status() {
   const t = useT()
   const { data: status, error } = usePolling(api.getStatus, 2000)
   const { data: system } = usePolling(api.getSystem, 30000)
-  const { data: update } = usePolling(api.getUpdate, 60000)
-  const behind = update?.behind ?? 0
+  const { hash, key } = useLocation()
+  const loaded = !!status && !!system
+
+  // /status#updates (the header badge, the danger zone): scroll once the sections above have their height
+  useEffect(() => {
+    if (hash === '#updates' && loaded) document.getElementById('updates')?.scrollIntoView({ behavior: 'smooth' })
+  }, [hash, key, loaded])
 
   return (
     <>
@@ -31,15 +37,10 @@ export default function Status() {
             <dt>{t('status.data')}</dt><dd>{system.data_dir}</dd>
             <dt>{t('status.disk')}</dt>
             <dd>{t('status.diskUsage', { used: gb(system.disk.used), free: gb(system.disk.free), total: gb(system.disk.total) })}</dd>
-            <dt>{t('status.updates')}</dt>
-            <dd>
-              {behind === 0 ? t('status.upToDate')
-                : behind === 1 ? t('status.updatesOne') : t('status.updatesMany', { n: behind })}{' '}
-              <Link to="/update">{t('status.review')}</Link>
-            </dd>
           </dl>
         </section>
       )}
+      <Updates />
     </>
   )
 }

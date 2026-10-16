@@ -103,7 +103,7 @@ img.fft { display: block; width: 512px; max-width: 100%; aspect-ratio: 1; backgr
 }
 .badge.danger { background: var(--danger); color: #fff; }
 
-/* update page */
+/* updates section on the status page */
 code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .commits { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 10px; }
 .commits > li { background: var(--bg); border-radius: 6px; padding: 10px 12px; border-left: 3px solid var(--accent); }
@@ -115,6 +115,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; backgrou
 .fstat.s-D { color: var(--danger); }
 .fstat.s-R { color: var(--warn); }
 .warning { border-left: 3px solid var(--warn); padding: 6px 10px; background: var(--bg); border-radius: 4px; }
+.update-details { margin-top: 14px; }
 .update-log { height: auto; max-height: 50vh; }
 
 /* receiver test in settings */

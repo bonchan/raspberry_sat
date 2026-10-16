@@ -30,7 +30,7 @@ function UpdateBadge() {
   const t = useT()
   const { data } = usePolling(api.getUpdate, 10 * 60 * 1000)
   if (!data?.behind && !data?.running) return null
-  return <NavLink className="badge" to="/update">{t('update.badge')}</NavLink>
+  return <NavLink className="badge" to="/status#updates">{t('update.badge')}</NavLink>
 }
 
 // nothing while SatDump runs; red when it doesn't, or when the Pi does not answer
