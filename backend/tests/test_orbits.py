@@ -75,10 +75,13 @@ def test_predict_skips_disabled_and_unknown_satellites():
     assert predict(station_config(), {}, EPOCH) == []
 
 
-def test_tracker_records_signal_during_a_pass():
+def test_tracker_records_signal_during_a_pass(monkeypatch):
     import time
+    from app import tasks
+    clock = [time.time()]
+    monkeypatch.setattr(tasks.time, "time", lambda: clock[0])
     tracker = Tracker()
-    now = time.time()
+    now = clock[0]
     in_pass = {
         "object_tracker": {"next_event_is_aos": False, "next_los_time": now + 600,
                            "sat_current_pos": {"az": 120.0, "el": 35.0}},
@@ -87,6 +90,10 @@ def test_tracker_records_signal_during_a_pass():
                                                         "deframer_lock": True, "rs_avg": 2}},
     }
     tracker.update(in_pass)
+    clock[0] += 0.25
+    tracker.update(in_pass)                      # polled faster while watched: no extra sample
+    assert tracker.current()["t"] == round(clock[0], 1)
+    clock[0] += 1
     tracker.update(in_pass)
     assert len(tracker.history) == 2
     assert tracker.history[0]["snr"] == 6.2 and tracker.history[0]["deframer_lock"] is True

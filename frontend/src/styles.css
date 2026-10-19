@@ -85,7 +85,16 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .row:last-child { margin-bottom: 0; }
 
-img.fft { display: block; width: 512px; max-width: 100%; aspect-ratio: 1; background: #000; border-radius: 6px; }
+/* spectrum (SpectrumPlot.tsx) */
+.spectrum svg, .spectrum .waterfall { display: block; width: 100%; background: #0c0d10; }
+.spectrum svg { border-radius: 6px 6px 0 0; }
+.spectrum .waterfall { height: 120px; border-radius: 0 0 6px 6px; }
+.spectrum-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.spectrum-label { fill: var(--dim); font-size: 10px; }
+.spectrum-label.center { fill: var(--text); font-weight: 600; }
+.spectrum-band { fill: var(--accent); opacity: .12; }
+.spectrum-trace { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.spectrum-fill { fill: var(--accent); opacity: .15; }
 .center { text-align: center; }
 .narrow { max-width: 340px; }
 

@@ -10,6 +10,7 @@ from app.config import Config
 # SatDump always connects a rotctl rotator at startup; with none wanted, point it where nothing listens
 NO_ROTATOR = {"address": "127.0.0.1", "port": 1}
 FALLBACK_FREQUENCY = 137_900_000
+FFT_MIN, FFT_MAX = -110, -30        # dB at the bottom and top of SatDump's spectrum picture (see spectrum.py)
 
 
 def build_autotrack_config(config: Config, output_folder: Path, http_server: str) -> dict:
@@ -24,12 +25,12 @@ def build_autotrack_config(config: Config, output_folder: Path, http_server: str
         "agc": sdr.agc,
         "bias": sdr.bias,
         "ppm_correction": sdr.ppm_correction,
-        # the spectrum is only computed while someone looks at it on the status page
+        # the spectrum is only computed while someone looks at it on the Live page
         "fft_enable": True,
         "fft_size": 8192,
         "fft_rate": 10,
-        "fft_min": -110,
-        "fft_max": -30,
+        "fft_min": FFT_MIN,
+        "fft_max": FFT_MAX,
     }
     if sdr.source_id:
         parameters["source_id"] = sdr.source_id

@@ -107,7 +107,12 @@ export interface LiveSample {
 }
 export interface Live {
   receiving: boolean; pass_started: number; last_los: number; history: LiveSample[]
+  current: LiveSample | null        // the latest reading; history keeps one a second
   folder: string | null; cadu_bytes: number
+}
+/** SatDump's spectrum: dB across the band (null: below the scale), the tuned frequency in the middle */
+export interface Spectrum {
+  db: (number | null)[]; min: number; max: number; frequency: number | null; samplerate: number; time: number
 }
 
 export interface CommitInfo { hash: string; short: string; time: number; subject: string }
@@ -184,6 +189,7 @@ export const api = {
   applyUpdate: () => request<UpdateState>('POST', '/update/apply'),
   getSchedule: () => request<Schedule>('GET', '/schedule'),
   getLive: (after: number) => request<Live>('GET', `/live?after=${after}`),
+  getSpectrum: () => request<Spectrum>('GET', '/spectrum'),
   getPasses: () => request<PassList>('GET', '/passes'),
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),

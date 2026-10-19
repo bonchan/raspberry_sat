@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
-/** Calls `fn` now and every `ms` after the previous call finished. */
-export function usePolling<T>(fn: () => Promise<T>, ms: number) {
+/** Calls `fn` now and every `ms` after the previous call finished; not at all while `enabled` is false. */
+export function usePolling<T>(fn: () => Promise<T>, ms: number, enabled = true) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState('')
   const fnRef = useRef(fn)
   fnRef.current = fn
 
   useEffect(() => {
+    if (!enabled) return
     let alive = true
     let timer: number | undefined
     async function tick() {
@@ -21,9 +22,20 @@ export function usePolling<T>(fn: () => Promise<T>, ms: number) {
     }
     tick()
     return () => { alive = false; window.clearTimeout(timer) }
-  }, [ms])
+  }, [ms, enabled])
 
   return { data, error }
+}
+
+/** Whether this tab is on screen; hidden tabs need not poll fast. */
+export function useVisible() {
+  const [visible, setVisible] = useState(() => document.visibilityState === 'visible')
+  useEffect(() => {
+    const changed = () => setVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', changed)
+    return () => document.removeEventListener('visibilitychange', changed)
+  }, [])
+  return visible
 }
 
 /** A number that changes every `ms`, for cache-busting images that SatDump redraws. */

@@ -24,6 +24,9 @@ def guess_satellite(when: float) -> str | None:
 http = httpx.AsyncClient(timeout=5)
 
 POLL_INTERVAL = 1
+WATCHED_POLL = 0.25         # seconds between reads of SatDump's status while the Live page is open
+WATCH_HOLD = 5              # ... for this long after the page last asked
+HISTORY_STEP = 1            # seconds between the samples kept for the pass chart (and signal.json)
 HOUSEKEEPING_INTERVAL = 15
 SCAN_INTERVAL = 30
 DAILY_RESTART = 24 * 3600   # SatDump only refreshes its orbit data (TLEs) when it starts
@@ -51,8 +54,15 @@ class Tracker:
         self.updated_at = 0.0
         self.pass_started = 0.0         # when the current or last pass began
         self.last_los = 0.0             # when the last pass ended (or SatDump stopped during one)
-        self.history: list[dict] = []   # one sample per poll during the current or last pass
+        self.history: list[dict] = []   # one sample a second during the current or last pass
+        self.watched_until = 0.0        # someone has the Live page open: poll faster until then
         self._was_receiving = False
+
+    def watch(self) -> None:
+        self.watched_until = time.time() + WATCH_HOLD
+
+    def watched(self) -> bool:
+        return time.time() < self.watched_until
 
     def overhead(self) -> bool:
         """The tracked satellite is above the horizon, whether SatDump records this pass or not."""
@@ -75,10 +85,18 @@ class Tracker:
             self.pass_started, self.history = now, []
         if self._was_receiving and not receiving:
             self.last_los = now
-        if receiving and data is not None:
-            pos = (data.get("object_tracker") or {}).get("sat_current_pos") or {}
-            self.history.append({"t": round(now, 1), "az": pos.get("az"), "el": pos.get("el"), **signal(data)})
+        if receiving and data is not None and (not self.history or now - self.history[-1]["t"] >= HISTORY_STEP - 0.1):
+            self.history.append(self.sample(data, now))
         self._was_receiving = receiving
+
+    @staticmethod
+    def sample(data: dict, now: float) -> dict:
+        pos = (data.get("object_tracker") or {}).get("sat_current_pos") or {}
+        return {"t": round(now, 1), "az": pos.get("az"), "el": pos.get("el"), **signal(data)}
+
+    def current(self) -> dict | None:
+        """The latest reading during a pass, as fresh as the polling (the history keeps one a second)."""
+        return self.sample(self.data, self.updated_at) if self.receiving() and self.data else None
 
 
 tracker = Tracker()
@@ -130,7 +148,7 @@ async def poll_tracker() -> None:
                 pass                        # still starting up; the page shows how old the data is
         else:
             tracker.update(None)
-        await asyncio.sleep(POLL_INTERVAL)
+        await asyncio.sleep(WATCHED_POLL if tracker.watched() else POLL_INTERVAL)
 
 
 def safe_to_restart() -> bool:

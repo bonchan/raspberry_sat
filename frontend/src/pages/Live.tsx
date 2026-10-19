@@ -1,19 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, satdumpImage, type Live as LiveData, type LiveSample, type UpcomingPass } from '../api'
-import { useNow, usePolling, useTick } from '../hooks'
+import { api, type Live as LiveData, type LiveSample, type UpcomingPass } from '../api'
+import { useNow, usePolling, useVisible } from '../hooks'
 import { clock, size, utcClock } from '../format'
 import { useT, type Key } from '../i18n'
 import PassCards from '../PassCards'
 import SignalChart from '../SignalChart'
+import SpectrumPlot from '../SpectrumPlot'
 import SkyPlot, { SkyLegend } from '../SkyPlot'
 
 const FRAME_BYTES = 1024            // one Meteor LRPT frame (CADU) in SatDump's .cadu file
 
-/** The live endpoint, polled every second; samples accumulate, and start over when a new pass begins. */
-function useLive() {
+/** The live endpoint, polled every `ms`; samples accumulate, and start over when a new pass begins. */
+function useLive(ms: number) {
   const [live, setLive] = useState<LiveData | null>(null)
   const [samples, setSamples] = useState<LiveSample[]>([])
+  const every = useRef(ms)
+  every.current = ms
   useEffect(() => {
     let alive = true
     let timer: number | undefined
@@ -32,7 +35,7 @@ function useLive() {
         if (r.history.length) last = r.history[r.history.length - 1].t
         setLive(r)
       } catch { /* backend restarting */ }
-      if (alive) timer = window.setTimeout(poll, 1000)
+      if (alive) timer = window.setTimeout(poll, every.current)
     }
     poll()
     return () => { alive = false; window.clearTimeout(timer) }
@@ -42,10 +45,13 @@ function useLive() {
 
 export default function Live() {
   const t = useT()
-  const { data: status } = usePolling(api.getStatus, 1000)
+  // four times a second while this page is on screen (the backend then reads SatDump as often); slowly when hidden
+  const visible = useVisible()
+  const every = visible ? 250 : 5000
+  const { data: status } = usePolling(api.getStatus, every)
   const { data: schedule } = usePolling(api.getSchedule, 60000)
   const { data: config } = usePolling(api.getConfig, 60000)
-  const { live, samples } = useLive()
+  const { live, samples } = useLive(every)
   const now = useNow()
 
   if (!status || !live) return <section><p className="hint">{t('common.loading')}</p></section>
@@ -77,7 +83,7 @@ export default function Live() {
           </section>
           <section>
             <h2>{t('live.signal')}</h2>
-            <SignalTiles sample={samples[samples.length - 1]} caduBytes={live.cadu_bytes}
+            <SignalTiles sample={live.current ?? samples[samples.length - 1]} caduBytes={live.cadu_bytes}
               frequency={status.tracker?.frequency} />
           </section>
         </div>
@@ -201,22 +207,8 @@ function Spectrum() {
   return (
     <section>
       <h2>{t('live.spectrum')}</h2>
-      <SpectrumImage />
+      <SpectrumPlot />
     </section>
-  )
-}
-
-/** SatDump's FFT, reloaded every second while shown. */
-function SpectrumImage() {
-  const t = useT()
-  const tick = useTick(1000)
-  const [failed, setFailed] = useState(false)
-  return (
-    <>
-      <img className="fft" src={satdumpImage('fft', tick)} alt={t('live.spectrum')} style={failed ? { display: 'none' } : undefined}
-        onError={() => setFailed(true)} onLoad={() => setFailed(false)} />
-      {failed && <p className="hint">{t('live.noSpectrum')}</p>}
-    </>
   )
 }
 
@@ -250,7 +242,7 @@ function IdleReceiver({ stopsWhenIdle, frequency }: { stopsWhenIdle: boolean; fr
             <button onClick={toggle}>{on ? t('live.idleHide') : t('live.idleShow')}</button>
             {frequency ? <span className="hint">{t('live.tuned', { f: (frequency / 1e6).toFixed(3) })}</span> : null}
           </div>
-          {on && <SpectrumImage />}
+          {on && <SpectrumPlot />}
         </>
       )}
     </section>
