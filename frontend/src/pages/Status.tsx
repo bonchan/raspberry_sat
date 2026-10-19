@@ -37,7 +37,7 @@ export default function Status() {
 /** The Pi itself. Rows the backend could not read (off the Pi) are left out. */
 function SystemFacts({ system }: { system: SystemInfo }) {
   const t = useT()
-  const { temperature: temp, memory: mem, uptime, throttling: power, clock_synced: synced, network: net } = system
+  const { temperature: temp, memory: mem, cpu, uptime, throttling: power, clock_synced: synced, network: net } = system
   const flags = (list: ThrottleFlag[]) => list.map(f => t(`power.${f}` as Key)).join(', ')
   // since boot always repeats what is happening now; only show what is not
   const earlier = power ? power.since_boot.filter(f => !power.now.includes(f)) : []
@@ -71,6 +71,13 @@ function SystemFacts({ system }: { system: SystemInfo }) {
           <dd>
             <span className={temp >= 80 ? 'error' : temp >= 70 ? 'caution' : ''}>{temp.toFixed(1)} °C</span>
             {temp >= 70 && <span className="hint"> · {t('status.hot')}</span>}
+          </dd>
+        </>}
+        {cpu && <>
+          <dt>{t('status.cpu')}</dt>
+          <dd>
+            <span className={cpu.usage >= 0.9 ? 'caution' : ''}>{percent(cpu.usage)}</span>
+            {cpu.cores && <span className="hint"> · {t('status.cpuCores', { n: cpu.cores })}</span>}
           </dd>
         </>}
         {mem && <>

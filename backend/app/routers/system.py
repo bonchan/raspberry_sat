@@ -1,6 +1,8 @@
+import os
 import shutil
 import socket
 import subprocess
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -15,6 +17,7 @@ SERVICE = "raspberry_sat"
 THERMAL = Path("/sys/class/thermal/thermal_zone0/temp")
 MEMINFO = Path("/proc/meminfo")
 UPTIME = Path("/proc/uptime")
+STAT = Path("/proc/stat")
 
 # `vcgencmd get_throttled`: these bits for what is happening now, the same bits + 16 for since boot
 THROTTLE_BITS = {0: "under_voltage", 1: "freq_capped", 2: "throttled", 3: "soft_temp_limit"}
@@ -60,6 +63,39 @@ def memory() -> dict | None:
     except (OSError, ValueError, KeyError):
         return None
     return {"total": total, "used": total - available}
+
+
+def cpu_times() -> tuple[int, int] | None:
+    """(busy, total) CPU time since boot over all cores, in clock ticks; waiting for the disk counts as idle."""
+    try:
+        first = STAT.read_text().splitlines()[0]          # cpu  user nice system idle iowait irq softirq steal ...
+        user, nice, system_, idle, iowait, irq, softirq, steal = map(int, first.split()[1:9])
+    except (OSError, ValueError, IndexError):
+        return None
+    total = user + nice + system_ + idle + iowait + irq + softirq + steal
+    return total - idle - iowait, total
+
+
+_cpu_last: tuple[float, int, int] | None = None     # when, busy and total at the previous reading
+
+
+def cpu_usage() -> float | None:
+    """Share of the CPU in use (all cores together) since the last call, which is the page's polling
+    interval; over half a second when there is no recent reading to compare with."""
+    global _cpu_last
+    now, times = time.time(), cpu_times()
+    if times is None:
+        return None
+    if _cpu_last and 0.5 <= now - _cpu_last[0] <= 60:
+        before = _cpu_last[1:]
+    else:
+        time.sleep(0.5)
+        before, now, times = times, time.time(), cpu_times()
+        if times is None:
+            return None
+    _cpu_last = (now, *times)
+    busy, total = times[0] - before[0], times[1] - before[1]
+    return round(busy / total, 3) if total > 0 else None
 
 
 def uptime() -> float | None:
@@ -113,6 +149,7 @@ def network() -> dict | None:
 def get_system() -> dict:
     settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
     disk = shutil.disk_usage(settings.DATA_DIR)
+    cpu = cpu_usage()
     return {
         "hostname": socket.gethostname(),
         "version": git_version(),
@@ -120,6 +157,7 @@ def get_system() -> dict:
         "disk": {"total": disk.total, "used": disk.used, "free": disk.free},
         "temperature": temperature(),
         "memory": memory(),
+        "cpu": {"usage": cpu, "cores": os.cpu_count()} if cpu is not None else None,
         "uptime": uptime(),
         "throttling": throttling(),
         "clock_synced": clock_synced(),

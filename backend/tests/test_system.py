@@ -61,6 +61,19 @@ def test_uptime(tmp_path, monkeypatch):
     assert system.uptime() == 12345.67
 
 
+def test_cpu_usage_since_the_last_reading(tmp_path, monkeypatch):
+    import time
+    stat = tmp_path / "stat"
+    monkeypatch.setattr(system, "STAT", stat)
+    # user nice system idle iowait irq softirq steal: 300 of 1000 ticks busy since boot
+    stat.write_text("cpu  200 0 100 650 50 0 0 0 0 0\ncpu0 1 2 3 4 5 6 7 8 0 0\n")
+    assert system.cpu_times() == (300, 1000)
+    monkeypatch.setattr(system, "_cpu_last", (time.time() - 10, 300, 1000))
+    # then 100 busy of 400 more ticks
+    stat.write_text("cpu  260 0 140 920 80 0 0 0 0 0\n")
+    assert system.cpu_usage() == 0.25
+
+
 class Output:
     def __init__(self, stdout, returncode=0):
         self.stdout, self.returncode, self.stderr = stdout, returncode, ""
@@ -93,7 +106,7 @@ def test_network_wifi_signal(monkeypatch):
 
 
 def test_nothing_to_read_off_the_pi(tmp_path, monkeypatch):
-    for name in ("THERMAL", "MEMINFO", "UPTIME"):
+    for name in ("THERMAL", "MEMINFO", "UPTIME", "STAT"):
         monkeypatch.setattr(system, name, tmp_path / "missing")
 
     def missing(*a, **k):
@@ -102,6 +115,6 @@ def test_nothing_to_read_off_the_pi(tmp_path, monkeypatch):
     monkeypatch.setattr(system.subprocess, "run", missing)          # also what nmcli runs through
     monkeypatch.setattr(system.settings, "DATA_DIR", tmp_path / "data")
     body = TestClient(app).get("/api/system").json()
-    for key in ("temperature", "memory", "uptime", "throttling", "clock_synced", "network"):
+    for key in ("temperature", "memory", "uptime", "cpu", "throttling", "clock_synced", "network"):
         assert body[key] is None, key
     assert body["disk"]["total"] > 0

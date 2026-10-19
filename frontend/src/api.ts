@@ -32,6 +32,7 @@ export interface SystemInfo {
   // each null off the Pi (or when the tool behind it is missing)
   temperature: number | null                      // °C
   memory: { total: number; used: number } | null  // bytes; the page cache counts as free
+  cpu: { usage: number; cores: number | null } | null   // share in use, all cores together, since the last poll
   uptime: number | null                           // seconds since boot
   throttling: { now: ThrottleFlag[]; since_boot: ThrottleFlag[] } | null
   clock_synced: boolean | null                    // set from the network (NTP)
