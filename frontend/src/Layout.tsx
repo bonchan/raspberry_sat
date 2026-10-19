@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { api } from './api'
 import { useNow, usePolling } from './hooks'
@@ -44,9 +45,23 @@ function SatdumpBadge() {
 
 export default function Layout() {
   const t = useT()
+  const header = useRef<HTMLElement>(null)
+
+  // the header sticks to the top; what sticks under it (sky plot, save bar) needs its height, which
+  // changes as the nav wraps or a badge shows up
+  useEffect(() => {
+    const el = header.current
+    if (!el) return
+    const measure = () => document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <>
-      <header className="topbar">
+      <header className="topbar" ref={header}>
         <span className="brand">raspberry_sat</span>
         <nav>
           {links.map(l => (
