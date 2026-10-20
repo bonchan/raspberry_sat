@@ -4,6 +4,7 @@ import { api, type Live as LiveData, type LiveSample, type UpcomingPass } from '
 import { useNow, usePolling, useVisible } from '../hooks'
 import { clock, size, utcClock } from '../format'
 import { useT, type Key } from '../i18n'
+import Globe from '../Globe'
 import PassCards from '../PassCards'
 import SignalChart from '../SignalChart'
 import SpectrumPlot from '../SpectrumPlot'
@@ -87,6 +88,7 @@ export default function Live() {
               frequency={status.tracker?.frequency} />
           </section>
         </div>
+        <GlobeSection highlight={current?.norad} />
         <section>
           <h2>{t('live.thisPass')}</h2>
           <SignalChart samples={samples} start={aos} end={los} track={current?.track} />
@@ -129,6 +131,7 @@ export default function Live() {
         </section>
       )}
       <NextPass next={next} />
+      <GlobeSection />
       {status.satdump.state === 'running' && config && (
         <IdleReceiver stopsWhenIdle={config.tracking.stop_sdr_when_idle} frequency={status.tracker?.frequency} />
       )}
@@ -199,6 +202,17 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
       </div>
       {sample === undefined && <p className="hint">{t('live.waitingDemod')}</p>}
     </>
+  )
+}
+
+/** The satellites in the settings on a globe, where they are now; the one being received in yellow. */
+function GlobeSection({ highlight }: { highlight?: number }) {
+  const t = useT()
+  return (
+    <section>
+      <h2>{t('globe.title')}</h2>
+      <Globe highlight={highlight} />
+    </section>
   )
 }
 

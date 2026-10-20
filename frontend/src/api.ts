@@ -73,6 +73,12 @@ export interface PassSummary {
   discord_url: string | null        // the Discord message, once posted
 }
 export interface SyncPoint { t: number; el: number | null; az: number | null }
+/** the station and the TLEs of the satellites in the settings, for the globe */
+export interface TleSet {
+  station: { name: string; lat: number; lon: number; alt: number }
+  satellites: { name: string; norad: number; enabled: boolean; line1: string; line2: string }[]
+  missing: string[]
+}
 /** a pass's signal thinned for a small chart, with its span and elevation track */
 export interface PassSignalThumb {
   start: number | null; end: number | null; track: [number, number][] | null; samples: LiveSample[]
@@ -196,6 +202,7 @@ export const api = {
   applyUpdate: () => request<UpdateState>('POST', '/update/apply'),
   getSchedule: () => request<Schedule>('GET', '/schedule'),
   getLive: (after: number) => request<Live>('GET', `/live?after=${after}`),
+  getTles: () => request<TleSet>('GET', '/tles'),
   getSpectrum: () => request<Spectrum>('GET', '/spectrum'),
   getPasses: () => request<PassList>('GET', '/passes'),
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),

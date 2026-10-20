@@ -137,3 +137,18 @@ def test_signal_summary():
         "first_sync": {"t": 101.0, "el": None, "az": None}, "last_sync": {"t": 161.0, "el": None, "az": None},
     }
     assert signal_summary([{"t": 1.0}]) is None
+
+
+def test_tles_for_the_globe(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import settings
+    from app.main import app
+    tle_file = tmp_path / "satdump_tles.txt"
+    tle_file.write_text(TLE)
+    monkeypatch.setattr(settings, "SATDUMP_TLES", tle_file)
+    monkeypatch.setattr(settings, "CONFIG_FILE", tmp_path / "config.json")     # none: the defaults
+    body = TestClient(app).get("/api/tles").json()
+    assert [s["norad"] for s in body["satellites"]] == [57166]
+    assert body["satellites"][0]["line1"].startswith("1 57166")
+    assert body["missing"] == ["METEOR-M2 4"]
+    assert {"lat", "lon"} <= set(body["station"])
