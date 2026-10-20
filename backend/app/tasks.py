@@ -102,20 +102,6 @@ class Tracker:
 tracker = Tracker()
 
 
-def signal_summary(history: list[dict]) -> dict | None:
-    """Peak and mean SNR (dB) of a pass's samples, and the share of them with the deframer locked."""
-    snr = [s["snr"] for s in history if isinstance(s.get("snr"), (int, float))]
-    if not snr:
-        return None
-    locks = [bool(s["deframer_lock"]) for s in history if "deframer_lock" in s]
-    return {
-        "peak_snr": round(max(snr), 1),
-        "mean_snr": round(sum(snr) / len(snr), 1),
-        "locked": round(sum(locks) / len(locks), 3) if locks else None,
-        "seconds": round(history[-1]["t"] - history[0]["t"]),
-    }
-
-
 def pass_facts(started: float, satellite: str) -> dict:
     """For pass.json: the pass's orbit (highest elevation, sky track) and, when this app watched it,
     its signal summary and samples (saved next to it as signal.json). No "orbit" key when there is
@@ -132,7 +118,7 @@ def pass_facts(started: float, satellite: str) -> dict:
             log.exception("could not work out the orbit of a pass")
     # the tracker keeps the last pass's samples until the next one starts
     if tracker.history and abs(tracker.pass_started - started) < 15 * 60:
-        facts["signal"] = signal_summary(tracker.history)
+        facts["signal"] = passes.signal_summary(tracker.history)
         facts["samples"] = list(tracker.history)
     return facts
 
@@ -223,6 +209,10 @@ async def scan_passes() -> None:
             supervisor.note("info", f"added the orbit (highest elevation, sky track) to {added} earlier passes")
     except Exception:
         log.exception("adding orbits to earlier passes failed")
+    try:
+        await asyncio.to_thread(passes.refresh_signal_summaries, settings.PASSES_DIR)
+    except Exception:
+        log.exception("updating the signal summaries of earlier passes failed")
 
     def report_error(name: str, error: str) -> None:
         if name not in reported:

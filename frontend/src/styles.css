@@ -316,6 +316,25 @@ a.card:hover, .pass-card:hover { border-color: var(--accent); }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 section > .title-row { margin-bottom: 12px; }
 .title-row h2 { margin: 0; }
+
+/* passes: list layout (grid is the gallery) */
+.layout-switch { margin-top: 0; }
+.pass-list { display: grid; gap: 8px; }
+.pass-row {
+  position: relative; display: flex; gap: 12px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+}
+.pass-row:hover { border-color: var(--accent); }
+.pass-row img, .pass-row .noimage { width: 96px; aspect-ratio: 4 / 3; object-fit: cover; background: #000; border-radius: 4px; flex: none; }
+.pass-row-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+
+/* statistics on the status page */
+.subhead { font-size: 14px; font-weight: 600; margin: 16px 0 8px; }
+.table-scroll { overflow-x: auto; }
+.stats-table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.stats-table th { text-align: left; color: var(--dim); font-weight: normal; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.stats-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.stats-table .swatch { display: inline-block; width: 4px; height: 12px; margin-right: 8px; vertical-align: middle; border-radius: 1px; }
 button.with-icon { display: inline-flex; align-items: center; gap: 8px; }
 .card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; display: block; cursor: pointer; }
 .card .noimage { aspect-ratio: 4 / 3; display: grid; place-items: center; background: #000; color: var(--dim); }

@@ -349,6 +349,45 @@ def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts
     return folder
 
 
+def signal_summary(samples: list[dict]) -> dict | None:
+    """Peak and mean SNR (dB) of a pass's samples, the share of them with the deframer locked, and where
+    frames first and last synced: the elevations at which reception starts and ends."""
+    snr = [s["snr"] for s in samples if isinstance(s.get("snr"), (int, float))]
+    if not snr:
+        return None
+    locks = [bool(s["deframer_lock"]) for s in samples if "deframer_lock" in s]
+    synced = [s for s in samples if s.get("deframer_lock")]
+
+    def place(s: dict) -> dict:
+        return {"t": s["t"], "el": s.get("el"), "az": s.get("az")}
+
+    return {
+        "peak_snr": round(max(snr), 1),
+        "mean_snr": round(sum(snr) / len(snr), 1),
+        "locked": round(sum(locks) / len(locks), 3) if locks else None,
+        "seconds": round(samples[-1]["t"] - samples[0]["t"]),
+        "first_sync": place(synced[0]) if synced else None,
+        "last_sync": place(synced[-1]) if synced else None,
+    }
+
+
+def refresh_signal_summaries(passes_dir: Path) -> int:
+    """Recompute the signal summary of finished passes saved before it had first/last sync, from their
+    signal.json. Returns how many changed."""
+    changed = 0
+    for folder in pass_folders(passes_dir):
+        meta = read_json(folder / META)
+        if meta is None or "first_sync" in (meta.get("signal") or {}):
+            continue
+        samples = load_samples(folder)
+        if not samples:
+            continue
+        meta["signal"] = signal_summary(samples)
+        write_meta(folder, meta)
+        changed += 1
+    return changed
+
+
 def write_samples(folder: Path, samples: list[dict]) -> None:
     def short(v):
         return round(v, 3) if isinstance(v, float) else v
@@ -401,7 +440,10 @@ def summary(meta: dict) -> dict:
         "size": meta.get("size", 0),
         "max_el": orbit.get("max_el"),
         "peak_snr": signal.get("peak_snr"),
+        "mean_snr": signal.get("mean_snr"),
         "locked": signal.get("locked"),
+        "first_sync": signal.get("first_sync"),
+        "last_sync": signal.get("last_sync"),
         "discord_url": (meta.get("discord") or {}).get("url"),    # see discord.py
     }
 

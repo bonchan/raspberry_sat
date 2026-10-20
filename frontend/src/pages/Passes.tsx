@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, passFile, type PassSummary } from '../api'
 import { usePolling } from '../hooks'
@@ -6,9 +7,22 @@ import DiscordIcon from '../DiscordIcon'
 import { useT } from '../i18n'
 import { elevationQuality } from '../UpcomingPasses'
 
+type Layout = 'grid' | 'list'
+const LAYOUT = 'rsat-passes-layout'         // this browser's choice
+
+function storedLayout(): Layout {
+  try { return localStorage.getItem(LAYOUT) === 'list' ? 'list' : 'grid' } catch { return 'grid' }
+}
+
 export default function Passes() {
   const t = useT()
   const { data, error } = usePolling(api.getPasses, 15000)
+  const [layout, setLayoutState] = useState<Layout>(storedLayout)
+
+  function setLayout(next: Layout) {
+    setLayoutState(next)
+    try { localStorage.setItem(LAYOUT, next) } catch { /* private mode */ }
+  }
 
   return (
     <>
@@ -28,9 +42,21 @@ export default function Passes() {
         </section>
       )}
       {data && data.passes.length > 0 && (
-        <div className="gallery">
-          {data.passes.map(p => <PassCard key={p.id} pass={p} />)}
-        </div>
+        <>
+          <div className="title-row">
+            <span className="hint">{t('passes.count', { n: data.passes.length })}</span>
+            <div className="chips layout-switch">
+              {(['grid', 'list'] as const).map(l => (
+                <button key={l} className={layout === l ? 'chip on' : 'chip'} onClick={() => setLayout(l)}>
+                  {t(l === 'grid' ? 'passes.grid' : 'passes.list')}
+                </button>
+              ))}
+            </div>
+          </div>
+          {layout === 'grid'
+            ? <div className="gallery">{data.passes.map(p => <PassCard key={p.id} pass={p} />)}</div>
+            : <div className="pass-list">{data.passes.map(p => <PassRow key={p.id} pass={p} />)}</div>}
+        </>
       )}
     </>
   )
@@ -48,29 +74,73 @@ function PassCard({ pass }: { pass: PassSummary }) {
       <div className="caption">
         <div className="title-row">
           <Link className="card-link" to={`/passes/${encodeURIComponent(pass.id)}`}><b>{pass.satellite}</b></Link>
-          {pass.discord_url && (
-            <a className="discord-link" href={pass.discord_url} target="_blank" rel="noreferrer"
-              title={t('passes.onDiscord')} aria-label={t('passes.onDiscord')}>
-              <DiscordIcon size={18} />
-            </a>
-          )}
+          <DiscordLink pass={pass} />
         </div>
         <span>{longDate(pass.time)}</span>
-        {(pass.max_el != null || pass.peak_snr != null) && (
-          <span>
-            {pass.max_el != null && (
-              <span className={`el q-${elevationQuality(pass.max_el)}`}>{t('passes.maxEl', { el: Math.round(pass.max_el) })}</span>
-            )}
-            {pass.max_el != null && pass.peak_snr != null && ' · '}
-            {pass.peak_snr != null && t('passes.snr', { snr: pass.peak_snr.toFixed(1) })}
-            {pass.locked != null && <> · {t('passes.locked', { p: percent(pass.locked) })}</>}
-          </span>
-        )}
-        <span className="hint">
-          {pass.coverage !== null && <>{t('passes.received', { p: percent(pass.coverage) })} · </>}
-          {t('passes.images', { n: pass.image_count })} · {size(pass.size)}
-        </span>
+        <SignalLine pass={pass} />
+        <ImagesLine pass={pass} />
       </div>
     </div>
+  )
+}
+
+/** One line per pass: a small image, then the same facts as the card, plus where frames synced. */
+function PassRow({ pass }: { pass: PassSummary }) {
+  return (
+    <div className="pass-row">
+      {pass.main
+        ? <img src={passFile(pass.id, 'thumb', pass.main)} alt="" loading="lazy" />
+        : <div className="noimage" />}
+      <div className="pass-row-text">
+        <div className="title-row">
+          <Link className="card-link" to={`/passes/${encodeURIComponent(pass.id)}`}>
+            <b>{pass.satellite}</b> <span className="hint">{longDate(pass.time)}</span>
+          </Link>
+          <DiscordLink pass={pass} />
+        </div>
+        <SignalLine pass={pass} withSync />
+        <ImagesLine pass={pass} />
+      </div>
+    </div>
+  )
+}
+
+function DiscordLink({ pass }: { pass: PassSummary }) {
+  const t = useT()
+  if (!pass.discord_url) return null
+  return (
+    <a className="discord-link" href={pass.discord_url} target="_blank" rel="noreferrer"
+      title={t('passes.onDiscord')} aria-label={t('passes.onDiscord')}>
+      <DiscordIcon size={18} />
+    </a>
+  )
+}
+
+function SignalLine({ pass, withSync = false }: { pass: PassSummary; withSync?: boolean }) {
+  const t = useT()
+  if (pass.max_el == null && pass.peak_snr == null) return null
+  const first = pass.first_sync?.el, last = pass.last_sync?.el
+  return (
+    <span>
+      {pass.max_el != null && (
+        <span className={`el q-${elevationQuality(pass.max_el)}`}>{t('passes.maxEl', { el: Math.round(pass.max_el) })}</span>
+      )}
+      {pass.max_el != null && pass.peak_snr != null && ' · '}
+      {pass.peak_snr != null && t('passes.snr', { snr: pass.peak_snr.toFixed(1) })}
+      {pass.locked != null && <> · {t('passes.locked', { p: percent(pass.locked) })}</>}
+      {withSync && first != null && last != null && (
+        <> · {t('passes.syncEls', { first: Math.round(first), last: Math.round(last) })}</>
+      )}
+    </span>
+  )
+}
+
+function ImagesLine({ pass }: { pass: PassSummary }) {
+  const t = useT()
+  return (
+    <span className="hint">
+      {pass.coverage !== null && <>{t('passes.received', { p: percent(pass.coverage) })} · </>}
+      {t('passes.images', { n: pass.image_count })} · {size(pass.size)}
+    </span>
   )
 }

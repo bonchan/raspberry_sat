@@ -6,8 +6,8 @@ import { useT } from './i18n'
 import SkyPlot, { SkyLegend } from './SkyPlot'
 
 // how good a pass is, from its highest elevation
-const GOOD = 30
-const EXCELLENT = 60
+export const GOOD = 30
+export const EXCELLENT = 60
 type Quality = 'low' | 'fair' | 'good' | 'excellent'
 
 /** for a pass high enough to be recorded; also colours received passes */

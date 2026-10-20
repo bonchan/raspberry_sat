@@ -127,10 +127,13 @@ def test_pass_geometry_of_a_received_pass():
 
 
 def test_signal_summary():
-    from app.tasks import signal_summary
+    from app.passes import signal_summary
     history = [{"t": 100.0, "snr": 4.0, "deframer_lock": False},
                {"t": 101.0, "snr": 9.0, "deframer_lock": True},
                {"t": 160.0, "snr": 8.0, "deframer_lock": True},
                {"t": 161.0, "snr": 3.0, "deframer_lock": True}]
-    assert signal_summary(history) == {"peak_snr": 9.0, "mean_snr": 6.0, "locked": 0.75, "seconds": 61}
+    assert signal_summary(history) == {
+        "peak_snr": 9.0, "mean_snr": 6.0, "locked": 0.75, "seconds": 61,
+        "first_sync": {"t": 101.0, "el": None, "az": None}, "last_sync": {"t": 161.0, "el": None, "az": None},
+    }
     assert signal_summary([{"t": 1.0}]) is None

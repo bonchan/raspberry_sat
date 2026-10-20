@@ -5,6 +5,7 @@ import { useConfirm } from '../Dialog'
 import { useNow, usePolling } from '../hooks'
 import { duration, gb, longDate, percent } from '../format'
 import { useT, type Key } from '../i18n'
+import Statistics from '../Statistics'
 import Updates from '../Updates'
 
 const STATE_CLASS: Record<SatdumpProcess['state'], string> = {
@@ -29,6 +30,7 @@ export default function Status() {
       {error && <p className="error">{t('status.backendDown', { error })}</p>}
       {status && <Receiver status={status} />}
       {system && <SystemFacts system={system} />}
+      <Statistics />
       <Updates />
     </>
   )

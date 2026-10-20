@@ -155,6 +155,23 @@ def test_add_orbits_to_earlier_passes(tmp_path):
     assert passes.add_orbits(tmp_path, lambda started, satellite: {"orbit": {"max_el": 99.0}}) == 0   # done once
 
 
+def test_refresh_signal_summaries_adds_first_and_last_sync(tmp_path):
+    folder = passes.finalize(make_pass(tmp_path))
+    meta = passes.load_pass(folder)
+    meta["signal"] = {"peak_snr": 8.0, "mean_snr": 5.0, "locked": 0.5, "seconds": 2}    # saved before first/last sync
+    passes.write_meta(folder, meta)
+    passes.write_samples(folder, [{"t": 10.0, "el": 12.0, "az": 170.0, "snr": 3.0, "deframer_lock": False},
+                                  {"t": 11.0, "el": 15.0, "az": 168.0, "snr": 8.0, "deframer_lock": True},
+                                  {"t": 12.0, "el": 19.0, "az": 165.0, "snr": 6.0, "deframer_lock": True}])
+    assert passes.refresh_signal_summaries(tmp_path) == 1
+    signal = passes.load_pass(folder)["signal"]
+    assert signal["first_sync"] == {"t": 11.0, "el": 15.0, "az": 168.0}
+    assert signal["last_sync"]["el"] == 19.0
+    assert passes.refresh_signal_summaries(tmp_path) == 0                              # done once
+    listed = passes.list_passes(tmp_path)["passes"][0]
+    assert listed["first_sync"]["el"] == 15.0 and listed["mean_snr"] == 5.7
+
+
 def test_finalize_ready_leaves_fresh_folders(tmp_path):
     make_pass(tmp_path, name="old")
     make_pass(tmp_path, name="fresh", satellite="METEOR-M2-4", age=10)

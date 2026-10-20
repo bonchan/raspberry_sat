@@ -68,9 +68,11 @@ export interface PassImage {
 export interface PassSummary {
   id: string; satellite: string; time: number; main: string | null
   coverage: number | null; image_count: number; size: number
-  max_el: number | null; peak_snr: number | null; locked: number | null
+  max_el: number | null; peak_snr: number | null; mean_snr: number | null; locked: number | null
+  first_sync: SyncPoint | null; last_sync: SyncPoint | null      // where reception started and ended
   discord_url: string | null        // the Discord message, once posted
 }
+export interface SyncPoint { t: number; el: number | null; az: number | null }
 /** the pass as the orbits describe it; track is [az, el] every 10 s from AOS to LOS */
 export interface PassOrbit {
   norad: number; aos: number; los: number; tca: number; max_el: number
