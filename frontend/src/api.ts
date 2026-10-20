@@ -73,6 +73,10 @@ export interface PassSummary {
   discord_url: string | null        // the Discord message, once posted
 }
 export interface SyncPoint { t: number; el: number | null; az: number | null }
+/** a pass's signal thinned for a small chart, with its span and elevation track */
+export interface PassSignalThumb {
+  start: number | null; end: number | null; track: [number, number][] | null; samples: LiveSample[]
+}
 /** the pass as the orbits describe it; track is [az, el] every 10 s from AOS to LOS */
 export interface PassOrbit {
   norad: number; aos: number; los: number; tca: number; max_el: number
@@ -195,6 +199,7 @@ export const api = {
   getSpectrum: () => request<Spectrum>('GET', '/spectrum'),
   getPasses: () => request<PassList>('GET', '/passes'),
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
+  getPassSignal: (id: string) => request<PassSignalThumb>('GET', `/passes/${encodeURIComponent(id)}/signal?points=150`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),
   postPass: (id: string) => request<PassDiscord>('POST', `/passes/${encodeURIComponent(id)}/discord`),
   testDiscord: (discord: Discord) => request<DiscordSent>('POST', '/discord/test', discord),

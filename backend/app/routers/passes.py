@@ -2,7 +2,7 @@ import asyncio
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from app import discord, passes, settings
@@ -42,6 +42,21 @@ def get_pass(pass_id: str) -> dict:
     meta["files"] = passes.other_files(folder)
     meta["samples"] = passes.load_samples(folder)
     return meta
+
+
+@router.get("/{pass_id}/signal")
+def get_signal(pass_id: str, points: int = Query(150, ge=10, le=2000)) -> dict:
+    """The pass's signal samples thinned to about `points`, with its span and elevation track:
+    enough for a small chart in the pass list."""
+    folder = folder_or_404(pass_id)
+    orbit = (passes.load_pass(folder) or {}).get("orbit") or {}
+    samples = passes.load_samples(folder)
+    return {
+        "start": orbit.get("aos") or (samples[0]["t"] if samples else None),
+        "end": orbit.get("los") or (samples[-1]["t"] if samples else None),
+        "track": orbit.get("track"),
+        "samples": passes.thin_samples(samples, points),
+    }
 
 
 @router.get("/{pass_id}/thumb/{path:path}")

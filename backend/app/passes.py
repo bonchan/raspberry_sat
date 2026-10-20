@@ -403,6 +403,29 @@ def load_samples(folder: Path) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+def thin_samples(samples: list[dict], points: int) -> list[dict]:
+    """About `points` samples for a small chart: each the mean time, elevation and SNR of a run of
+    consecutive samples, synced when at least half of them were."""
+    if len(samples) <= points:
+        return samples
+    out = []
+    step = len(samples) / points
+    for i in range(points):
+        run = samples[round(i * step):round((i + 1) * step)]
+        if not run:
+            continue
+        thin: dict = {}
+        for key in ("t", "el", "snr"):
+            values = [s[key] for s in run if isinstance(s.get(key), (int, float))]
+            if values:
+                thin[key] = round(sum(values) / len(values), 2)
+        locks = [bool(s["deframer_lock"]) for s in run if "deframer_lock" in s]
+        if locks:
+            thin["deframer_lock"] = 2 * sum(locks) >= len(locks)
+        out.append(thin)
+    return out
+
+
 def finalize_ready(passes_dir: Path, guess: SatelliteGuess | None = None,
                    facts: PassFacts | None = None) -> tuple[list[Path], list[tuple[str, str]]]:
     """Finish every pass that has gone quiet. Returns (finished folders, [(folder name, error)])."""

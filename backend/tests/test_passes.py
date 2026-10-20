@@ -172,6 +172,15 @@ def test_refresh_signal_summaries_adds_first_and_last_sync(tmp_path):
     assert listed["first_sync"]["el"] == 15.0 and listed["mean_snr"] == 5.7
 
 
+def test_thin_samples():
+    samples = [{"t": float(i), "el": float(i), "snr": 4.0, "deframer_lock": i >= 50} for i in range(100)]
+    thin = passes.thin_samples(samples, 10)
+    assert len(thin) == 10
+    assert thin[0] == {"t": 4.5, "el": 4.5, "snr": 4.0, "deframer_lock": False}
+    assert [s["deframer_lock"] for s in thin] == [False] * 5 + [True] * 5
+    assert passes.thin_samples(samples[:5], 10) == samples[:5]
+
+
 def test_finalize_ready_leaves_fresh_folders(tmp_path):
     make_pass(tmp_path, name="old")
     make_pass(tmp_path, name="fresh", satellite="METEOR-M2-4", age=10)

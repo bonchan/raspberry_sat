@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { api, passFile, type PassSummary } from '../api'
+import { api, passFile, type PassSignalThumb, type PassSummary } from '../api'
 import { usePolling } from '../hooks'
 import { clock, longDate, longDay, percent, sameDay, size } from '../format'
 import DiscordIcon from '../DiscordIcon'
+import SignalChart from '../SignalChart'
 import { useT } from '../i18n'
 import { elevationQuality } from '../UpcomingPasses'
 
@@ -120,6 +121,32 @@ function PassRow({ pass }: { pass: PassSummary }) {
         <SignalLine pass={pass} withSync />
         <ImagesLine pass={pass} />
       </div>
+      <RowChart id={pass.id} />
+    </div>
+  )
+}
+
+/** The pass's signal chart, bare; loaded once, when the row comes into view. Empty for passes without one. */
+function RowChart({ id }: { id: string }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [data, setData] = useState<PassSignalThumb | null>(null)
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) {
+        observer.disconnect()
+        api.getPassSignal(id).then(setData, () => {})
+      }
+    }, { rootMargin: '200px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [id])
+  return (
+    <div ref={box} className="pass-row-chart">
+      {data && data.samples.length > 0 && data.start !== null && data.end !== null && (
+        <SignalChart samples={data.samples} start={data.start} end={data.end} track={data.track ?? undefined} bare />
+      )}
     </div>
   )
 }

@@ -15,9 +15,10 @@ export const syncPlace = (s: LiveSample) => ({
   el: s.el != null ? s.el.toFixed(0) : '?', time: clock(s.t), dir: s.az != null ? compass(s.az) : '?',
 })
 
-/** SNR over the pass, the predicted elevation behind it, and a strip that is green while frames sync. */
-export default function SignalChart({ samples, start, end, track }: {
-  samples: LiveSample[]; start: number; end: number; track?: [number, number][]
+/** SNR over the pass, the predicted elevation behind it, and a strip that is green while frames sync.
+    bare: the chart alone, without legend or sync text (the pass list). */
+export default function SignalChart({ samples, start, end, track, bare = false }: {
+  samples: LiveSample[]; start: number; end: number; track?: [number, number][]; bare?: boolean
 }) {
   const t = useT()
   const W = 600, H = 170, TOP = 6, BOTTOM = 146, STRIP = 152
@@ -37,7 +38,7 @@ export default function SignalChart({ samples, start, end, track }: {
 
   return (
     <>
-      <svg className="chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+      <svg className={bare ? 'chart bare' : 'chart'} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         {[0.25, 0.5, 0.75].map(f => <line key={f} className="chart-grid" x1={0} x2={W} y1={TOP + f * (BOTTOM - TOP)} y2={TOP + f * (BOTTOM - TOP)} />)}
         {elevation.length > 1 && <polyline className="chart-el" points={elevation.join(' ')} />}
         {snr.length > 1 && <polyline className="chart-snr" points={snr.join(' ')} />}
@@ -47,12 +48,12 @@ export default function SignalChart({ samples, start, end, track }: {
             width={Math.max(1, x(samples[i + 1]?.t ?? s.t + 1) - x(s.t))} />
         ))}
       </svg>
-      <p className="hint chart-legend">
+      {!bare && <p className="hint chart-legend">
         <span className="key snr" /> {t('live.chartSnr', { max: ymax })} <span className="key el" /> {t('live.chartEl')}
         <span className="key sync" /> {t('live.chartSync')} <span className="key nosync" /> {t('live.chartNoSync')}
         <span className="chart-times">{utcClock(start)}–{utcClock(end)} UTC</span>
-      </p>
-      {syncKnown && (
+      </p>}
+      {!bare && syncKnown && (
         <p className="hint">
           {ends ? <>{t('sync.first', syncPlace(ends.first))} · {t('sync.last', syncPlace(ends.last))}</> : t('sync.none')}
         </p>

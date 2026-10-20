@@ -331,7 +331,14 @@ section > .title-row { margin-bottom: 12px; }
 }
 .pass-row:hover { border-color: var(--accent); }
 .pass-row img, .pass-row .noimage { width: 96px; aspect-ratio: 4 / 3; object-fit: cover; background: #000; border-radius: 4px; flex: none; }
-.pass-row-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.pass-row-text { display: grid; gap: 2px; min-width: 0; flex: 0 1 360px; }   /* same width: charts line up */
+.pass-row-chart { flex: 1 1 200px; min-width: 0; display: flex; justify-content: center; }
+.pass-row-chart .chart { height: 56px; max-width: 420px; }
+@media (max-width: 760px) {
+  .pass-row { flex-wrap: wrap; }
+  .pass-row-text { flex: 1 1 0; }
+  .pass-row-chart { flex-basis: 100%; }
+}
 
 /* statistics on the status page */
 .subhead { font-size: 14px; font-weight: 600; margin: 16px 0 8px; }
