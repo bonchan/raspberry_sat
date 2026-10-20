@@ -181,6 +181,20 @@ def test_thin_samples():
     assert passes.thin_samples(samples[:5], 10) == samples[:5]
 
 
+def test_sync_drops_during_reception():
+    def sample(t, el, snr, lock):
+        return {"t": float(t), "el": float(el), "az": 180.0, "snr": snr, "deframer_lock": lock}
+    samples = ([sample(t, 5, 1.0, False) for t in range(0, 3)]          # before the first sync: no drop
+               + [sample(t, 15, 9.0, True) for t in range(3, 13)]
+               + [sample(t, 25, 0.5, False) for t in range(13, 16)]     # a fade: 3 s, SNR gone
+               + [sample(t, 25, 9.0, True) for t in range(16, 20)]
+               + [sample(t, 15, 1.0, False) for t in range(20, 24)])    # the end: no drop
+    drops, tracked = passes.sync_drops(samples)
+    assert drops == [{"t": 13.0, "el": 25.0, "az": 180.0, "seconds": 3.0, "snr_before": 9.0, "snr_during": 0.5}]
+    assert tracked == {10: 10, 20: 7}
+    assert passes.sync_drops([sample(0, 10, 1.0, False)]) == ([], {})
+
+
 def test_finalize_ready_leaves_fresh_folders(tmp_path):
     make_pass(tmp_path, name="old")
     make_pass(tmp_path, name="fresh", satellite="METEOR-M2-4", age=10)

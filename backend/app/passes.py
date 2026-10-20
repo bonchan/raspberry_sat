@@ -9,6 +9,7 @@ pass.json is what marks a pass as finished. SatDump's own files are left as they
 import json
 import re
 import time
+from statistics import median
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -360,14 +361,58 @@ def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts
     return folder
 
 
+DROP_LOOKBACK = 10      # samples (seconds) before a drop whose SNR tells what the signal was like
+
+
+def sync_drops(samples: list[dict]) -> tuple[list[dict], dict[int, int]]:
+    """Losses of sync during a pass's reception (between its first and last synced sample; the fade at the
+    end is not one): where the satellite was, how long sync stayed lost, and the median SNR in the
+    seconds before and during it. Also the seconds of that reception per 10° of elevation, so drops can
+    be weighed by the time spent there."""
+    locked = [s for s in samples if "deframer_lock" in s]
+    synced = [i for i, s in enumerate(locked) if s["deframer_lock"]]
+    if not synced:
+        return [], {}
+    span = locked[synced[0]:synced[-1] + 1]
+
+    tracked: dict[int, int] = {}
+    for i, s in enumerate(span):
+        if isinstance(s.get("el"), (int, float)):
+            band = min(80, max(0, int(s["el"] // 10) * 10))
+            step = min(5.0, span[i + 1]["t"] - s["t"]) if i + 1 < len(span) else 1.0
+            tracked[band] = tracked.get(band, 0) + step
+
+    def snr(run: list[dict]) -> float | None:
+        values = [s["snr"] for s in run if isinstance(s.get("snr"), (int, float))]
+        return round(median(values), 1) if values else None
+
+    drops, i = [], 0
+    while i < len(span):
+        if span[i]["deframer_lock"]:
+            i += 1
+            continue
+        j = i
+        while not span[j]["deframer_lock"]:       # the span ends synced, so this stops
+            j += 1
+        drops.append({
+            "t": span[i]["t"], "el": span[i].get("el"), "az": span[i].get("az"),
+            "seconds": round(span[j]["t"] - span[i]["t"], 1),
+            "snr_before": snr(span[max(0, i - DROP_LOOKBACK):i]), "snr_during": snr(span[i:j]),
+        })
+        i = j
+    return drops, {band: round(seconds) for band, seconds in sorted(tracked.items())}
+
+
 def signal_summary(samples: list[dict]) -> dict | None:
-    """Peak and mean SNR (dB) of a pass's samples, the share of them with the deframer locked, and where
-    frames first and last synced: the elevations at which reception starts and ends."""
+    """Peak and mean SNR (dB) of a pass's samples, the share of them with the deframer locked, where
+    frames first and last synced (the elevations at which reception starts and ends), and the losses of
+    sync in between (sync_drops)."""
     snr = [s["snr"] for s in samples if isinstance(s.get("snr"), (int, float))]
     if not snr:
         return None
     locks = [bool(s["deframer_lock"]) for s in samples if "deframer_lock" in s]
     synced = [s for s in samples if s.get("deframer_lock")]
+    drops, tracked = sync_drops(samples)
 
     def place(s: dict) -> dict:
         return {"t": s["t"], "el": s.get("el"), "az": s.get("az")}
@@ -379,6 +424,8 @@ def signal_summary(samples: list[dict]) -> dict | None:
         "seconds": round(samples[-1]["t"] - samples[0]["t"]),
         "first_sync": place(synced[0]) if synced else None,
         "last_sync": place(synced[-1]) if synced else None,
+        "drops": drops,
+        "tracked": tracked,         # seconds of reception per 10° of elevation
     }
 
 
@@ -388,7 +435,7 @@ def refresh_signal_summaries(passes_dir: Path) -> int:
     changed = 0
     for folder in pass_folders(passes_dir):
         meta = read_json(folder / META)
-        if meta is None or "first_sync" in (meta.get("signal") or {}):
+        if meta is None or "drops" in (meta.get("signal") or {}):
             continue
         samples = load_samples(folder)
         if not samples:
@@ -478,6 +525,8 @@ def summary(meta: dict) -> dict:
         "locked": signal.get("locked"),
         "first_sync": signal.get("first_sync"),
         "last_sync": signal.get("last_sync"),
+        "drops": signal.get("drops"),
+        "tracked": signal.get("tracked"),
         "discord_url": (meta.get("discord") or {}).get("url"),    # see discord.py
     }
 

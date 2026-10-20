@@ -70,9 +70,15 @@ export interface PassSummary {
   coverage: number | null; image_count: number; size: number
   max_el: number | null; peak_snr: number | null; mean_snr: number | null; locked: number | null
   first_sync: SyncPoint | null; last_sync: SyncPoint | null      // where reception started and ended
+  drops: SyncDrop[] | null                 // losses of sync between them
+  tracked: Record<string, number> | null   // seconds of reception per 10° of elevation ("0", "10"... "80")
   discord_url: string | null        // the Discord message, once posted
 }
 export interface SyncPoint { t: number; el: number | null; az: number | null }
+/** a loss of sync during a pass: where, how long, and the median SNR before and during it */
+export interface SyncDrop {
+  t: number; el: number | null; az: number | null; seconds: number; snr_before: number | null; snr_during: number | null
+}
 /** where a pass's image lies: lat/lon for a grid of its pixels (rows x cols, row by row; null: no data) */
 export interface PassGeo {
   image: string; width: number; height: number; rows: number[]; cols: number[]; points: ([number, number] | null)[]

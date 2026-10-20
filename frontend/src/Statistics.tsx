@@ -1,10 +1,10 @@
 // Station statistics on the Status page, worked out here from the pass list: how often reception works,
 // the elevations at which it starts and ends, and how pass quality (by highest elevation) turns out.
 
-import { api, type PassSummary } from './api'
+import { api, type PassSummary, type SyncDrop } from './api'
 import Fact, { WAIT } from './Fact'
 import { usePolling } from './hooks'
-import { longDate, percent, size } from './format'
+import { compass, longDate, percent, size } from './format'
 import { useT, type Key } from './i18n'
 import { EXCELLENT, GOOD, elevationQuality } from './UpcomingPasses'
 
@@ -38,6 +38,7 @@ export default function Statistics() {
         <h3 className="subhead">{t('stats.byQuality')}</h3>
         <QualityTable groups={null} />
         <p className="hint">{t('stats.byQualityHint')}</p>
+        <Drops passes={null} />
       </section>
     )
   }
@@ -108,6 +109,7 @@ export default function Statistics() {
       <h3 className="subhead">{t('stats.byQuality')}</h3>
       <QualityTable groups={groups} />
       <p className="hint">{t('stats.byQualityHint')}</p>
+      <Drops passes={all} />
     </section>
   )
 }
@@ -153,5 +155,72 @@ function QualityTable({ groups }: { groups: Group[] | null }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+const BANDS = [0, 10, 20, 30, 40, 50, 60, 70, 80]
+const bandOf = (el: number) => Math.min(80, Math.max(0, Math.floor(el / 10) * 10))
+
+/** a fade: the signal went with the sync (antenna, reflections, obstructions); otherwise the signal held
+    and only the lock was lost (the Pi or the demodulator) */
+const faded = (d: SyncDrop) => d.snr_during == null || d.snr_before == null || d.snr_during < Math.max(3, d.snr_before / 2)
+
+/** Where sync was lost over all passes with a saved signal: how many, which kind, how long, in which
+    direction, and per elevation band per minute received there. "…" while loading (passes null). */
+function Drops({ passes }: { passes: PassSummary[] | null }) {
+  const t = useT()
+  const loading = passes === null
+  const seen = (passes ?? []).filter(p => p.drops != null)
+  const drops = seen.flatMap(p => p.drops!)
+  const fades = drops.filter(faded).length
+  const bands = BANDS.map(band => {
+    const minutes = seen.reduce((sum, p) => sum + (p.tracked?.[String(band)] ?? 0), 0) / 60
+    const n = drops.filter(d => d.el != null && bandOf(d.el) === band).length
+    return { band, n, minutes, rate: minutes > 0 ? n / minutes : null }
+  })
+  const topRate = Math.max(0, ...bands.map(b => b.rate ?? 0))
+  const sectors = new Array(8).fill(0)
+  for (const d of drops) if (d.az != null) sectors[Math.round(d.az / 45) % 8]++
+  const directions = sectors.flatMap((n, i) => (n ? [`${compass(i * 45)} ${n}`] : [])).join(' · ')
+  const lengths = drops.map(d => d.seconds)
+
+  return (
+    <>
+      <h3 className="subhead">{t('stats.drops')}</h3>
+      <dl className="facts">
+        <Fact label={t('stats.dropsCount')} loading={loading}
+          value={t('stats.dropsValue', { n: drops.length, passes: seen.length, clean: seen.filter(p => p.drops!.length === 0).length })} />
+        <Fact label={t('stats.dropsKind')} loading={loading}
+          value={<>{t('stats.faded', { n: fades })} · {t('stats.held', { n: drops.length - fades })}</>} />
+        <Fact label={t('stats.dropsLength')} loading={loading}
+          value={lengths.length ? t('stats.dropsLengthValue', { s: median(lengths)!.toFixed(0) }) : '–'} />
+        <Fact label={t('stats.dropsDirection')} loading={loading} value={directions || '–'} />
+      </dl>
+      <div className="table-scroll">
+        <table className="stats-table">
+          <thead>
+            <tr><th>{t('stats.elevation')}</th><th>{t('stats.dropsCol')}</th><th>{t('stats.minutesCol')}</th><th>{t('stats.rateCol')}</th></tr>
+          </thead>
+          <tbody>
+            {bands.map(b => (
+              <tr key={b.band}>
+                <td>{b.band}–{b.band + 10}°</td>
+                {loading ? [0, 1, 2].map(i => <td key={i}>{WAIT}</td>) : <>
+                  <td>{b.n}</td>
+                  <td>{b.minutes.toFixed(1)}</td>
+                  <td>
+                    {b.rate == null ? '–' : <>
+                      <span className="rate-bar"><span style={{ width: `${topRate ? (b.rate / topRate) * 100 : 0}%` }} /></span>
+                      {b.rate.toFixed(2)}
+                    </>}
+                  </td>
+                </>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint">{t('stats.dropsHint')}</p>
+    </>
   )
 }

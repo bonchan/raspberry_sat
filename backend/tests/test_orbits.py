@@ -135,6 +135,7 @@ def test_signal_summary():
     assert signal_summary(history) == {
         "peak_snr": 9.0, "mean_snr": 6.0, "locked": 0.75, "seconds": 61,
         "first_sync": {"t": 101.0, "el": None, "az": None}, "last_sync": {"t": 161.0, "el": None, "az": None},
+        "drops": [], "tracked": {},
     }
     assert signal_summary([{"t": 1.0}]) is None
 
