@@ -343,7 +343,7 @@ section > .title-row { margin-bottom: 12px; }
 .passes-globe .globe { position: sticky; top: calc(var(--header-h, 0px) + 8px); z-index: 2; }
 .passes-globe .gallery { margin-top: 12px; }
 .globe-card { cursor: pointer; }
-.globe-card.on { border-color: var(--accent); }
+.globe-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }      /* 2 px, without moving the content */
 @media (max-width: 760px) { .passes-globe .globe.tall { height: 50vh; } }
 .pass-list { display: grid; gap: 8px; }
 .pass-day {         /* like the day rows of the upcoming passes */

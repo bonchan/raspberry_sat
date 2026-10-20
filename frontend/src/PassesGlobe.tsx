@@ -9,7 +9,6 @@ import { passFile, type PassSummary } from './api'
 import { longDate } from './format'
 import Globe, { usePassDrapes } from './Globe'
 import { useT } from './i18n'
-import { elevationQuality } from './UpcomingPasses'
 
 /** passes: newest first, as the pass list has them */
 export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
@@ -39,13 +38,8 @@ export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
               <img src={passFile(p.id, 'thumb', p.main!)} alt="" loading="lazy" />
               <div className="caption">
                 <Link to={`/passes/${encodeURIComponent(p.id)}`} onClick={e => e.stopPropagation()}><b>{p.satellite}</b></Link>
-                <span>
-                  {longDate(p.time)}
-                  {p.max_el != null && <> · <span className={`el q-${elevationQuality(p.max_el)}`}>{t('passes.maxEl', { el: Math.round(p.max_el) })}</span></>}
-                </span>
-                {on && (failed.includes(p.id)
-                  ? <span className="hint">{t('passes.cantPlace')}</span>
-                  : <span className="ok">{t('passes.onGlobe')}</span>)}
+                <span>{longDate(p.time)}</span>
+                {on && failed.includes(p.id) && <span className="hint">{t('passes.cantPlace')}</span>}
               </div>
             </div>
           )
