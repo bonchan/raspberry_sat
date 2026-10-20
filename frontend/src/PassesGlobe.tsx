@@ -26,15 +26,25 @@ export default function PassesGlobe({ passes, dayLabel }: { passes: PassSummary[
     setFocus({ id, at: Date.now() })
   }
 
-  // from where it starts to the bottom of the window, whatever the monitor: the page itself doesn't scroll
+  // from where it starts to the bottom of the window, whatever the monitor, so only the cards scroll: rounded
+  // down (a fraction of a pixel too much would make the page scroll), and measured again when the window or
+  // the header (badges come and go) changes size
   useEffect(() => {
     const fit = () => {
       const el = box.current
-      if (el) el.style.height = `${window.innerHeight - (el.getBoundingClientRect().top + window.scrollY) - 16}px`
+      if (el) el.style.height = `${Math.floor(window.innerHeight - (el.getBoundingClientRect().top + window.scrollY)) - 17}px`
     }
     fit()
     window.addEventListener('resize', fit)
-    return () => window.removeEventListener('resize', fit)
+    const header = document.querySelector('header')
+    const observer = new ResizeObserver(fit)
+    if (header) observer.observe(header)
+    document.documentElement.classList.add('page-fixed')
+    return () => {
+      window.removeEventListener('resize', fit)
+      observer.disconnect()
+      document.documentElement.classList.remove('page-fixed')
+    }
   }, [])
 
   if (!chosen) return <section><p className="hint">{t('passes.noImagesYet')}</p></section>
@@ -51,6 +61,7 @@ export default function PassesGlobe({ passes, dayLabel }: { passes: PassSummary[
             <div key={p.id} className={on ? 'card globe-card on' : 'card globe-card'} onClick={() => choose(p.id)}>
               <img src={passFile(p.id, 'thumb', p.main!)} alt="" loading="lazy" />
               <div className="caption">
+                {/* the name opens the pass's page; the rest of the card puts it on the globe */}
                 <Link to={`/passes/${encodeURIComponent(p.id)}`} onClick={e => e.stopPropagation()}><b>{p.satellite}</b></Link>
                 <span>{longDate(p.time)}</span>
                 {on && failed.includes(p.id) && <span className="hint">{t('passes.cantPlace')}</span>}

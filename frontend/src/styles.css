@@ -345,9 +345,11 @@ section > .title-row { margin-bottom: 12px; }
 }
 .passes-globe .globe { height: 100%; }
 .globe-gallery {
-  overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start;
-  padding: 2px;          /* room for the selected card's ring */
+  overflow-y: scroll; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start;
+  padding: 2px 6px 2px 2px;          /* room for the selected card's ring, and off the scrollbar */
 }
+/* while the globe layout is open the page itself doesn't scroll, only its card column (wide screens) */
+@media (min-width: 761px) { html.page-fixed { overflow: hidden; } }
 .globe-gallery .pass-day { grid-column: 1 / -1; }
 .globe-card { cursor: pointer; }
 .globe-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }      /* 2 px, without moving the content */
