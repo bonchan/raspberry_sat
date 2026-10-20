@@ -25,16 +25,7 @@ export default function Updates() {
   // the log opens by itself while an update runs; otherwise it stays folded until clicked
   useEffect(() => { if (data?.running) setLogOpen(true) }, [data?.running])
 
-  // while an update runs, the page follows its bottom (the log) whenever the page grows or shrinks
-  const updating = !!data?.running || busy === 'apply'
-  useEffect(() => {
-    if (!updating) return
-    const toBottom = () => window.scrollTo({ top: document.documentElement.scrollHeight })
-    toBottom()
-    const observer = new ResizeObserver(toBottom)
-    observer.observe(document.body)
-    return () => observer.disconnect()
-  }, [updating])
+  const updating = !!data?.running || busy === 'apply'     // the log and the page follow its new lines
 
   async function run(action: 'check' | 'apply') {
     setBusy(action); setActionError('')
@@ -145,7 +136,7 @@ export default function Updates() {
             {!data.running && data.last_run?.result === 'ok' && <span className="ok"> · {t('update.ok')}</span>}
             {!data.running && data.last_run?.result === 'failed' && <span className="error"> · {t('update.failed')}</span>}
           </summary>
-          {data.last_run && <UpdateLog lines={data.last_run.log} open={logOpen} />}
+          {data.last_run && <UpdateLog lines={data.last_run.log} open={logOpen} follow={updating} />}
         </details>
       )}
     </section>
@@ -154,23 +145,19 @@ export default function Updates() {
 
 /** Follows new lines like a terminal, scrolling only its own box; scrolling up to read stops that until
     scrolled back to the bottom. */
-function UpdateLog({ lines, open }: { lines: string[]; open: boolean }) {
+function UpdateLog({ lines, open, follow }: { lines: string[]; open: boolean; follow: boolean }) {
   const ref = useRef<HTMLPreElement>(null)
-  const follow = useRef(true)
   const text = lines.join('\n')
 
-  useEffect(() => { if (open) follow.current = true }, [open])
+  // whenever new lines arrive: the log box to its last line, and while an update runs the page to its
+  // bottom too, so the newest line is always in view
   useEffect(() => {
     const box = ref.current
-    if (box && open && follow.current) box.scrollTop = box.scrollHeight
-  }, [text, open])
+    if (box && open) box.scrollTop = box.scrollHeight
+    if (follow) window.scrollTo({ top: document.documentElement.scrollHeight })
+  }, [text, open, follow])
 
-  return (
-    <pre ref={ref} className="console update-log" onScroll={e => {
-      const box = e.currentTarget
-      follow.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24
-    }}>{text}</pre>
-  )
+  return <pre ref={ref} className="console update-log">{text}</pre>
 }
 
 function Commit({ commit }: { commit: PendingCommit }) {

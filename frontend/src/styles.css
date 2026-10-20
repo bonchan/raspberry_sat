@@ -346,8 +346,10 @@ section > .title-row { margin-bottom: 12px; }
 .passes-globe .globe { height: 100%; }
 .globe-gallery {
   overflow-y: scroll; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start;
+  grid-auto-rows: max-content;       /* each row as tall as its cards: they keep their size, the column scrolls */
   padding: 2px 6px 2px 2px;          /* room for the selected card's ring, and off the scrollbar */
 }
+.globe-gallery .card img { flex: none; }
 /* while the globe layout is open the page itself doesn't scroll, only its card column (wide screens) */
 @media (min-width: 761px) { html.page-fixed { overflow: hidden; } }
 .globe-gallery .pass-day { grid-column: 1 / -1; }
