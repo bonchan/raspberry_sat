@@ -1,18 +1,19 @@
-// The Passes page's globe layout: the globe stays at the top with one pass's image draped where it was
-// taken, and under it every pass as a card, like the grid layout. Clicking a card puts that pass on the
-// globe (only one at a time: overlapping images would hide each other) and flies there. It starts with
-// the newest pass, seen from straight above.
+// The Passes page's globe layout: the globe fills the window's height with one pass's image draped where
+// it was taken; beside it every pass as a card, two per row under a heading per day, in their own scroll.
+// Clicking a card puts that pass on the globe (only one at a time: overlapping images would hide each
+// other) and flies there. It starts with the newest pass, seen from straight above.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { passFile, type PassSummary } from './api'
 import { longDate } from './format'
 import Globe, { usePassDrapes } from './Globe'
 import { useT } from './i18n'
 
-/** passes: newest first, as the pass list has them */
-export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
+/** passes: newest first, as the pass list has them; dayLabel: "Today", "Yesterday" or the date */
+export default function PassesGlobe({ passes, dayLabel }: { passes: PassSummary[]; dayLabel: (time: number) => string }) {
   const t = useT()
+  const box = useRef<HTMLDivElement>(null)
   const withImages = passes.filter(p => p.main)
   const [selected, setSelected] = useState<string>()
   const chosen = withImages.find(p => p.id === selected) ?? withImages[0]
@@ -25,15 +26,28 @@ export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
     setFocus({ id, at: Date.now() })
   }
 
+  // from where it starts to the bottom of the window, whatever the monitor: the page itself doesn't scroll
+  useEffect(() => {
+    const fit = () => {
+      const el = box.current
+      if (el) el.style.height = `${window.innerHeight - (el.getBoundingClientRect().top + window.scrollY) - 16}px`
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [])
+
   if (!chosen) return <section><p className="hint">{t('passes.noImagesYet')}</p></section>
 
-  return (
-    <div className="passes-globe">
-      <Globe size="tall" drapes={drapes} focus={focus} />
-      <div className="gallery">
-        {withImages.map(p => {
-          const on = p.id === chosen.id
-          return (
+  const cards: ReactNode[] = []
+  let day = ''
+  for (const p of withImages) {
+    if (dayLabel(p.time) !== day) {
+      day = dayLabel(p.time)
+      cards.push(<h3 key={`day-${p.id}`} className="pass-day">{day}</h3>)
+    }
+    const on = p.id === chosen.id
+    cards.push(
             <div key={p.id} className={on ? 'card globe-card on' : 'card globe-card'} onClick={() => choose(p.id)}>
               <img src={passFile(p.id, 'thumb', p.main!)} alt="" loading="lazy" />
               <div className="caption">
@@ -41,10 +55,14 @@ export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
                 <span>{longDate(p.time)}</span>
                 {on && failed.includes(p.id) && <span className="hint">{t('passes.cantPlace')}</span>}
               </div>
-            </div>
-          )
-        })}
-      </div>
+            </div>,
+    )
+  }
+
+  return (
+    <div className="passes-globe" ref={box}>
+      <Globe drapes={drapes} focus={focus} />
+      <div className="globe-gallery">{cards}</div>
     </div>
   )
 }

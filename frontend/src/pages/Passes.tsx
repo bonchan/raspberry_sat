@@ -32,6 +32,7 @@ function useDayLabel() {
 
 export default function Passes() {
   const t = useT()
+  const dayLabel = useDayLabel()
   const { data, error } = usePolling(api.getPasses, 15000)
   const [layout, setLayoutState] = useState<Layout>(storedLayout)
 
@@ -71,7 +72,7 @@ export default function Passes() {
           </div>
           {layout === 'grid' && <div className="gallery">{data.passes.map(p => <PassCard key={p.id} pass={p} />)}</div>}
           {layout === 'list' && <PassList passes={data.passes} />}
-          {layout === 'globe' && <PassesGlobe passes={data.passes} />}
+          {layout === 'globe' && <PassesGlobe passes={data.passes} dayLabel={dayLabel} />}
         </>
       )}
     </>

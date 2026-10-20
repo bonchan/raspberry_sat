@@ -337,14 +337,21 @@ section > .title-row { margin-bottom: 12px; }
 
 /* passes: list layout (grid is the gallery) */
 .layout-switch { margin-top: 0; }
-/* passes: globe layout (PassesGlobe.tsx) */
-/* the globe stays under the header while the cards scroll beneath it; not a grid, as a grid item only
-   sticks within its own row */
-.passes-globe .globe { position: sticky; top: calc(var(--header-h, 0px) + 8px); z-index: 2; }
-.passes-globe .gallery { margin-top: 12px; }
+/* passes: globe layout (PassesGlobe.tsx). The globe as tall as the window allows (the height is set from
+   the window), the cards beside it in their own scroll, two per row under a heading per day */
+.passes-globe {
+  display: grid; grid-template-columns: 1fr minmax(320px, 440px); grid-template-rows: minmax(0, 1fr);   /* the row: the box's height */
+  gap: 12px; min-height: 420px;
+}
+.passes-globe .globe { height: 100%; }
+.globe-gallery {
+  overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start;
+  padding: 2px;          /* room for the selected card's ring */
+}
+.globe-gallery .pass-day { grid-column: 1 / -1; }
 .globe-card { cursor: pointer; }
 .globe-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }      /* 2 px, without moving the content */
-@media (max-width: 760px) { .passes-globe .globe.tall { height: 50vh; } }
+@media (max-width: 760px) { .passes-globe { grid-template-columns: 1fr; grid-template-rows: minmax(0, 45%) minmax(0, 1fr); } }
 .pass-list { display: grid; gap: 8px; }
 .pass-day {         /* like the day rows of the upcoming passes */
   margin: 8px 0 0; padding: 0 0 4px; border-bottom: 1px solid var(--dim);
