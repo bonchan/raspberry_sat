@@ -85,7 +85,7 @@ function nextOrbit(C: CesiumNS, rec: SatRec): Cartesian3[] {
 }
 
 /** The station, and with `satellites` the enabled satellites in the settings where they are now and their next
-    orbit; `order` numbers them by their next recorded pass. A satellite behind the Earth is faded. */
+    orbit; `order` numbers them by their next recorded pass. Whatever is behind the Earth is faded. */
 function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: boolean, highlight?: number,
                         order?: Record<number, number>) {
   const label = (text: string) => ({
@@ -93,49 +93,58 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
     style: C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -12),
     disableDepthTestDistance: ON_TOP,
   })
-  const { station } = tles
-  viewer.entities.add({
-    position: C.Cartesian3.fromDegrees(station.lon, station.lat, station.alt),
-    point: {
-      pixelSize: 8, color: C.Color.fromCssColorString(COLORS.station), outlineColor: C.Color.BLACK, outlineWidth: 1,
-      disableDepthTestDistance: ON_TOP,
-    },
-    label: label(station.name),
-  })
   const occluder = new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, viewer.camera.positionWC)
   const dim = (c: InstanceType<CesiumNS['Color']>) => [c, c.withAlpha(BEHIND)]
   const [black, blackDim] = dim(C.Color.BLACK), [white, whiteDim] = dim(C.Color.WHITE)
+  /** where a thing is and whether the Earth hides it from the camera, worked out once per frame */
+  const follow = (where: () => Cartesian3 | undefined) => {
+    let frameAt = -1, at: Cartesian3 | undefined, seen = true
+    return () => {
+      const ms = Date.now()
+      if (ms !== frameAt) {
+        frameAt = ms
+        at = where()
+        occluder.cameraPosition = viewer.camera.positionWC
+        seen = !at || occluder.isPointVisible(at)
+      }
+      return { at, seen }
+    }
+  }
+  const fadedLabel = (text: string, seen: () => boolean) => ({
+    ...label(text),
+    fillColor: new C.CallbackProperty(() => (seen() ? white : whiteDim), false),
+    outlineColor: new C.CallbackProperty(() => (seen() ? black : blackDim), false),
+  })
+
+  const { station } = tles
+  const stationAt = C.Cartesian3.fromDegrees(station.lon, station.lat, station.alt)
+  const [green, greenDim] = dim(C.Color.fromCssColorString(COLORS.station))
+  const home = follow(() => stationAt)
+  viewer.entities.add({
+    position: stationAt,
+    point: {
+      pixelSize: 8, outlineWidth: 1, disableDepthTestDistance: ON_TOP,
+      color: new C.CallbackProperty(() => (home().seen ? green : greenDim), false),
+      outlineColor: new C.CallbackProperty(() => (home().seen ? black : blackDim), false),
+    },
+    label: fadedLabel(station.name, () => home().seen),
+  })
   for (const sat of satellites ? tles.satellites.filter(s => s.enabled) : []) {
     const rec = twoline2satrec(sat.line1, sat.line2)
     const receiving = sat.norad === highlight
     const [color, colorDim] = dim(C.Color.fromCssColorString(receiving ? COLORS.receiving : COLORS.satellite))
-    // where it is and whether the Earth hides it from the camera, worked out once per frame
-    let frameAt = -1, where: Cartesian3 | undefined, seen = true
-    const now = () => {
-      const ms = Date.now()
-      if (ms !== frameAt) {
-        frameAt = ms
-        where = positionAt(C, rec, new Date(ms))
-        occluder.cameraPosition = viewer.camera.positionWC
-        seen = !where || occluder.isPointVisible(where)
-      }
-      return { where, seen }
-    }
+    const now = follow(() => positionAt(C, rec, new Date()))
     const rank = order?.[sat.norad]
     let orbit: Cartesian3[] = []
     let orbitAt = 0
     viewer.entities.add({
-      position: new C.CallbackPositionProperty(() => now().where, false),
+      position: new C.CallbackPositionProperty(() => now().at, false),
       point: {
         pixelSize: receiving ? 12 : 9, outlineWidth: 2, disableDepthTestDistance: ON_TOP,
         color: new C.CallbackProperty(() => (now().seen ? color : colorDim), false),
         outlineColor: new C.CallbackProperty(() => (now().seen ? black : blackDim), false),
       },
-      label: {
-        ...label(rank ? `#${rank} ${sat.name}` : sat.name),
-        fillColor: new C.CallbackProperty(() => (now().seen ? white : whiteDim), false),
-        outlineColor: new C.CallbackProperty(() => (now().seen ? black : blackDim), false),
-      },
+      label: fadedLabel(rank ? `#${rank} ${sat.name}` : sat.name, () => now().seen),
       polyline: {
         positions: new C.CallbackProperty(() => {
           if (Date.now() - orbitAt > ORBIT_REFRESH) {
