@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api, passFile, type PassSummary } from '../api'
 import { usePolling } from '../hooks'
-import { longDate, percent, size } from '../format'
+import { clock, longDate, longDay, percent, sameDay, size } from '../format'
 import DiscordIcon from '../DiscordIcon'
 import { useT } from '../i18n'
 import { elevationQuality } from '../UpcomingPasses'
@@ -55,7 +55,7 @@ export default function Passes() {
           </div>
           {layout === 'grid'
             ? <div className="gallery">{data.passes.map(p => <PassCard key={p.id} pass={p} />)}</div>
-            : <div className="pass-list">{data.passes.map(p => <PassRow key={p.id} pass={p} />)}</div>}
+            : <PassList passes={data.passes} />}
         </>
       )}
     </>
@@ -84,6 +84,25 @@ function PassCard({ pass }: { pass: PassSummary }) {
   )
 }
 
+/** Rows grouped under a heading per day, like the upcoming passes; newest first. */
+function PassList({ passes }: { passes: PassSummary[] }) {
+  const t = useT()
+  const now = Date.now() / 1000
+  const label = (time: number) =>
+    sameDay(time, now) ? t('up.today') : sameDay(time, now - 86400) ? t('passes.yesterday') : longDay(time)
+
+  const items: ReactNode[] = []
+  let day = ''
+  for (const p of passes) {
+    if (label(p.time) !== day) {
+      day = label(p.time)
+      items.push(<h3 key={`day-${p.id}`} className="pass-day">{day}</h3>)
+    }
+    items.push(<PassRow key={p.id} pass={p} />)
+  }
+  return <div className="pass-list">{items}</div>
+}
+
 /** One line per pass: a small image, then the same facts as the card, plus where frames synced. */
 function PassRow({ pass }: { pass: PassSummary }) {
   return (
@@ -94,7 +113,7 @@ function PassRow({ pass }: { pass: PassSummary }) {
       <div className="pass-row-text">
         <div className="title-row">
           <Link className="card-link" to={`/passes/${encodeURIComponent(pass.id)}`}>
-            <b>{pass.satellite}</b> <span className="hint">{longDate(pass.time)}</span>
+            <b>{pass.satellite}</b> <span className="hint">{clock(pass.time)}</span>
           </Link>
           <DiscordLink pass={pass} />
         </div>

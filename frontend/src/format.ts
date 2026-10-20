@@ -29,6 +29,15 @@ export const sameDay = (a: number, b: number) =>
 export const weekdayShort = (unix: number) =>
   new Date(unix * 1000).toLocaleDateString(locale(), { weekday: 'short' })
 
+/** "Wednesday 14 October" / "miércoles, 14 de octubre", with the year when it is not this one */
+export const longDay = (unix: number) => {
+  const d = new Date(unix * 1000)
+  return d.toLocaleDateString(locale(), {
+    weekday: 'long', day: 'numeric', month: 'long',
+    ...(d.getFullYear() !== new Date().getFullYear() && { year: 'numeric' }),
+  })
+}
+
 /** "Wednesday 14" / "miércoles 14" */
 export const weekdayAndDay = (unix: number) => {
   const d = new Date(unix * 1000)

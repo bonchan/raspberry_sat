@@ -320,6 +320,11 @@ section > .title-row { margin-bottom: 12px; }
 /* passes: list layout (grid is the gallery) */
 .layout-switch { margin-top: 0; }
 .pass-list { display: grid; gap: 8px; }
+.pass-day {         /* like the day rows of the upcoming passes */
+  margin: 8px 0 0; padding: 0 0 4px; border-bottom: 1px solid var(--dim);
+  color: var(--text); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+}
+.pass-day:first-child { margin-top: 0; }
 .pass-row {
   position: relative; display: flex; gap: 12px; align-items: center;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px;
