@@ -5,8 +5,8 @@ import { useConfirm } from '../Dialog'
 import DiscordIcon from '../DiscordIcon'
 import { clock, compass, duration, longDate, percent, size, utc } from '../format'
 import { translate, useLanguage, useT, type Key, type Lang } from '../i18n'
-import SignalChart from '../SignalChart'
-import SkyPlot from '../SkyPlot'
+import SignalChart, { syncEnds, syncPlace } from '../SignalChart'
+import SkyPlot, { SkyLegend } from '../SkyPlot'
 import { elevationQuality } from '../UpcomingPasses'
 
 // which variant of a composite to show first
@@ -77,6 +77,9 @@ export default function PassDetail() {
 
   const main = pass.images.find(i => i.path === pass.main)
   const { orbit, signal } = pass
+  const samples = pass.samples ?? []
+  const ends = syncEnds(samples)
+  const syncKnown = samples.some(s => s.deframer_lock !== undefined)
 
   return (
     <>
@@ -112,13 +115,23 @@ export default function PassDetail() {
             {pass.coverage !== null && <>
               <dt>{t('detail.received')}</dt><dd>{t('detail.receivedValue', { p: percent(pass.coverage) })}</dd>
             </>}
+            {ends && <>
+              <dt>{t('detail.firstSync')}</dt><dd>{t('detail.syncAt', syncPlace(ends.first))}</dd>
+              <dt>{t('detail.lastSync')}</dt><dd>{t('detail.syncAt', syncPlace(ends.last))}</dd>
+            </>}
+            {!ends && syncKnown && <><dt>{t('detail.sync')}</dt><dd className="error">{t('sync.none')}</dd></>}
             <dt>{t('detail.images')}</dt><dd>{pass.images.length}</dd>
             <dt>{t('detail.size')}</dt><dd>{size(pass.size)}</dd>
             <dt>{t('detail.folder')}</dt>
             <dd>{pass.id}{pass.source_name !== pass.id && <span className="hint"> {t('detail.was', { name: pass.source_name })}</span>}</dd>
             <DiscordFact pass={pass} mode={discordMode} />
           </dl>
-          {orbit && <SkyPlot track={orbit.track} />}
+          {(orbit || samples.length > 0) && (
+            <div>
+              <SkyPlot track={orbit?.track} samples={samples} />
+              {syncKnown && <SkyLegend now={false} minEl={false} sync />}
+            </div>
+          )}
         </div>
         {main && (
           <img className="hero" src={passFile(pass.id, 'large', main.path)} alt={main.name}

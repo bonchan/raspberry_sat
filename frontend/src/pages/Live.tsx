@@ -74,12 +74,12 @@ export default function Live() {
         <div className="live-grid">
           <section>
             <h2>{t('live.sky')}</h2>
-            <SkyPlot track={current?.track} current={tracker.sat_current_pos} />
+            <SkyPlot track={current?.track} current={tracker.sat_current_pos} samples={samples} />
             <p className="hint center">
               az {tracker.sat_current_pos.az.toFixed(0)}°, el {tracker.sat_current_pos.el.toFixed(0)}°
               {tracker.sat_current_range !== undefined && `, ${Math.round(tracker.sat_current_range)} km`}
             </p>
-            <SkyLegend />
+            <SkyLegend sync />
           </section>
           <section>
             <h2>{t('live.signal')}</h2>

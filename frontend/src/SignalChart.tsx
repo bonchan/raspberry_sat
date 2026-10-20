@@ -1,8 +1,19 @@
 // Signal over a pass: on the Live page while it happens, on the pass page afterwards (from signal.json).
 
 import type { LiveSample } from './api'
-import { utcClock } from './format'
+import { clock, compass, utcClock } from './format'
 import { useT } from './i18n'
+
+/** The first and last samples with frames syncing: the elevations where reception starts and ends. */
+export function syncEnds(samples: LiveSample[]): { first: LiveSample; last: LiveSample } | null {
+  const synced = samples.filter(s => s.deframer_lock)
+  return synced.length ? { first: synced[0], last: synced[synced.length - 1] } : null
+}
+
+/** {el}, {time} and {dir} of a sample, for the sync texts */
+export const syncPlace = (s: LiveSample) => ({
+  el: s.el != null ? s.el.toFixed(0) : '?', time: clock(s.t), dir: s.az != null ? compass(s.az) : '?',
+})
 
 /** SNR over the pass, the predicted elevation behind it, and a strip that is green while frames sync. */
 export default function SignalChart({ samples, start, end, track }: {
@@ -21,6 +32,8 @@ export default function SignalChart({ samples, start, end, track }: {
     ? track.map(([, el], i) => `${x(start + i * step)},${yEl(el)}`)
     : samples.flatMap(s => (s.el == null ? [] : [`${x(s.t)},${yEl(s.el)}`]))
   const snr = samples.flatMap(s => (s.snr === undefined ? [] : [`${x(s.t)},${ySnr(s.snr)}`]))
+  const ends = syncEnds(samples)
+  const syncKnown = samples.some(s => s.deframer_lock !== undefined)
 
   return (
     <>
@@ -39,6 +52,11 @@ export default function SignalChart({ samples, start, end, track }: {
         <span className="key sync" /> {t('live.chartSync')} <span className="key nosync" /> {t('live.chartNoSync')}
         <span className="chart-times">{utcClock(start)}–{utcClock(end)} UTC</span>
       </p>
+      {syncKnown && (
+        <p className="hint">
+          {ends ? <>{t('sync.first', syncPlace(ends.first))} · {t('sync.last', syncPlace(ends.last))}</> : t('sync.none')}
+        </p>
+      )}
     </>
   )
 }

@@ -168,6 +168,12 @@ table.nearby td { padding: 6px 8px; }
 .sky-label { fill: var(--dim); font-size: 10px; }
 .sky-dir { fill: var(--text); font-size: 13px; font-weight: 600; }
 .sky-track { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.sky-sync, .sky-nosync { fill: none; stroke-width: 4; stroke-linejoin: round; stroke-linecap: round; }
+.sky-sync { stroke: var(--ok); }
+.sky-nosync { stroke: var(--danger); }
+.sky-legend .line { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: middle; }
+.sky-legend .line.sync { background: var(--ok); }
+.sky-legend .line.nosync { background: var(--danger); }
 .sky-aos { fill: var(--ok); }
 .sky-los { fill: var(--danger); }
 .sky-sat { fill: #ffd23f; stroke: #000; stroke-width: 2; }
