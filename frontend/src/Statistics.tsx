@@ -2,6 +2,7 @@
 // the elevations at which it starts and ends, and how pass quality (by highest elevation) turns out.
 
 import { api, type PassSummary } from './api'
+import Fact, { WAIT } from './Fact'
 import { usePolling } from './hooks'
 import { longDate, percent, size } from './format'
 import { useT, type Key } from './i18n'
@@ -25,13 +26,23 @@ export default function Statistics() {
   const t = useT()
   const { data, error } = usePolling(api.getPasses, 60000)
 
-  if (!data || data.passes.length === 0) {
+  // until the pass list arrives, the same rows and table with "…", so the page doesn't move
+  if (!data) {
+    const rows: Key[] = ['stats.passes', 'stats.satellites', 'stats.synced', 'stats.firstSync', 'stats.lastSync',
+                         'stats.snr', 'stats.received', 'stats.storage']
     return (
       <section>
         <h2>{t('stats.title')}</h2>
-        {error ? <p className="error">{error}</p> : <p className="hint">{data ? t('stats.none') : t('common.loading')}</p>}
+        {error && <p className="error">{error}</p>}
+        <dl className="facts">{rows.map(k => <Fact key={k} label={t(k)} loading value={null} />)}</dl>
+        <h3 className="subhead">{t('stats.byQuality')}</h3>
+        <QualityTable groups={null} />
+        <p className="hint">{t('stats.byQualityHint')}</p>
       </section>
     )
+  }
+  if (data.passes.length === 0) {
+    return <section><h2>{t('stats.title')}</h2><p className="hint">{t('stats.none')}</p></section>
   }
 
   const all = data.passes
@@ -62,8 +73,6 @@ export default function Statistics() {
       snr: median(known(passes.map(p => p.peak_snr))),
     }
   })
-  const dash = '–'
-
   return (
     <section>
       <h2>{t('stats.title')}</h2>
@@ -97,32 +106,52 @@ export default function Statistics() {
       </dl>
 
       <h3 className="subhead">{t('stats.byQuality')}</h3>
-      <div className="table-scroll">
-        <table className="stats-table">
-          <thead>
-            <tr>
-              <th>{t('stats.quality')}</th><th>{t('stats.count')}</th><th>{t('stats.syncedCol')}</th>
-              <th>{t('stats.lockCol')}</th><th>{t('stats.receivedCol')}</th><th>{t('stats.snrCol')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map(g => (
-              <tr key={g.quality}>
-                <td>
-                  <span className={`swatch q-${g.quality}`} />{t(`quality.${g.quality}` as Key)}{' '}
-                  <span className="hint">{RANGES[g.quality]}</span>
-                </td>
-                <td>{g.count}</td>
-                <td>{g.synced == null ? dash : percent(g.synced)}</td>
-                <td>{g.lock == null ? dash : percent(g.lock)}</td>
-                <td>{g.received == null ? dash : percent(g.received)}</td>
-                <td>{g.snr == null ? dash : `${g.snr.toFixed(1)} dB`}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <QualityTable groups={groups} />
       <p className="hint">{t('stats.byQualityHint')}</p>
     </section>
+  )
+}
+
+interface Group {
+  quality: typeof QUALITIES[number]; count: number
+  synced: number | null; lock: number | null; received: number | null; snr: number | null
+}
+
+/** One row per pass quality; "…" in every cell while loading (groups null). */
+function QualityTable({ groups }: { groups: Group[] | null }) {
+  const t = useT()
+  const dash = '–'
+  const cell = (v: number | null, show: (v: number) => string) => (v == null ? dash : show(v))
+  return (
+    <div className="table-scroll">
+      <table className="stats-table">
+        <thead>
+          <tr>
+            <th>{t('stats.quality')}</th><th>{t('stats.count')}</th><th>{t('stats.syncedCol')}</th>
+            <th>{t('stats.lockCol')}</th><th>{t('stats.receivedCol')}</th><th>{t('stats.snrCol')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {QUALITIES.map(quality => {
+            const g = groups?.find(x => x.quality === quality)
+            return (
+              <tr key={quality}>
+                <td>
+                  <span className={`swatch q-${quality}`} />{t(`quality.${quality}` as Key)}{' '}
+                  <span className="hint">{RANGES[quality]}</span>
+                </td>
+                {g ? <>
+                  <td>{g.count}</td>
+                  <td>{cell(g.synced, percent)}</td>
+                  <td>{cell(g.lock, percent)}</td>
+                  <td>{cell(g.received, percent)}</td>
+                  <td>{cell(g.snr, v => `${v.toFixed(1)} dB`)}</td>
+                </> : [0, 1, 2, 3, 4].map(i => <td key={i}>{WAIT}</td>)}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }

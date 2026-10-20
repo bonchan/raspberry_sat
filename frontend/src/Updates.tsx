@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError, type PendingCommit, type UpdateState } from './api'
 import { useConfirm } from './Dialog'
+import Fact from './Fact'
 import { usePolling } from './hooks'
 import { clock, longDate } from './format'
 import { useT } from './i18n'
@@ -36,11 +37,18 @@ export default function Updates() {
     }
   }
 
+  // until the first answer, the same rows and button with "…", so the page doesn't move
   if (!data) {
     return (
       <section id="updates">
         <h2>{t('status.updates')}</h2>
-        {error ? <p className="error">{error}</p> : <p className="hint">{t('common.loading')}</p>}
+        {error && <p className="error">{error}</p>}
+        <dl className="facts">
+          <Fact label={t('update.current')} loading value={null} />
+          <Fact label={t('update.branch')} loading value={null} />
+          <Fact label={t('update.checked')} loading value={null} />
+        </dl>
+        <div className="row"><button disabled>{t('update.check')}</button></div>
       </section>
     )
   }
