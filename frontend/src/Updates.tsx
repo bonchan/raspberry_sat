@@ -25,6 +25,17 @@ export default function Updates() {
   // the log opens by itself while an update runs; otherwise it stays folded until clicked
   useEffect(() => { if (data?.running) setLogOpen(true) }, [data?.running])
 
+  // while an update runs, the page follows its bottom (the log) whenever the page grows or shrinks
+  const updating = !!data?.running || busy === 'apply'
+  useEffect(() => {
+    if (!updating) return
+    const toBottom = () => window.scrollTo({ top: document.documentElement.scrollHeight })
+    toBottom()
+    const observer = new ResizeObserver(toBottom)
+    observer.observe(document.body)
+    return () => observer.disconnect()
+  }, [updating])
+
   async function run(action: 'check' | 'apply') {
     setBusy(action); setActionError('')
     if (action === 'apply') setLogOpen(true)
