@@ -25,8 +25,8 @@ const IMAGE_HEIGHT = 5000       // metres above the ground for a draped image: c
 const IMAGE_STEP = 1000         // each further image a little higher, so overlapping ones don't flicker
 const ON_TOP = Number.POSITIVE_INFINITY      // labels and dots drawn over the images, never hidden by them
 const BEHIND = 0.3              // opacity of a satellite on the far side of the Earth from the camera
-const FOLLOW_RANGE = 2_500_000  // follow mode: metres from the camera to the satellite
-const FOLLOW_PITCH = -0.6       // ... looking this far down (radians), the way it travels
+const FOLLOW_RANGE = 3_200_000  // follow mode to start with: metres from the camera to the satellite
+const FOLLOW_PITCH = -0.8       // ... looking this far down (radians, about 46°), the way it travels
 const MODE = 'rsat-globe-mode'  // this browser's choice of follow or static
 const STATION_ID = 'station', SAT_ID = 'sat-'     // entity ids: a click on the globe tells what it hit
 
@@ -274,6 +274,8 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
   const box = useRef<HTMLDivElement>(null)
   const viewer = useRef<Viewer | null>(null)
   const aimed = useRef(false)
+  // follow mode: where the camera sits around the followed satellite, in its travelling frame, as the user left it
+  const followOffset = useRef<{ norad: number; offset: Cartesian3 } | null>(null)
   const placed = useRef(new Map<string, { primitive: Primitive; sphere: BoundingSphere }>())    // by drape id
   const wanted = useRef(new Set<string>())        // the drapes asked for now, also while their pictures load
   const loading = useRef(new Set<string>())
@@ -348,14 +350,29 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
       })
       return
     }
+    // The camera hangs in a frame that travels with the satellite: its east/north/up turned so that "ahead"
+    // is the way it flies. Each frame the camera keeps its place in that frame, so dragging and zooming
+    // (which move it around the satellite) last, as long as the same satellite is followed.
+    const norad = sat!.norad
+    const start = followOffset.current?.norad === norad ? followOffset.current.offset : null
+    let first = true
     const follow = () => {
       const ms = Date.now()
       const here = positionAt(C, rec, new Date(ms)), ahead = positionAt(C, rec, new Date(ms + 1000))
       if (!here || !ahead) return
-      // the next second's position in east/north/up around the satellite gives the heading it travels
-      const toLocal = C.Matrix4.inverseTransformation(C.Transforms.eastNorthUpToFixedFrame(here), new C.Matrix4())
-      const step = C.Matrix4.multiplyByPoint(toLocal, ahead, new C.Cartesian3())
-      v.camera.lookAt(here, new C.HeadingPitchRange(Math.atan2(step.x, step.y), FOLLOW_PITCH, FOLLOW_RANGE))
+      const enu = C.Transforms.eastNorthUpToFixedFrame(here)
+      const step = C.Matrix4.multiplyByPoint(C.Matrix4.inverseTransformation(enu, new C.Matrix4()), ahead, new C.Cartesian3())
+      const heading = Math.atan2(step.x, step.y)          // the way it travels, from north towards east
+      const turn = C.Matrix4.fromRotationTranslation(C.Matrix3.fromRotationZ(-heading), C.Cartesian3.ZERO)
+      const frame = C.Matrix4.multiply(enu, turn, new C.Matrix4())
+      if (first) {
+        first = false
+        if (start) v.camera.lookAtTransform(frame, start)
+        else v.camera.lookAtTransform(frame, new C.HeadingPitchRange(0, FOLLOW_PITCH, FOLLOW_RANGE))
+      } else {
+        v.camera.lookAtTransform(frame, C.Cartesian3.clone(v.camera.position))   // same place in the new frame
+      }
+      followOffset.current = { norad, offset: C.Cartesian3.clone(v.camera.position) }
     }
     const stop = v.scene.preRender.addEventListener(follow)
     return () => {
