@@ -131,7 +131,7 @@ export default function Live() {
         </section>
       )}
       <NextPass next={next} />
-      <GlobeSection order={nextOrder(passes, now)} />
+      <GlobeSection order={nextOrder(passes, now)} cameraModes />
       {status.satdump.state === 'running' && config && (
         <IdleReceiver stopsWhenIdle={config.tracking.stop_sdr_when_idle} frequency={status.tracker?.frequency} />
       )}
@@ -215,7 +215,7 @@ function nextOrder(passes: UpcomingPass[], now: number): Record<number, number> 
 }
 
 /** The station and the enabled satellites, where they are now (pass images are on the Passes page).
-    fill: as tall as the row it sits in, with the follow/static camera buttons (during a pass). */
+    fill: as tall as the row it sits in (during a pass). cameraModes: follow/static buttons, click to aim. */
 function GlobeSection({ highlight, fill = false, order, cameraModes = false }: {
   highlight?: number; fill?: boolean; order?: Record<number, number>; cameraModes?: boolean
 }) {

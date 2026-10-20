@@ -27,7 +27,8 @@ const ON_TOP = Number.POSITIVE_INFINITY      // labels and dots drawn over the i
 const BEHIND = 0.3              // opacity of a satellite on the far side of the Earth from the camera
 const FOLLOW_RANGE = 2_500_000  // follow mode: metres from the camera to the satellite
 const FOLLOW_PITCH = -0.6       // ... looking this far down (radians), the way it travels
-const MODE = 'rsat-globe-mode'  // this browser's choice of follow or static during a pass
+const MODE = 'rsat-globe-mode'  // this browser's choice of follow or static
+const STATION_ID = 'station', SAT_ID = 'sat-'     // entity ids: a click on the globe tells what it hit
 
 let loading: Promise<CesiumNS> | null = null
 
@@ -121,6 +122,7 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
   const [green, greenDim] = dim(C.Color.fromCssColorString(COLORS.station))
   const home = follow(() => stationAt)
   viewer.entities.add({
+    id: STATION_ID,
     position: stationAt,
     point: {
       pixelSize: 8, outlineWidth: 1, disableDepthTestDistance: ON_TOP,
@@ -138,6 +140,7 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
     let orbit: Cartesian3[] = []
     let orbitAt = 0
     viewer.entities.add({
+      id: `${SAT_ID}${sat.norad}`,
       position: new C.CallbackPositionProperty(() => now().at, false),
       point: {
         pixelSize: receiving ? 12 : 9, outlineWidth: 2, disableDepthTestDistance: ON_TOP,
@@ -252,10 +255,11 @@ interface Props {
   note?: string                       // top right, e.g. which pass the image is from
   startHeight?: number                // metres above the station to start from
   order?: Record<number, number>      // NORAD number -> place in the order of the next recorded passes
-  cameraModes?: boolean               // during a pass: follow the satellite, or stay above the station
+  cameraModes?: boolean               // follow / static buttons, and a click on the station or a satellite aims at it
 }
 
 type CameraMode = 'follow' | 'static'
+type Target = { kind: 'station'; at: number } | { kind: 'sat'; norad: number; at: number }
 
 function storedMode(): CameraMode {
   try { return localStorage.getItem(MODE) === 'static' ? 'static' : 'follow' } catch { return 'follow' }
@@ -265,6 +269,7 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
                                 order, cameraModes = false }: Props) {
   const t = useT()
   const [mode, setModeState] = useState<CameraMode>(storedMode)
+  const [target, setTarget] = useState<Target | null>(null)       // the last thing clicked on the globe
   const orderKey = JSON.stringify(order ?? {})
   const box = useRef<HTMLDivElement>(null)
   const viewer = useRef<Viewer | null>(null)
@@ -306,18 +311,43 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
     return () => { if (!v.isDestroyed()) v.entities.removeAll() }
   }, [cesium, tles, satellites, highlight, orderKey])
 
-  // during a pass: follow the satellite being received from behind, the way it travels, looking down;
-  // or stay above the station
+  // a click on the station or a satellite (its dot, name or orbit) makes it the camera's target
   useEffect(() => {
     const v = viewer.current
-    if (!cesium || !v || !tles || !cameraModes) return
+    if (!cesium || !v || !cameraModes) return
+    const handler = new cesium.ScreenSpaceEventHandler(v.scene.canvas)
+    handler.setInputAction((click: { position: InstanceType<CesiumNS['Cartesian2']> }) => {
+      const id = v.scene.pick(click.position)?.id?.id
+      if (id === STATION_ID) setTarget({ kind: 'station', at: Date.now() })
+      else if (typeof id === 'string' && id.startsWith(SAT_ID)) setTarget({ kind: 'sat', norad: Number(id.slice(SAT_ID.length)), at: Date.now() })
+    }, cesium.ScreenSpaceEventType.LEFT_CLICK)
+    // Cesium's own double click zooms to and tracks an entity, which would fight the modes below
+    v.cesiumWidget.screenSpaceEventHandler.removeInputAction(cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK)
+    return () => { handler.destroy() }
+  }, [cesium, cameraModes])
+
+  // the camera's target: what was clicked; otherwise, during a pass, the satellite being received (follow)
+  // or the station (static). Follow chases a satellite from behind, the way it travels, looking down;
+  // static flies over the target once, at the same height, and leaves the camera free.
+  const aim: Target | null = target ?? (highlight === undefined ? null
+    : mode === 'follow' ? { kind: 'sat', norad: highlight, at: 0 } : { kind: 'station', at: 0 })
+  const aimKey = aim ? `${aim.kind}-${aim.kind === 'sat' ? aim.norad : ''}-${aim.at}` : ''
+  useEffect(() => {
+    const v = viewer.current
+    if (!cesium || !v || !tles || !cameraModes || !aim) return
     const C = cesium
-    const sat = tles.satellites.find(s => s.norad === highlight)
-    if (mode === 'static' || !sat) {
-      v.camera.flyTo({ destination: C.Cartesian3.fromDegrees(tles.station.lon, tles.station.lat, startHeight), duration: 1 })
+    const sat = aim.kind === 'sat' ? tles.satellites.find(s => s.norad === aim.norad) : undefined
+    const rec = sat && twoline2satrec(sat.line1, sat.line2)
+    if (mode === 'static' || !rec) {
+      const where = rec ? positionAt(C, rec, new Date()) : C.Cartesian3.fromDegrees(tles.station.lon, tles.station.lat)
+      if (!where) return
+      const over = C.Cartographic.fromCartesian(where)
+      v.camera.flyTo({
+        destination: C.Cartesian3.fromRadians(over.longitude, over.latitude, v.camera.positionCartographic.height),
+        duration: 1,
+      })
       return
     }
-    const rec = twoline2satrec(sat.line1, sat.line2)
     const follow = () => {
       const ms = Date.now()
       const here = positionAt(C, rec, new Date(ms)), ahead = positionAt(C, rec, new Date(ms + 1000))
@@ -332,7 +362,7 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
       stop()
       if (!v.isDestroyed()) v.camera.lookAtTransform(C.Matrix4.IDENTITY)
     }
-  }, [cesium, tles, highlight, mode, cameraModes])
+  }, [cesium, tles, aimKey, mode, cameraModes])
 
   function setMode(next: CameraMode) {
     setModeState(next)
