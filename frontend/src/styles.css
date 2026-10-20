@@ -93,6 +93,7 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 .globe-canvas, .globe-canvas .cesium-widget, .globe-canvas .cesium-viewer { width: 100%; height: 100%; }
 .globe-wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
 .globe-note { position: absolute; left: 8px; top: 4px; margin: 0; }
+.globe-note.right { left: auto; right: 8px; text-align: right; }
 .globe .cesium-viewer-bottom { opacity: .6; }       /* the credits, kept but quiet */
 @media (max-width: 760px) { .globe { height: 320px; } }
 

@@ -73,6 +73,10 @@ export interface PassSummary {
   discord_url: string | null        // the Discord message, once posted
 }
 export interface SyncPoint { t: number; el: number | null; az: number | null }
+/** where a pass's image lies: lat/lon for a grid of its pixels (rows x cols, row by row; null: no data) */
+export interface PassGeo {
+  image: string; width: number; height: number; rows: number[]; cols: number[]; points: ([number, number] | null)[]
+}
 /** the station and the TLEs of the satellites in the settings, for the globe */
 export interface TleSet {
   station: { name: string; lat: number; lon: number; alt: number }
@@ -206,6 +210,7 @@ export const api = {
   getSpectrum: () => request<Spectrum>('GET', '/spectrum'),
   getPasses: () => request<PassList>('GET', '/passes'),
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
+  getPassGeo: (id: string) => request<PassGeo>('GET', `/passes/${encodeURIComponent(id)}/geo`),
   getPassSignal: (id: string) => request<PassSignalThumb>('GET', `/passes/${encodeURIComponent(id)}/signal?points=150`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),
   postPass: (id: string) => request<PassDiscord>('POST', `/passes/${encodeURIComponent(id)}/discord`),

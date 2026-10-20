@@ -178,6 +178,17 @@ def large_version(folder: Path, rel: str) -> Path:
     return dst
 
 
+def drape_image(meta: dict) -> dict | None:
+    """The image to place on a map: the raw version (not corrected, no map lines) of the main image's
+    composite, as only raw images keep the scanner's geometry that SatDump's georeferencing describes."""
+    images = [i for i in meta.get("images", []) if not i.get("error") and i.get("width") and i.get("height")]
+    main = next((i for i in images if i["path"] == meta.get("main")), None)
+    if main is None:
+        return None
+    return next((i for i in images if not i["variants"] and i["instrument"] == main["instrument"]
+                 and i["name"] == main["name"]), None)
+
+
 def choose_main(images: list[dict]) -> dict | None:
     usable = [i for i in images if "error" not in i]
     by_stem = {PurePosixPath(i["path"]).stem: i for i in usable}

@@ -1,11 +1,11 @@
 import asyncio
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from app import discord, passes, settings
+from app import discord, georef, passes, settings
 from app.config import load_config
 
 router = APIRouter(prefix="/passes", tags=["passes"])
@@ -57,6 +57,21 @@ def get_signal(pass_id: str, points: int = Query(150, ge=10, le=2000)) -> dict:
         "track": orbit.get("track"),
         "samples": passes.thin_samples(samples, points),
     }
+
+
+@router.get("/{pass_id}/geo")
+async def get_geo(pass_id: str) -> dict:
+    """Where the pass's image lies on Earth (georef.py): the raw version of its main image and the
+    latitude/longitude of a grid of its pixels, for draping it over a map."""
+    folder = folder_or_404(pass_id)
+    image = passes.drape_image(passes.load_pass(folder) or {})
+    product = folder / PurePosixPath(image["path"]).parent / "product.cbor" if image else None
+    if image is None or product is None or not product.is_file():
+        raise HTTPException(404, "this pass has no image that can be placed on the map")
+    grid = await asyncio.to_thread(georef.georeference, product, image["width"], image["height"])
+    if grid is None:
+        raise HTTPException(404, "SatDump's georeferencing does not fit this pass's image")
+    return {"image": image["path"], **grid}
 
 
 @router.get("/{pass_id}/thumb/{path:path}")

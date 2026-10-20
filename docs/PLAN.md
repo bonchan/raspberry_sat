@@ -74,6 +74,9 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
 6. **Rotator + polish:** rotator settings, show rotator position, small UX fixes.
 
 ## Later (ideas, not scheduled)
+- **Globe view in Passes:** a third layout next to Grid and List with every pass's image draped where it
+  was taken, like the last pass on the Live globe (`/api/passes/{id}/geo`, `georef.py`, `passImage` in
+  `frontend/src/Globe.tsx`); pick passes or a day to build a mosaic.
 - **Gain as a dropdown:** tuners only have fixed gain steps and SatDump rounds up to the next one. Ask the
   dongle for its steps (`rtlsdr_get_tuner_gains`, while SatDump has the SDR idle) and offer those instead of
   a free number; other SDR types have other gain controls. Notes at `Sdr.gain` in `backend/app/config.py`.
