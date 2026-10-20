@@ -97,7 +97,8 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 .globe-wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
 .globe-note { position: absolute; left: 8px; top: 4px; margin: 0; }
 .globe-note.right { left: auto; right: 8px; text-align: right; }
-.chips.globe-modes { position: absolute; right: 8px; top: 8px; margin: 0; }      /* follow / static during a pass */
+.chips.globe-modes { position: absolute; right: 8px; top: 8px; margin: 0; }      /* follow / static, and the cone */
+.chips.globe-modes .toggle { margin-left: 8px; }      /* the cone is a switch of its own, not a third mode */
 .globe .cesium-viewer-bottom { opacity: .6; }       /* the credits, kept but quiet */
 @media (max-width: 760px) {
   .globe.tall { height: 70vh; }

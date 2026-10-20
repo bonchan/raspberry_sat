@@ -10,6 +10,7 @@ import { eciToEcf, gstime, propagate, twoline2satrec, type SatRec } from 'satell
 import { api, passFile, type PassGeo, type PassSummary, type TleSet } from './api'
 import { usePolling } from './hooks'
 import { useT } from './i18n'
+import { scanLine, type Vec } from './scan'
 
 type CesiumNS = typeof import('cesium')
 
@@ -28,6 +29,7 @@ const BEHIND = 0.3              // opacity of a satellite on the far side of the
 const FOLLOW_RANGE = 3_200_000  // follow mode to start with: metres from the camera to the satellite
 const FOLLOW_PITCH = -0.8       // ... looking this far down (radians, about 46°), the way it travels
 const MODE = 'rsat-globe-mode'  // this browser's choice of follow or static
+const CONE = 'rsat-globe-cone'  // ... and whether the camera's satellite shows what it sees
 const STATION_ID = 'station', SAT_ID = 'sat-'     // entity ids: a click on the globe tells what it hit
 
 let loading: Promise<CesiumNS> | null = null
@@ -269,6 +271,7 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
                                 order, cameraModes = false }: Props) {
   const t = useT()
   const [mode, setModeState] = useState<CameraMode>(storedMode)
+  const [cone, setConeState] = useState(() => { try { return localStorage.getItem(CONE) === '1' } catch { return false } })
   const [target, setTarget] = useState<Target | null>(null)       // the last thing clicked on the globe
   const orderKey = JSON.stringify(order ?? {})
   const box = useRef<HTMLDivElement>(null)
@@ -381,6 +384,45 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
     }
   }, [cesium, tles, aimKey, mode, cameraModes])
 
+  // the cone: what the satellite the camera is aimed at sees right now, its MSU-MR scan line (scan.ts):
+  // the rays from the satellite to the edges of the swath and a few between, and the line on the ground
+  const coneNorad = cone && aim?.kind === 'sat' ? aim.norad : null
+  useEffect(() => {
+    const v = viewer.current
+    const sat = tles?.satellites.find(s => s.norad === coneNorad)
+    if (!cesium || !v || !sat) return
+    const C = cesium
+    const rec = twoline2satrec(sat.line1, sat.line2)
+    let frameAt = -1, line: ReturnType<typeof scanLine> = null
+    const now = () => {                 // once per frame
+      const ms = Date.now()
+      if (ms !== frameAt) {
+        frameAt = ms
+        line = scanLine(rec, new Date(ms))
+      }
+      return line
+    }
+    const at = (q: Vec) => new C.Cartesian3(q[0], q[1], q[2])
+    const color = C.Color.fromCssColorString(COLORS.receiving)
+    const source = new C.CustomDataSource('cone')       // its own, so redrawing the satellites leaves it alone
+    const lines = (points: (l: NonNullable<typeof line>) => Vec[], width: number, alpha: number) => source.entities.add({
+      polyline: {
+        positions: new C.CallbackProperty(() => { const l = now(); return l ? points(l).map(at) : [] }, false),
+        width, arcType: C.ArcType.NONE, material: color.withAlpha(alpha),
+      },
+    })
+    lines(l => l.ground.filter((_, i) => i % 5 === 0).flatMap(g => [l.sat, g]), 1, 0.35)     // rays across the scan
+    lines(l => [l.ground[0], l.sat, l.ground[l.ground.length - 1]], 2, 0.9)                  // its two edges
+    lines(l => l.ground, 3, 0.9)                                                             // the line on the ground
+    v.dataSources.add(source)
+    return () => { if (!v.isDestroyed()) v.dataSources.remove(source, true) }
+  }, [cesium, tles, coneNorad])
+
+  function setCone(on: boolean) {
+    setConeState(on)
+    try { localStorage.setItem(CONE, on ? '1' : '0') } catch { /* private mode */ }
+  }
+
   function setMode(next: CameraMode) {
     setModeState(next)
     try { localStorage.setItem(MODE, next) } catch { /* private mode */ }
@@ -439,6 +481,9 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
           {(['follow', 'static'] as const).map(m => (
             <button key={m} className={mode === m ? 'chip on' : 'chip'} onClick={() => setMode(m)}>{t(`globe.${m}`)}</button>
           ))}
+          <button className={cone ? 'chip on toggle' : 'chip toggle'} aria-pressed={cone} onClick={() => setCone(!cone)}>
+            {t('globe.cone')}
+          </button>
         </div>
       )}
     </div>
