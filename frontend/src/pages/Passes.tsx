@@ -116,12 +116,12 @@ function PassRow({ pass }: { pass: PassSummary }) {
           <Link className="card-link" to={`/passes/${encodeURIComponent(pass.id)}`}>
             <b>{pass.satellite}</b> <span className="hint">{clock(pass.time)}</span>
           </Link>
-          <DiscordLink pass={pass} />
         </div>
         <SignalLine pass={pass} withSync />
         <ImagesLine pass={pass} />
       </div>
       <RowChart id={pass.id} />
+      <div className="pass-row-discord"><DiscordLink pass={pass} /></div>
     </div>
   )
 }
