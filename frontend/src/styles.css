@@ -342,11 +342,13 @@ section > .title-row { margin-bottom: 12px; }
 /* passes: list layout (grid is the gallery) */
 .layout-switch { margin-top: 0; }
 /* passes: globe layout (PassesGlobe.tsx) */
-.passes-globe { display: grid; gap: 12px; }
-.passes-globe > .hint { margin: 0; }
+/* the globe stays under the header while the cards scroll beneath it; not a grid, as a grid item only
+   sticks within its own row */
+.passes-globe .globe { position: sticky; top: calc(var(--header-h, 0px) + 8px); z-index: 2; }
+.passes-globe > .hint { margin: 10px 0; }
+.globe-card { cursor: pointer; }
 .globe-card.on { border-color: var(--accent); }
-.globe-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
-.globe-card-actions label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+@media (max-width: 760px) { .passes-globe .globe.tall { height: 50vh; } }
 .pass-list { display: grid; gap: 8px; }
 .pass-day {         /* like the day rows of the upcoming passes */
   margin: 8px 0 0; padding: 0 0 4px; border-bottom: 1px solid var(--dim);
