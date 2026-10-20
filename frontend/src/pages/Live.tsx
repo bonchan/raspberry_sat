@@ -206,6 +206,8 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
 }
 
 /** The satellites in the settings on a globe, where they are now; the one being received in yellow. */
+const LIVE_START_HEIGHT = 3_750_000      // metres above the station: the region around it, passes included
+
 /** The satellites now and the last pass's image: the newest pass whose image can be placed (a pass that
     can't, falls back to the one before). fill: as tall as the row it sits in (during a pass). */
 function GlobeSection({ highlight, fill = false }: { highlight?: number; fill?: boolean }) {
@@ -219,6 +221,7 @@ function GlobeSection({ highlight, fill = false }: { highlight?: number; fill?: 
     <section className={fill ? 'globe-section' : undefined}>
       <h2>{t('globe.title')}</h2>
       <Globe satellites highlight={highlight} size={fill ? 'fill' : 'tall'} drapes={last ? [last] : []}
+        startHeight={LIVE_START_HEIGHT}
         note={pass && t('globe.lastPass', { satellite: pass.satellite, time: clock(pass.time) })} />
     </section>
   )

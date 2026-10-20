@@ -21,7 +21,9 @@ const BASE = '/cesium/'
 const ORBIT_STEP = 30           // seconds between points of the next-orbit line
 const ORBIT_REFRESH = 60_000    // ms; the line starts at the satellite, so it is redrawn now and then
 const COLORS = { station: '#3ecf8e', satellite: '#4da3ff', receiving: '#ffd23f', disabled: '#8b93a1' }
-const IMAGE_HEIGHT = 5000       // metres above the ground for the draped image: clear of the globe's surface
+const IMAGE_HEIGHT = 5000       // metres above the ground for a draped image: clear of the globe's surface
+const IMAGE_STEP = 1000         // each further image a little higher, so overlapping ones don't flicker
+const ON_TOP = Number.POSITIVE_INFINITY      // labels and dots drawn over the images, never hidden by them
 
 let loading: Promise<CesiumNS> | null = null
 
@@ -83,11 +85,15 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
   const label = (text: string) => ({
     text, font: '13px sans-serif', fillColor: C.Color.WHITE, outlineColor: C.Color.BLACK, outlineWidth: 3,
     style: C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -12),
+    disableDepthTestDistance: ON_TOP,
   })
   const { station } = tles
   viewer.entities.add({
     position: C.Cartesian3.fromDegrees(station.lon, station.lat, station.alt),
-    point: { pixelSize: 8, color: C.Color.fromCssColorString(COLORS.station), outlineColor: C.Color.BLACK, outlineWidth: 1 },
+    point: {
+      pixelSize: 8, color: C.Color.fromCssColorString(COLORS.station), outlineColor: C.Color.BLACK, outlineWidth: 1,
+      disableDepthTestDistance: ON_TOP,
+    },
     label: label(station.name),
   })
   for (const sat of satellites ? tles.satellites : []) {
@@ -98,7 +104,7 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
     let orbitAt = 0
     viewer.entities.add({
       position: new C.CallbackPositionProperty(() => positionAt(C, rec, new Date()), false),
-      point: { pixelSize: receiving ? 12 : 9, color, outlineColor: C.Color.BLACK, outlineWidth: 2 },
+      point: { pixelSize: receiving ? 12 : 9, color, outlineColor: C.Color.BLACK, outlineWidth: 2, disableDepthTestDistance: ON_TOP },
       label: label(sat.name),
       polyline: {
         positions: new C.CallbackProperty(() => {
@@ -117,14 +123,14 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
 /** The pass's image stretched over its grid of positions: each grid cell is two triangles whose corners
     carry the matching spot of the image, so it follows the strip's curve. Cells touching a line without
     a position (no data) are left out. */
-function passImage(C: CesiumNS, geo: PassGeo, url: string): { primitive: Primitive; sphere: BoundingSphere } | null {
+function passImage(C: CesiumNS, geo: PassGeo, url: string, altitude: number): { primitive: Primitive; sphere: BoundingSphere } | null {
   const { rows, cols, points, width, height } = geo
   const positions: number[] = [], st: number[] = [], indices: number[] = []
   const vertex = new Map<number, number>()       // grid index -> vertex index
   rows.forEach((y, i) => cols.forEach((x, j) => {
     const point = points[i * cols.length + j]
     if (!point) return
-    const p = C.Cartesian3.fromDegrees(point[1], point[0], IMAGE_HEIGHT)
+    const p = C.Cartesian3.fromDegrees(point[1], point[0], altitude)
     vertex.set(i * cols.length + j, positions.length / 3)
     positions.push(p.x, p.y, p.z)
     st.push(x / (width - 1), 1 - y / (height - 1))       // texture origin is the image's bottom left
@@ -205,9 +211,10 @@ interface Props {
   drapes?: Drape[]
   focus?: { id: string; at: number }  // fly to this drape; `at` changes when asked again
   note?: string                       // top right, e.g. which pass the image is from
+  startHeight?: number                // metres above the station to start from
 }
 
-export default function Globe({ size, satellites = false, highlight, drapes = [], focus, note }: Props) {
+export default function Globe({ size, satellites = false, highlight, drapes = [], focus, note, startHeight = 15_000_000 }: Props) {
   const t = useT()
   const box = useRef<HTMLDivElement>(null)
   const viewer = useRef<Viewer | null>(null)
@@ -238,7 +245,7 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
     const v = viewer.current
     if (!cesium || !v || !tles) return
     if (!aimed.current) {         // start above the station, far enough out to see the whole hemisphere
-      v.camera.setView({ destination: cesium.Cartesian3.fromDegrees(tles.station.lon, tles.station.lat, 15_000_000) })
+      v.camera.setView({ destination: cesium.Cartesian3.fromDegrees(tles.station.lon, tles.station.lat, startHeight) })
       aimed.current = true
     }
     showSatellites(cesium, v, tles, satellites, highlight)
@@ -256,19 +263,22 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
         placed.current.delete(id)
       }
     }
-    for (const d of drapes) {
-      if (placed.current.has(d.id)) continue
-      const image = passImage(cesium, d.geo, d.url)
-      if (!image) continue
+    drapes.forEach((d, i) => {
+      if (placed.current.has(d.id)) return
+      const image = passImage(cesium, d.geo, d.url, IMAGE_HEIGHT + i * IMAGE_STEP)     // later ones on top
+      if (!image) return
       v.scene.primitives.add(image.primitive)
       placed.current.set(d.id, image)
-    }
+    })
   }, [cesium, drapeKey])
 
   useEffect(() => {
     const v = viewer.current
     const image = focus && placed.current.get(focus.id)
-    if (v && image) v.camera.flyToBoundingSphere(image.sphere, { duration: 1.2 })
+    // straight down, north up, the whole image in view (range 0: Cesium fits the sphere)
+    if (cesium && v && image) {
+      v.camera.flyToBoundingSphere(image.sphere, { duration: 1.2, offset: new cesium.HeadingPitchRange(0, -Math.PI / 2, 0) })
+    }
   }, [cesium, drapeKey, focus?.id, focus?.at])
 
   return (

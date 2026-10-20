@@ -1,32 +1,34 @@
-// The Passes page's globe layout: one day's passes, each image draped where it was taken, with a list
-// beside the globe to hide a pass or fly to it, and arrows to go to the day before or after.
+// The Passes page's globe layout: the globe with the chosen passes' images draped where they were
+// taken, and under it every pass as a card, like the grid layout, to put it on the globe or fly to it.
+// The newest day's passes start on the globe.
 
 import { useState } from 'react'
-import type { PassSummary } from './api'
-import { clock } from './format'
+import { Link } from 'react-router-dom'
+import { passFile, type PassSummary } from './api'
+import { longDate } from './format'
 import Globe, { usePassDrapes } from './Globe'
 import { useT } from './i18n'
 import { elevationQuality } from './UpcomingPasses'
 
 const dayOf = (time: number) => new Date(time * 1000).toDateString()
 
-/** passes: newest first, as the pass list has them; dayLabel: "Today", "Yesterday" or the date */
-export default function PassesGlobe({ passes, dayLabel }: { passes: PassSummary[]; dayLabel: (time: number) => string }) {
+/** passes: newest first, as the pass list has them */
+export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
   const t = useT()
   const withImages = passes.filter(p => p.main)
-  const days = [...new Set(withImages.map(p => dayOf(p.time)))]
-  const [chosen, setChosen] = useState<string | null>(null)
-  const day = chosen && days.includes(chosen) ? chosen : days[0]
-  const index = days.indexOf(day)
-  const ofDay = withImages.filter(p => dayOf(p.time) === day).reverse()      // in the order they happened
-  const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  const [shown, setShown] = useState<Set<string>>(() => {
+    const newest = withImages[0] ? dayOf(withImages[0].time) : ''
+    return new Set(withImages.filter(p => dayOf(p.time) === newest).map(p => p.id))
+  })
   const [focus, setFocus] = useState<{ id: string; at: number }>()
-  const { drapes, failed, ready } = usePassDrapes(ofDay.filter(p => !hidden.has(p.id)))
+  // oldest first, so newer images lie on top where passes overlap
+  const { drapes, failed } = usePassDrapes(withImages.filter(p => shown.has(p.id)).reverse())
 
-  function toggle(id: string) {
-    setHidden(prev => {
+  function show(id: string, on: boolean) {
+    setShown(prev => {
       const next = new Set(prev)
-      if (!next.delete(id)) next.add(id)
+      if (on) next.add(id)
+      else next.delete(id)
       return next
     })
   }
@@ -36,34 +38,32 @@ export default function PassesGlobe({ passes, dayLabel }: { passes: PassSummary[
   return (
     <div className="passes-globe">
       <Globe size="tall" drapes={drapes} focus={focus} />
-      <aside className="passes-globe-side">
-        <div className="day-nav">
-          <button aria-label={t('passes.olderDay')} disabled={index >= days.length - 1}
-            onClick={() => setChosen(days[index + 1])}>‹</button>
-          <b>{dayLabel(ofDay[0].time)}</b>
-          <button aria-label={t('passes.newerDay')} disabled={index <= 0}
-            onClick={() => setChosen(days[index - 1])}>›</button>
-        </div>
-        <ul className="globe-passes">
-          {ofDay.map(p => (
-            <li key={p.id}>
-              <label>
-                <input type="checkbox" checked={!hidden.has(p.id)} onChange={() => toggle(p.id)} />
-                <span>
-                  {p.satellite} <span className="hint">{clock(p.time)}</span>
-                  {p.max_el != null && <> <span className={`el q-${elevationQuality(p.max_el)}`}>{Math.round(p.max_el)}°</span></>}
-                </span>
-              </label>
-              {failed.includes(p.id)
-                ? <span className="hint">{t('passes.cantPlace')}</span>
-                : <button className="chip" disabled={!drapes.some(d => d.id === p.id)}
-                    onClick={() => setFocus({ id: p.id, at: Date.now() })}>{t('passes.flyTo')}</button>}
-            </li>
-          ))}
-        </ul>
-        {!ready && <p className="hint">{t('common.loading')}</p>}
-        <p className="hint">{t('passes.globeHint')}</p>
-      </aside>
+      <p className="hint">{t('passes.globeHint')}</p>
+      <div className="gallery">
+        {withImages.map(p => (
+          <div key={p.id} className={shown.has(p.id) ? 'card globe-card on' : 'card globe-card'}>
+            <img src={passFile(p.id, 'thumb', p.main!)} alt="" loading="lazy" onClick={() => show(p.id, !shown.has(p.id))} />
+            <div className="caption">
+              <Link to={`/passes/${encodeURIComponent(p.id)}`}><b>{p.satellite}</b></Link>
+              <span>
+                {longDate(p.time)}
+                {p.max_el != null && <> · <span className={`el q-${elevationQuality(p.max_el)}`}>{t('passes.maxEl', { el: Math.round(p.max_el) })}</span></>}
+              </span>
+              <div className="globe-card-actions">
+                <label>
+                  <input type="checkbox" checked={shown.has(p.id)} onChange={e => show(p.id, e.target.checked)} />
+                  {t('passes.onGlobe')}
+                </label>
+                {failed.includes(p.id)
+                  ? <span className="hint">{t('passes.cantPlace')}</span>
+                  : <button className="chip" onClick={() => { show(p.id, true); setFocus({ id: p.id, at: Date.now() }) }}>
+                      {t('passes.flyTo')}
+                    </button>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
