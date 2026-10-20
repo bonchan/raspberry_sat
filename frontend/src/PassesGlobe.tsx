@@ -31,7 +31,6 @@ export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
   return (
     <div className="passes-globe">
       <Globe size="tall" drapes={drapes} focus={focus} />
-      <p className="hint">{t('passes.globeHint')}</p>
       <div className="gallery">
         {withImages.map(p => {
           const on = p.id === chosen.id

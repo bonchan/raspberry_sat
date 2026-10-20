@@ -345,7 +345,7 @@ section > .title-row { margin-bottom: 12px; }
 /* the globe stays under the header while the cards scroll beneath it; not a grid, as a grid item only
    sticks within its own row */
 .passes-globe .globe { position: sticky; top: calc(var(--header-h, 0px) + 8px); z-index: 2; }
-.passes-globe > .hint { margin: 10px 0; }
+.passes-globe .gallery { margin-top: 12px; }
 .globe-card { cursor: pointer; }
 .globe-card.on { border-color: var(--accent); }
 @media (max-width: 760px) { .passes-globe .globe.tall { height: 50vh; } }

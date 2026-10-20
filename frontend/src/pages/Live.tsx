@@ -206,7 +206,7 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
 }
 
 /** The satellites in the settings on a globe, where they are now; the one being received in yellow. */
-const LIVE_START_HEIGHT = 7_500_000      // metres above the station: the region around it, passes included
+const LIVE_START_HEIGHT = 15_000_000     // metres above the station: the hemisphere around it
 
 /** The station and the enabled satellites, where they are now (pass images are on the Passes page).
     fill: as tall as the row it sits in (during a pass). */
