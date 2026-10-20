@@ -4,7 +4,7 @@ import { api, type Live as LiveData, type LiveSample, type UpcomingPass } from '
 import { useNow, usePolling, useVisible } from '../hooks'
 import { clock, size, utcClock } from '../format'
 import { useT, type Key } from '../i18n'
-import Globe, { usePassDrapes } from '../Globe'
+import Globe from '../Globe'
 import PassCards from '../PassCards'
 import SignalChart from '../SignalChart'
 import SpectrumPlot from '../SpectrumPlot'
@@ -208,21 +208,14 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
 /** The satellites in the settings on a globe, where they are now; the one being received in yellow. */
 const LIVE_START_HEIGHT = 7_500_000      // metres above the station: the region around it, passes included
 
-/** The satellites now and the last pass's image: the newest pass whose image can be placed (a pass that
-    can't, falls back to the one before). fill: as tall as the row it sits in (during a pass). */
+/** The station and the enabled satellites, where they are now (pass images are on the Passes page).
+    fill: as tall as the row it sits in (during a pass). */
 function GlobeSection({ highlight, fill = false }: { highlight?: number; fill?: boolean }) {
   const t = useT()
-  const { data: passList } = usePolling(api.getPasses, 2 * 60 * 1000)
-  const recent = (passList?.passes ?? []).filter(p => p.main).slice(0, 4)
-  const { drapes } = usePassDrapes(recent)
-  const last = drapes[0]
-  const pass = last && recent.find(p => p.id === last.id)
   return (
     <section className={fill ? 'globe-section' : undefined}>
       <h2>{t('globe.title')}</h2>
-      <Globe satellites highlight={highlight} size={fill ? 'fill' : 'tall'} drapes={last ? [last] : []}
-        startHeight={LIVE_START_HEIGHT}
-        note={pass && t('globe.lastPass', { satellite: pass.satellite, time: clock(pass.time) })} />
+      <Globe satellites highlight={highlight} size={fill ? 'fill' : 'tall'} startHeight={LIVE_START_HEIGHT} />
     </section>
   )
 }

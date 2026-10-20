@@ -20,7 +20,7 @@ declare global {
 const BASE = '/cesium/'
 const ORBIT_STEP = 30           // seconds between points of the next-orbit line
 const ORBIT_REFRESH = 60_000    // ms; the line starts at the satellite, so it is redrawn now and then
-const COLORS = { station: '#3ecf8e', satellite: '#4da3ff', receiving: '#ffd23f', disabled: '#8b93a1' }
+const COLORS = { station: '#3ecf8e', satellite: '#4da3ff', receiving: '#ffd23f' }
 const IMAGE_HEIGHT = 5000       // metres above the ground for a draped image: clear of the globe's surface
 const IMAGE_STEP = 1000         // each further image a little higher, so overlapping ones don't flicker
 const ON_TOP = Number.POSITIVE_INFINITY      // labels and dots drawn over the images, never hidden by them
@@ -80,7 +80,7 @@ function nextOrbit(C: CesiumNS, rec: SatRec): Cartesian3[] {
   return points
 }
 
-/** The station, and with `satellites` the satellites in the settings where they are now and their next orbit. */
+/** The station, and with `satellites` the enabled satellites in the settings where they are now and their next orbit. */
 function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: boolean, highlight?: number) {
   const label = (text: string) => ({
     text, font: '13px sans-serif', fillColor: C.Color.WHITE, outlineColor: C.Color.BLACK, outlineWidth: 3,
@@ -96,10 +96,10 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
     },
     label: label(station.name),
   })
-  for (const sat of satellites ? tles.satellites : []) {
+  for (const sat of satellites ? tles.satellites.filter(s => s.enabled) : []) {
     const rec = twoline2satrec(sat.line1, sat.line2)
     const receiving = sat.norad === highlight
-    const color = C.Color.fromCssColorString(receiving ? COLORS.receiving : sat.enabled ? COLORS.satellite : COLORS.disabled)
+    const color = C.Color.fromCssColorString(receiving ? COLORS.receiving : COLORS.satellite)
     let orbit: Cartesian3[] = []
     let orbitAt = 0
     viewer.entities.add({
@@ -123,7 +123,7 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
 /** The pass's image stretched over its grid of positions: each grid cell is two triangles whose corners
     carry the matching spot of the image, so it follows the strip's curve. Cells touching a line without
     a position (no data) are left out. */
-function passImage(C: CesiumNS, geo: PassGeo, url: string, altitude: number): { primitive: Primitive; sphere: BoundingSphere } | null {
+function passImage(C: CesiumNS, geo: PassGeo, picture: HTMLImageElement, altitude: number): { primitive: Primitive; sphere: BoundingSphere } | null {
   const { rows, cols, points, width, height } = geo
   const positions: number[] = [], st: number[] = [], indices: number[] = []
   const vertex = new Map<number, number>()       // grid index -> vertex index
@@ -160,7 +160,7 @@ function passImage(C: CesiumNS, geo: PassGeo, url: string, altitude: number): { 
   const primitive = new C.Primitive({
     geometryInstances: new C.GeometryInstance({ geometry }),
     appearance: new C.MaterialAppearance({
-      material: C.Material.fromType('Image', { image: url }),
+      material: C.Material.fromType('Image', { image: picture }),
       materialSupport: C.MaterialAppearance.MaterialSupport.TEXTURED, flat: true, faceForward: true, translucent: false,
     }),
     asynchronous: false,
@@ -209,7 +209,7 @@ interface Props {
   satellites?: boolean                // the satellites in the settings, live, with their next orbit
   highlight?: number                  // NORAD number of the one being received: yellow, like on the sky plot
   drapes?: Drape[]
-  focus?: { id: string; at: number }  // fly to this drape; `at` changes when asked again
+  focus?: { id: string; at: number; instant?: boolean }   // fly to this drape; `at` changes when asked again
   note?: string                       // top right, e.g. which pass the image is from
   startHeight?: number                // metres above the station to start from
 }
@@ -220,6 +220,9 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
   const viewer = useRef<Viewer | null>(null)
   const aimed = useRef(false)
   const placed = useRef(new Map<string, { primitive: Primitive; sphere: BoundingSphere }>())    // by drape id
+  const wanted = useRef(new Set<string>())        // the drapes asked for now, also while their pictures load
+  const loading = useRef(new Set<string>())
+  const [placedCount, setPlacedCount] = useState(0)     // bumps when a picture arrives, to fly to it
   const [cesium, setCesium] = useState<CesiumNS | null>(null)
   const [failed, setFailed] = useState('')
   const { data: tles } = usePolling(api.getTles, 60 * 60 * 1000)     // SatDump refreshes them daily
@@ -237,6 +240,7 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
       viewer.current?.destroy()         // and the images on it
       viewer.current = null
       placed.current.clear()
+      loading.current.clear()
       aimed.current = false
     }
   }, [])
@@ -252,34 +256,45 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
     return () => { if (!v.isDestroyed()) v.entities.removeAll() }
   }, [cesium, tles, satellites, highlight])
 
-  // only the images that changed come and go, so the others don't flicker
+  // only the images that changed come and go, so the others don't flicker. Each picture is downloaded and
+  // decoded before its strip goes on the globe, so the strip never shows Cesium's white placeholder.
   useEffect(() => {
     const v = viewer.current
     if (!cesium || !v) return
-    const wanted = new Set(drapes.map(d => d.id))
+    wanted.current = new Set(drapes.map(d => d.id))
     for (const [id, image] of placed.current) {
-      if (!wanted.has(id)) {
+      if (!wanted.current.has(id)) {
         v.scene.primitives.remove(image.primitive)
         placed.current.delete(id)
       }
     }
     drapes.forEach((d, i) => {
-      if (placed.current.has(d.id)) return
-      const image = passImage(cesium, d.geo, d.url, IMAGE_HEIGHT + i * IMAGE_STEP)     // later ones on top
-      if (!image) return
-      v.scene.primitives.add(image.primitive)
-      placed.current.set(d.id, image)
+      if (placed.current.has(d.id) || loading.current.has(d.id)) return
+      loading.current.add(d.id)
+      const picture = new Image()
+      picture.src = d.url
+      picture.decode().then(() => {
+        loading.current.delete(d.id)
+        const now = viewer.current
+        if (!now || now.isDestroyed() || !wanted.current.has(d.id)) return
+        const image = passImage(cesium, d.geo, picture, IMAGE_HEIGHT + i * IMAGE_STEP)     // later ones on top
+        if (!image) return
+        now.scene.primitives.add(image.primitive)
+        placed.current.set(d.id, image)
+        setPlacedCount(n => n + 1)
+      }, () => { loading.current.delete(d.id) })
     })
   }, [cesium, drapeKey])
 
   useEffect(() => {
     const v = viewer.current
     const image = focus && placed.current.get(focus.id)
+    if (!cesium || !v || !image) return
     // straight down, north up, the whole image in view (range 0: Cesium fits the sphere)
-    if (cesium && v && image) {
-      v.camera.flyToBoundingSphere(image.sphere, { duration: 1.2, offset: new cesium.HeadingPitchRange(0, -Math.PI / 2, 0) })
-    }
-  }, [cesium, drapeKey, focus?.id, focus?.at])
+    v.camera.flyToBoundingSphere(image.sphere, {
+      duration: focus.instant ? 0 : 1.2, offset: new cesium.HeadingPitchRange(0, -Math.PI / 2, 0) })
+    aimed.current = true        // the start view over the station must not replace this one
+  }, [cesium, placedCount, focus?.id, focus?.at])
 
   return (
     <div className={size ? `globe ${size}` : 'globe'}>

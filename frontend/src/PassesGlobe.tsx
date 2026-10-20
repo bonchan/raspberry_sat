@@ -1,7 +1,7 @@
 // The Passes page's globe layout: the globe stays at the top with one pass's image draped where it was
 // taken, and under it every pass as a card, like the grid layout. Clicking a card puts that pass on the
-// globe (only one at a time: overlapping images would hide each other) and flies there. The newest
-// pass is on the globe to start with.
+// globe (only one at a time: overlapping images would hide each other) and flies there. It starts with
+// the newest pass, seen from straight above.
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -17,7 +17,8 @@ export default function PassesGlobe({ passes }: { passes: PassSummary[] }) {
   const withImages = passes.filter(p => p.main)
   const [selected, setSelected] = useState<string>()
   const chosen = withImages.find(p => p.id === selected) ?? withImages[0]
-  const [focus, setFocus] = useState<{ id: string; at: number }>()
+  const [focus, setFocus] = useState<{ id: string; at: number; instant?: boolean } | undefined>(
+    () => withImages[0] && { id: withImages[0].id, at: 0, instant: true })
   const { drapes, failed } = usePassDrapes(chosen ? [chosen] : [])
 
   function choose(id: string) {
