@@ -92,8 +92,11 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 .globe { position: relative; height: 440px; border-radius: 6px; overflow: hidden; background: #000; }
 .globe.tall { height: 800px; }
 .globe-section { display: flex; flex-direction: column; }
-.globe.fill { flex: 1; height: auto; min-height: 360px; }     /* as tall as the sky and signal next to it */
-.globe-canvas, .globe-canvas .cesium-widget, .globe-canvas .cesium-viewer { width: 100%; height: 100%; }
+.globe.fill { flex: 1; height: auto; min-height: 360px; }     /* as tall as the sky plot next to it */
+/* the canvas fills the box without counting towards its height: in a box sized by its row ("fill"), Cesium
+   sizing the canvas to the box (times the screen scaling) would otherwise make the box grow, frame after frame */
+.globe-canvas { position: absolute; inset: 0; }
+.globe-canvas .cesium-widget, .globe-canvas .cesium-viewer { width: 100%; height: 100%; }
 .globe-wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
 .globe-note { position: absolute; left: 8px; top: 4px; margin: 0; }
 .globe-note.right { left: auto; right: 8px; text-align: right; }
