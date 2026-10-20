@@ -378,9 +378,18 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
       followOffset.current = { norad, offset: C.Cartesian3.clone(v.camera.position) }
     }
     const stop = v.scene.preRender.addEventListener(follow)
+    // Cesium doesn't tilt (middle drag) while the camera rides a frame: let middle drag orbit like left drag
+    const controls = v.scene.screenSpaceCameraController
+    const saved = { rotate: controls.rotateEventTypes, tilt: controls.tiltEventTypes }
+    const middle = C.CameraEventType.MIDDLE_DRAG
+    controls.rotateEventTypes = [C.CameraEventType.LEFT_DRAG, middle]
+    controls.tiltEventTypes = Array.isArray(saved.tilt) ? saved.tilt.filter(e => e !== middle) : saved.tilt
     return () => {
       stop()
-      if (!v.isDestroyed()) v.camera.lookAtTransform(C.Matrix4.IDENTITY)
+      if (v.isDestroyed()) return
+      v.camera.lookAtTransform(C.Matrix4.IDENTITY)
+      controls.rotateEventTypes = saved.rotate
+      controls.tiltEventTypes = saved.tilt
     }
   }, [cesium, tles, aimKey, mode, cameraModes])
 
