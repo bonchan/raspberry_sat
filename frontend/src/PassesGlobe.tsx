@@ -1,5 +1,5 @@
 // The Passes page's globe layout: the globe fills the window's height with one pass's image draped where
-// it was taken; beside it every pass as a card, two per row under a heading per day, in their own scroll.
+// it was taken; beside it every pass as a card, three per row under a heading per day, in their own scroll.
 // Clicking a card puts that pass on the globe (only one at a time: overlapping images would hide each
 // other) and flies there. It starts with the newest pass, seen from straight above.
 

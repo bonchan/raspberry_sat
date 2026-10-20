@@ -338,14 +338,14 @@ section > .title-row { margin-bottom: 12px; }
 /* passes: list layout (grid is the gallery) */
 .layout-switch { margin-top: 0; }
 /* passes: globe layout (PassesGlobe.tsx). The globe as tall as the window allows (the height is set from
-   the window), the cards beside it in their own scroll, two per row under a heading per day */
+   the window), the cards beside it in their own scroll, three per row under a heading per day */
 .passes-globe {
-  display: grid; grid-template-columns: 1fr minmax(320px, 440px); grid-template-rows: minmax(0, 1fr);   /* the row: the box's height */
+  display: grid; grid-template-columns: 1fr minmax(420px, 640px); grid-template-rows: minmax(0, 1fr);   /* the row: the box's height */
   gap: 12px; min-height: 420px;
 }
 .passes-globe .globe { height: 100%; }
 .globe-gallery {
-  overflow-y: scroll; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start;
+  overflow-y: scroll; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-content: start;
   grid-auto-rows: max-content;       /* each row as tall as its cards: they keep their size, the column scrolls */
   padding: 2px 6px 2px 2px;          /* room for the selected card's ring, and off the scrollbar */
 }
@@ -357,7 +357,10 @@ html.page-wide main { max-width: none; }
 .globe-gallery .pass-day { grid-column: 1 / -1; }
 .globe-card { cursor: pointer; }
 .globe-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }      /* 2 px, without moving the content */
-@media (max-width: 760px) { .passes-globe { grid-template-columns: 1fr; grid-template-rows: minmax(0, 45%) minmax(0, 1fr); } }
+@media (max-width: 760px) {
+  .passes-globe { grid-template-columns: 1fr; grid-template-rows: minmax(0, 45%) minmax(0, 1fr); }
+  .globe-gallery { grid-template-columns: 1fr 1fr; }      /* three would be too small on a phone */
+}
 .pass-list { display: grid; gap: 8px; }
 .pass-day {         /* like the day rows of the upcoming passes */
   margin: 8px 0 0; padding: 0 0 4px; border-bottom: 1px solid var(--dim);
