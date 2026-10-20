@@ -39,11 +39,11 @@ export default function PassesGlobe({ passes, dayLabel }: { passes: PassSummary[
     const header = document.querySelector('header')
     const observer = new ResizeObserver(fit)
     if (header) observer.observe(header)
-    document.documentElement.classList.add('page-fixed')
+    document.documentElement.classList.add('page-fixed', 'page-wide')
     return () => {
       window.removeEventListener('resize', fit)
       observer.disconnect()
-      document.documentElement.classList.remove('page-fixed')
+      document.documentElement.classList.remove('page-fixed', 'page-wide')
     }
   }, [])
 

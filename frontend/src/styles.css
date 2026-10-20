@@ -352,6 +352,8 @@ section > .title-row { margin-bottom: 12px; }
 .globe-gallery .card img { flex: none; }
 /* while the globe layout is open the page itself doesn't scroll, only its card column (wide screens) */
 @media (min-width: 761px) { html.page-fixed { overflow: hidden; } }
+/* ... and it uses the whole width of big screens, not the 1100 px the other pages keep to */
+html.page-wide main { max-width: none; }
 .globe-gallery .pass-day { grid-column: 1 / -1; }
 .globe-card { cursor: pointer; }
 .globe-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }      /* 2 px, without moving the content */
