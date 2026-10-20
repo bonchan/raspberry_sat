@@ -90,12 +90,18 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 
 /* globe (Globe.tsx): fixed height, so nothing moves while CesiumJS loads */
 .globe { position: relative; height: 440px; border-radius: 6px; overflow: hidden; background: #000; }
+.globe.tall { height: 800px; }
+.globe-section { display: flex; flex-direction: column; }
+.globe.fill { flex: 1; height: auto; min-height: 360px; }     /* as tall as the sky and signal next to it */
 .globe-canvas, .globe-canvas .cesium-widget, .globe-canvas .cesium-viewer { width: 100%; height: 100%; }
 .globe-wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
 .globe-note { position: absolute; left: 8px; top: 4px; margin: 0; }
 .globe-note.right { left: auto; right: 8px; text-align: right; }
 .globe .cesium-viewer-bottom { opacity: .6; }       /* the credits, kept but quiet */
-@media (max-width: 760px) { .globe { height: 320px; } }
+@media (max-width: 760px) {
+  .globe.tall { height: 70vh; }
+  .globe.fill { min-height: 320px; }
+}
 
 /* spectrum (SpectrumPlot.tsx) */
 .spectrum svg, .spectrum .waterfall { display: block; width: 100%; background: #0c0d10; }
@@ -236,7 +242,14 @@ table.passes tr.live td { font-weight: 600; }
 
 /* live pass */
 .live-grid { display: grid; grid-template-columns: minmax(240px, 380px) 1fr; gap: 16px; }
-@media (max-width: 760px) { .live-grid { grid-template-columns: 1fr; } }
+/* during a pass: sky, signal and the globe in one row; the globe below them when there is no room */
+.live-grid.with-globe { grid-template-columns: minmax(240px, 340px) minmax(280px, 1fr) minmax(300px, 1.3fr); }
+@media (max-width: 1000px) {
+  .live-grid.with-globe { grid-template-columns: minmax(240px, 380px) 1fr; }
+  .live-grid.with-globe .globe-section { grid-column: 1 / -1; }
+  .live-grid.with-globe .globe.fill { min-height: 440px; }
+}
+@media (max-width: 760px) { .live-grid, .live-grid.with-globe { grid-template-columns: 1fr; } }
 .progress { height: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
 .progress > div { height: 100%; background: var(--accent); transition: width 1s linear; }
 .pass-cards + .progress { margin-top: 4px; }
@@ -328,6 +341,17 @@ section > .title-row { margin-bottom: 12px; }
 
 /* passes: list layout (grid is the gallery) */
 .layout-switch { margin-top: 0; }
+/* passes: globe layout (PassesGlobe.tsx) */
+.passes-globe { display: grid; grid-template-columns: 1fr 280px; gap: 12px; align-items: start; }
+.passes-globe-side {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  max-height: 800px; overflow-y: auto;
+}
+.day-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.globe-passes { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.globe-passes li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.globe-passes label { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 760px) { .passes-globe { grid-template-columns: 1fr; } }
 .pass-list { display: grid; gap: 8px; }
 .pass-day {         /* like the day rows of the upcoming passes */
   margin: 8px 0 0; padding: 0 0 4px; border-bottom: 1px solid var(--dim);

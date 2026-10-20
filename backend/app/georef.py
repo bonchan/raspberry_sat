@@ -134,11 +134,13 @@ def georeference(product: Path, width: int, height: int, rows: int = 64, cols: i
     cfg, tle = data.get("projection_cfg") or {}, data.get("tle") or {}
     if cfg.get("type") != "normal_single_line" or cfg.get("image_width") != width or not tle.get("line1"):
         return None
-    # the channel whose lines match the image: composites keep their channels' height
-    times = next((t for t in (line_times(filter_timestamps(img.get("timestamps") or [], cfg), cfg)
-                              for img in data.get("images", [])) if len(t) == height), None)
-    if times is None:
+    # the line times of the channel closest to the image's height: a composite has its channels' height,
+    # or a few lines less when SatDump cut it to its shortest channel (same first line)
+    channels = [line_times(filter_timestamps(img.get("timestamps") or [], cfg), cfg) for img in data.get("images", [])]
+    tall_enough = [t for t in channels if len(t) >= height]
+    if not tall_enough:
         return None
+    times = min(tall_enough, key=len)[:height]
 
     sat = Satrec.twoline2rv(tle["line1"], tle["line2"])
     scan_angle = cfg["scan_angle"]

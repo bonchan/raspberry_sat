@@ -81,7 +81,8 @@ def test_grid_needs_a_matching_image(tmp_path):
     product.write_bytes(cbor2.dumps({"images": [{"timestamps": [EPOCH, EPOCH + 1.23]}], "projection_cfg": CFG,
                                      "tle": {"line1": lines[1], "line2": lines[2]}}))
     assert georef.georeference(product, 2800, 16) is None            # a corrected image: other geometry
-    assert georef.georeference(product, 1568, 99) is None            # cropped composite: lines don't match
+    assert georef.georeference(product, 1568, 99) is None            # taller than any channel
+    assert georef.georeference(product, 1568, 12, rows=4, cols=3) is not None      # cut short: still fits
 
 
 def test_drape_image_is_the_raw_main_composite():

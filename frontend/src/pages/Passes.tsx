@@ -6,17 +6,33 @@ import { clock, longDate, longDay, percent, sameDay, size } from '../format'
 import DiscordIcon from '../DiscordIcon'
 import SignalChart from '../SignalChart'
 import { useT } from '../i18n'
+import PassesGlobe from '../PassesGlobe'
 import { elevationQuality } from '../UpcomingPasses'
 
-type Layout = 'grid' | 'list'
+type Layout = 'grid' | 'list' | 'globe'
+const LAYOUTS: Layout[] = ['grid', 'list', 'globe']
 const LAYOUT = 'rsat-passes-layout'         // this browser's choice
 
 function storedLayout(): Layout {
-  try { return localStorage.getItem(LAYOUT) === 'list' ? 'list' : 'grid' } catch { return 'grid' }
+  try {
+    const stored = localStorage.getItem(LAYOUT) as Layout
+    return LAYOUTS.includes(stored) ? stored : 'grid'
+  } catch {
+    return 'grid'
+  }
+}
+
+/** "Today", "Yesterday", or the weekday and date, for the day headings */
+function useDayLabel() {
+  const t = useT()
+  const now = Date.now() / 1000
+  return (time: number) =>
+    sameDay(time, now) ? t('up.today') : sameDay(time, now - 86400) ? t('passes.yesterday') : longDay(time)
 }
 
 export default function Passes() {
   const t = useT()
+  const dayLabel = useDayLabel()
   const { data, error } = usePolling(api.getPasses, 15000)
   const [layout, setLayoutState] = useState<Layout>(storedLayout)
 
@@ -47,16 +63,16 @@ export default function Passes() {
           <div className="title-row">
             <span className="hint">{t('passes.count', { n: data.passes.length })}</span>
             <div className="chips layout-switch">
-              {(['grid', 'list'] as const).map(l => (
+              {LAYOUTS.map(l => (
                 <button key={l} className={layout === l ? 'chip on' : 'chip'} onClick={() => setLayout(l)}>
-                  {t(l === 'grid' ? 'passes.grid' : 'passes.list')}
+                  {t(`passes.${l}`)}
                 </button>
               ))}
             </div>
           </div>
-          {layout === 'grid'
-            ? <div className="gallery">{data.passes.map(p => <PassCard key={p.id} pass={p} />)}</div>
-            : <PassList passes={data.passes} />}
+          {layout === 'grid' && <div className="gallery">{data.passes.map(p => <PassCard key={p.id} pass={p} />)}</div>}
+          {layout === 'list' && <PassList passes={data.passes} />}
+          {layout === 'globe' && <PassesGlobe passes={data.passes} dayLabel={dayLabel} />}
         </>
       )}
     </>
@@ -87,10 +103,7 @@ function PassCard({ pass }: { pass: PassSummary }) {
 
 /** Rows grouped under a heading per day, like the upcoming passes; newest first. */
 function PassList({ passes }: { passes: PassSummary[] }) {
-  const t = useT()
-  const now = Date.now() / 1000
-  const label = (time: number) =>
-    sameDay(time, now) ? t('up.today') : sameDay(time, now - 86400) ? t('passes.yesterday') : longDay(time)
+  const label = useDayLabel()
 
   const items: ReactNode[] = []
   let day = ''

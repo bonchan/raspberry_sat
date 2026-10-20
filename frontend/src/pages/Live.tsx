@@ -4,7 +4,7 @@ import { api, type Live as LiveData, type LiveSample, type UpcomingPass } from '
 import { useNow, usePolling, useVisible } from '../hooks'
 import { clock, size, utcClock } from '../format'
 import { useT, type Key } from '../i18n'
-import Globe from '../Globe'
+import Globe, { usePassDrapes } from '../Globe'
 import PassCards from '../PassCards'
 import SignalChart from '../SignalChart'
 import SpectrumPlot from '../SpectrumPlot'
@@ -72,7 +72,7 @@ export default function Live() {
           <PassCards aos={aos} los={los} inPass />
           <Progress aos={aos} los={los} now={now} />
         </section>
-        <div className="live-grid">
+        <div className="live-grid with-globe">
           <section>
             <h2>{t('live.sky')}</h2>
             <SkyPlot track={current?.track} current={tracker.sat_current_pos} samples={samples} />
@@ -87,8 +87,8 @@ export default function Live() {
             <SignalTiles sample={live.current ?? samples[samples.length - 1]} caduBytes={live.cadu_bytes}
               frequency={status.tracker?.frequency} />
           </section>
+          <GlobeSection highlight={current?.norad} fill />
         </div>
-        <GlobeSection highlight={current?.norad} />
         <section>
           <h2>{t('live.thisPass')}</h2>
           <SignalChart samples={samples} start={aos} end={los} track={current?.track} />
@@ -206,12 +206,20 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
 }
 
 /** The satellites in the settings on a globe, where they are now; the one being received in yellow. */
-function GlobeSection({ highlight }: { highlight?: number }) {
+/** The satellites now and the last pass's image: the newest pass whose image can be placed (a pass that
+    can't, falls back to the one before). fill: as tall as the row it sits in (during a pass). */
+function GlobeSection({ highlight, fill = false }: { highlight?: number; fill?: boolean }) {
   const t = useT()
+  const { data: passList } = usePolling(api.getPasses, 2 * 60 * 1000)
+  const recent = (passList?.passes ?? []).filter(p => p.main).slice(0, 4)
+  const { drapes } = usePassDrapes(recent)
+  const last = drapes[0]
+  const pass = last && recent.find(p => p.id === last.id)
   return (
-    <section>
+    <section className={fill ? 'globe-section' : undefined}>
       <h2>{t('globe.title')}</h2>
-      <Globe highlight={highlight} />
+      <Globe satellites highlight={highlight} size={fill ? 'fill' : 'tall'} drapes={last ? [last] : []}
+        note={pass && t('globe.lastPass', { satellite: pass.satellite, time: clock(pass.time) })} />
     </section>
   )
 }

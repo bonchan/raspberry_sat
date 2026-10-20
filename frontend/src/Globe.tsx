@@ -5,11 +5,10 @@
 // time a globe opens, so the other pages don't carry it. Only types are imported from 'cesium' here.
 
 import { useEffect, useRef, useState } from 'react'
-import type { Cartesian3, Viewer } from 'cesium'
+import type { BoundingSphere, Cartesian3, Primitive, Viewer } from 'cesium'
 import { eciToEcf, gstime, propagate, twoline2satrec, type SatRec } from 'satellite.js'
 import { api, passFile, type PassGeo, type PassSummary, type TleSet } from './api'
 import { usePolling } from './hooks'
-import { clock } from './format'
 import { useT } from './i18n'
 
 type CesiumNS = typeof import('cesium')
@@ -79,7 +78,8 @@ function nextOrbit(C: CesiumNS, rec: SatRec): Cartesian3[] {
   return points
 }
 
-function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, highlight?: number) {
+/** The station, and with `satellites` the satellites in the settings where they are now and their next orbit. */
+function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: boolean, highlight?: number) {
   const label = (text: string) => ({
     text, font: '13px sans-serif', fillColor: C.Color.WHITE, outlineColor: C.Color.BLACK, outlineWidth: 3,
     style: C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -12),
@@ -90,7 +90,7 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, highlight?: n
     point: { pixelSize: 8, color: C.Color.fromCssColorString(COLORS.station), outlineColor: C.Color.BLACK, outlineWidth: 1 },
     label: label(station.name),
   })
-  for (const sat of tles.satellites) {
+  for (const sat of satellites ? tles.satellites : []) {
     const rec = twoline2satrec(sat.line1, sat.line2)
     const receiving = sat.norad === highlight
     const color = C.Color.fromCssColorString(receiving ? COLORS.receiving : sat.enabled ? COLORS.satellite : COLORS.disabled)
@@ -117,7 +117,7 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, highlight?: n
 /** The pass's image stretched over its grid of positions: each grid cell is two triangles whose corners
     carry the matching spot of the image, so it follows the strip's curve. Cells touching a line without
     a position (no data) are left out. */
-function passImage(C: CesiumNS, geo: PassGeo, url: string) {
+function passImage(C: CesiumNS, geo: PassGeo, url: string): { primitive: Primitive; sphere: BoundingSphere } | null {
   const { rows, cols, points, width, height } = geo
   const positions: number[] = [], st: number[] = [], indices: number[] = []
   const vertex = new Map<number, number>()       // grid index -> vertex index
@@ -151,7 +151,7 @@ function passImage(C: CesiumNS, geo: PassGeo, url: string) {
     boundingSphere: C.BoundingSphere.fromVertices(positions),
   })
   C.GeometryPipeline.computeNormal(geometry)
-  return new C.Primitive({
+  const primitive = new C.Primitive({
     geometryInstances: new C.GeometryInstance({ geometry }),
     appearance: new C.MaterialAppearance({
       material: C.Material.fromType('Image', { image: url }),
@@ -159,21 +159,64 @@ function passImage(C: CesiumNS, geo: PassGeo, url: string) {
     }),
     asynchronous: false,
   })
+  return { primitive, sphere: geometry.boundingSphere! }
 }
 
-/** highlight: the NORAD number of the satellite being received, drawn in yellow like on the sky plot. */
-export default function Globe({ highlight }: { highlight?: number }) {
+/** An image to drape on the globe: a pass's picture and where its pixels lie. */
+export interface Drape { id: string; geo: PassGeo; url: string }
+
+const geoCache = new Map<string, Promise<PassGeo | null>>()     // per page load; null: can't be placed
+
+/** Where these passes' images lie, in the passes' order. Passes whose image can't be placed (no
+    georeferencing) are in `failed`. Each pass is asked for once per page load; while new ones load, the
+    ones already known stay (ready false). */
+export function usePassDrapes(passes: PassSummary[]): { drapes: Drape[]; failed: string[]; ready: boolean } {
+  const key = passes.map(p => p.id).join('|')
+  const [state, setState] = useState<{ key: string; drapes: Drape[]; failed: string[] }>({ key: '', drapes: [], failed: [] })
+  useEffect(() => {
+    let alive = true
+    const ids = key ? key.split('|') : []
+    Promise.all(ids.map(id => {
+      let geo = geoCache.get(id)
+      if (!geo) {
+        geo = api.getPassGeo(id).catch(() => null)
+        geoCache.set(id, geo)
+      }
+      return geo.then(g => ({ id, geo: g }))
+    })).then(results => {
+      if (!alive) return
+      setState({
+        key,
+        drapes: results.flatMap(r => (r.geo ? [{ id: r.id, geo: r.geo, url: passFile(r.id, 'large', r.geo.image) }] : [])),
+        failed: results.filter(r => !r.geo).map(r => r.id),
+      })
+    })
+    return () => { alive = false }
+  }, [key])
+  if (state.key === key) return { ...state, ready: true }
+  const wanted = new Set(passes.map(p => p.id))
+  return { drapes: state.drapes.filter(d => wanted.has(d.id)), failed: state.failed.filter(id => wanted.has(id)), ready: false }
+}
+
+interface Props {
+  size?: 'tall' | 'fill'              // tall: 800 px; fill: as tall as its row (Live during a pass)
+  satellites?: boolean                // the satellites in the settings, live, with their next orbit
+  highlight?: number                  // NORAD number of the one being received: yellow, like on the sky plot
+  drapes?: Drape[]
+  focus?: { id: string; at: number }  // fly to this drape; `at` changes when asked again
+  note?: string                       // top right, e.g. which pass the image is from
+}
+
+export default function Globe({ size, satellites = false, highlight, drapes = [], focus, note }: Props) {
   const t = useT()
   const box = useRef<HTMLDivElement>(null)
   const viewer = useRef<Viewer | null>(null)
   const aimed = useRef(false)
+  const placed = useRef(new Map<string, { primitive: Primitive; sphere: BoundingSphere }>())    // by drape id
   const [cesium, setCesium] = useState<CesiumNS | null>(null)
   const [failed, setFailed] = useState('')
   const { data: tles } = usePolling(api.getTles, 60 * 60 * 1000)     // SatDump refreshes them daily
-  // the newest pass with an image; its image goes on the globe once SatDump has finished it
-  const { data: passList } = usePolling(api.getPasses, 2 * 60 * 1000)
-  const last: PassSummary | undefined = passList?.passes.find(p => p.main)
-  const [draped, setDraped] = useState<{ pass: PassSummary; geo: PassGeo } | null>(null)
+  const drapeKey = drapes.map(d => d.id).join('|')
 
   useEffect(() => {
     let alive = true
@@ -184,8 +227,9 @@ export default function Globe({ highlight }: { highlight?: number }) {
     }, e => { if (alive) setFailed(e instanceof Error ? e.message : String(e)) })
     return () => {
       alive = false
-      viewer.current?.destroy()
+      viewer.current?.destroy()         // and the images on it
       viewer.current = null
+      placed.current.clear()
       aimed.current = false
     }
   }, [])
@@ -197,34 +241,44 @@ export default function Globe({ highlight }: { highlight?: number }) {
       v.camera.setView({ destination: cesium.Cartesian3.fromDegrees(tles.station.lon, tles.station.lat, 15_000_000) })
       aimed.current = true
     }
-    showSatellites(cesium, v, tles, highlight)
+    showSatellites(cesium, v, tles, satellites, highlight)
     return () => { if (!v.isDestroyed()) v.entities.removeAll() }
-  }, [cesium, tles, highlight])
+  }, [cesium, tles, satellites, highlight])
 
+  // only the images that changed come and go, so the others don't flicker
   useEffect(() => {
-    if (!last || draped?.pass.id === last.id) return
-    let alive = true
-    api.getPassGeo(last.id).then(geo => { if (alive) setDraped({ pass: last, geo }) }, () => {})
-    return () => { alive = false }
-  }, [last?.id])
+    const v = viewer.current
+    if (!cesium || !v) return
+    const wanted = new Set(drapes.map(d => d.id))
+    for (const [id, image] of placed.current) {
+      if (!wanted.has(id)) {
+        v.scene.primitives.remove(image.primitive)
+        placed.current.delete(id)
+      }
+    }
+    for (const d of drapes) {
+      if (placed.current.has(d.id)) continue
+      const image = passImage(cesium, d.geo, d.url)
+      if (!image) continue
+      v.scene.primitives.add(image.primitive)
+      placed.current.set(d.id, image)
+    }
+  }, [cesium, drapeKey])
 
   useEffect(() => {
     const v = viewer.current
-    if (!cesium || !v || !draped) return
-    const image = passImage(cesium, draped.geo, passFile(draped.pass.id, 'large', draped.geo.image))
-    if (!image) return
-    v.scene.primitives.add(image)
-    return () => { if (!v.isDestroyed()) v.scene.primitives.remove(image) }
-  }, [cesium, draped])
+    const image = focus && placed.current.get(focus.id)
+    if (v && image) v.camera.flyToBoundingSphere(image.sphere, { duration: 1.2 })
+  }, [cesium, drapeKey, focus?.id, focus?.at])
 
   return (
-    <div className="globe">
+    <div className={size ? `globe ${size}` : 'globe'}>
       <div ref={box} className="globe-canvas" />
       {!cesium && <p className="globe-wait hint">{failed ? t('globe.failed', { error: failed }) : t('globe.loading')}</p>}
-      {tles && tles.missing.length > 0 && <p className="globe-note hint">{t('globe.missing', { list: tles.missing.join(', ') })}</p>}
-      {draped && cesium && (
-        <p className="globe-note right hint">{t('globe.lastPass', { satellite: draped.pass.satellite, time: clock(draped.pass.time) })}</p>
+      {tles && tles.missing.length > 0 && satellites && (
+        <p className="globe-note hint">{t('globe.missing', { list: tles.missing.join(', ') })}</p>
       )}
+      {note && cesium && <p className="globe-note right hint">{note}</p>}
     </div>
   )
 }
