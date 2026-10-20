@@ -24,6 +24,10 @@ const COLORS = { station: '#3ecf8e', satellite: '#4da3ff', receiving: '#ffd23f' 
 const IMAGE_HEIGHT = 5000       // metres above the ground for a draped image: clear of the globe's surface
 const IMAGE_STEP = 1000         // each further image a little higher, so overlapping ones don't flicker
 const ON_TOP = Number.POSITIVE_INFINITY      // labels and dots drawn over the images, never hidden by them
+const BEHIND = 0.3              // opacity of a satellite on the far side of the Earth from the camera
+const FOLLOW_RANGE = 2_500_000  // follow mode: metres from the camera to the satellite
+const FOLLOW_PITCH = -0.6       // ... looking this far down (radians), the way it travels
+const MODE = 'rsat-globe-mode'  // this browser's choice of follow or static during a pass
 
 let loading: Promise<CesiumNS> | null = null
 
@@ -80,8 +84,10 @@ function nextOrbit(C: CesiumNS, rec: SatRec): Cartesian3[] {
   return points
 }
 
-/** The station, and with `satellites` the enabled satellites in the settings where they are now and their next orbit. */
-function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: boolean, highlight?: number) {
+/** The station, and with `satellites` the enabled satellites in the settings where they are now and their next
+    orbit; `order` numbers them by their next recorded pass. A satellite behind the Earth is faded. */
+function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: boolean, highlight?: number,
+                        order?: Record<number, number>) {
   const label = (text: string) => ({
     text, font: '13px sans-serif', fillColor: C.Color.WHITE, outlineColor: C.Color.BLACK, outlineWidth: 3,
     style: C.LabelStyle.FILL_AND_OUTLINE, verticalOrigin: C.VerticalOrigin.BOTTOM, pixelOffset: new C.Cartesian2(0, -12),
@@ -96,16 +102,40 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
     },
     label: label(station.name),
   })
+  const occluder = new C.EllipsoidalOccluder(C.Ellipsoid.WGS84, viewer.camera.positionWC)
+  const dim = (c: InstanceType<CesiumNS['Color']>) => [c, c.withAlpha(BEHIND)]
+  const [black, blackDim] = dim(C.Color.BLACK), [white, whiteDim] = dim(C.Color.WHITE)
   for (const sat of satellites ? tles.satellites.filter(s => s.enabled) : []) {
     const rec = twoline2satrec(sat.line1, sat.line2)
     const receiving = sat.norad === highlight
-    const color = C.Color.fromCssColorString(receiving ? COLORS.receiving : COLORS.satellite)
+    const [color, colorDim] = dim(C.Color.fromCssColorString(receiving ? COLORS.receiving : COLORS.satellite))
+    // where it is and whether the Earth hides it from the camera, worked out once per frame
+    let frameAt = -1, where: Cartesian3 | undefined, seen = true
+    const now = () => {
+      const ms = Date.now()
+      if (ms !== frameAt) {
+        frameAt = ms
+        where = positionAt(C, rec, new Date(ms))
+        occluder.cameraPosition = viewer.camera.positionWC
+        seen = !where || occluder.isPointVisible(where)
+      }
+      return { where, seen }
+    }
+    const rank = order?.[sat.norad]
     let orbit: Cartesian3[] = []
     let orbitAt = 0
     viewer.entities.add({
-      position: new C.CallbackPositionProperty(() => positionAt(C, rec, new Date()), false),
-      point: { pixelSize: receiving ? 12 : 9, color, outlineColor: C.Color.BLACK, outlineWidth: 2, disableDepthTestDistance: ON_TOP },
-      label: label(sat.name),
+      position: new C.CallbackPositionProperty(() => now().where, false),
+      point: {
+        pixelSize: receiving ? 12 : 9, outlineWidth: 2, disableDepthTestDistance: ON_TOP,
+        color: new C.CallbackProperty(() => (now().seen ? color : colorDim), false),
+        outlineColor: new C.CallbackProperty(() => (now().seen ? black : blackDim), false),
+      },
+      label: {
+        ...label(rank ? `#${rank} ${sat.name}` : sat.name),
+        fillColor: new C.CallbackProperty(() => (now().seen ? white : whiteDim), false),
+        outlineColor: new C.CallbackProperty(() => (now().seen ? black : blackDim), false),
+      },
       polyline: {
         positions: new C.CallbackProperty(() => {
           if (Date.now() - orbitAt > ORBIT_REFRESH) {
@@ -114,7 +144,7 @@ function showSatellites(C: CesiumNS, viewer: Viewer, tles: TleSet, satellites: b
           }
           return orbit
         }, false),
-        width: receiving ? 2 : 1.5, arcType: C.ArcType.NONE, material: color.withAlpha(0.55),
+        width: receiving ? 2 : 1.5, arcType: C.ArcType.NONE, material: color.withAlpha(0.55),     // the Earth hides it
       },
     })
   }
@@ -212,10 +242,21 @@ interface Props {
   focus?: { id: string; at: number; instant?: boolean }   // fly to this drape; `at` changes when asked again
   note?: string                       // top right, e.g. which pass the image is from
   startHeight?: number                // metres above the station to start from
+  order?: Record<number, number>      // NORAD number -> place in the order of the next recorded passes
+  cameraModes?: boolean               // during a pass: follow the satellite, or stay above the station
 }
 
-export default function Globe({ size, satellites = false, highlight, drapes = [], focus, note, startHeight = 15_000_000 }: Props) {
+type CameraMode = 'follow' | 'static'
+
+function storedMode(): CameraMode {
+  try { return localStorage.getItem(MODE) === 'static' ? 'static' : 'follow' } catch { return 'follow' }
+}
+
+export default function Globe({ size, satellites = false, highlight, drapes = [], focus, note, startHeight = 15_000_000,
+                                order, cameraModes = false }: Props) {
   const t = useT()
+  const [mode, setModeState] = useState<CameraMode>(storedMode)
+  const orderKey = JSON.stringify(order ?? {})
   const box = useRef<HTMLDivElement>(null)
   const viewer = useRef<Viewer | null>(null)
   const aimed = useRef(false)
@@ -252,9 +293,42 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
       v.camera.setView({ destination: cesium.Cartesian3.fromDegrees(tles.station.lon, tles.station.lat, startHeight) })
       aimed.current = true
     }
-    showSatellites(cesium, v, tles, satellites, highlight)
+    showSatellites(cesium, v, tles, satellites, highlight, order)
     return () => { if (!v.isDestroyed()) v.entities.removeAll() }
-  }, [cesium, tles, satellites, highlight])
+  }, [cesium, tles, satellites, highlight, orderKey])
+
+  // during a pass: follow the satellite being received from behind, the way it travels, looking down;
+  // or stay above the station
+  useEffect(() => {
+    const v = viewer.current
+    if (!cesium || !v || !tles || !cameraModes) return
+    const C = cesium
+    const sat = tles.satellites.find(s => s.norad === highlight)
+    if (mode === 'static' || !sat) {
+      v.camera.flyTo({ destination: C.Cartesian3.fromDegrees(tles.station.lon, tles.station.lat, startHeight), duration: 1 })
+      return
+    }
+    const rec = twoline2satrec(sat.line1, sat.line2)
+    const follow = () => {
+      const ms = Date.now()
+      const here = positionAt(C, rec, new Date(ms)), ahead = positionAt(C, rec, new Date(ms + 1000))
+      if (!here || !ahead) return
+      // the next second's position in east/north/up around the satellite gives the heading it travels
+      const toLocal = C.Matrix4.inverseTransformation(C.Transforms.eastNorthUpToFixedFrame(here), new C.Matrix4())
+      const step = C.Matrix4.multiplyByPoint(toLocal, ahead, new C.Cartesian3())
+      v.camera.lookAt(here, new C.HeadingPitchRange(Math.atan2(step.x, step.y), FOLLOW_PITCH, FOLLOW_RANGE))
+    }
+    const stop = v.scene.preRender.addEventListener(follow)
+    return () => {
+      stop()
+      if (!v.isDestroyed()) v.camera.lookAtTransform(C.Matrix4.IDENTITY)
+    }
+  }, [cesium, tles, highlight, mode, cameraModes])
+
+  function setMode(next: CameraMode) {
+    setModeState(next)
+    try { localStorage.setItem(MODE, next) } catch { /* private mode */ }
+  }
 
   // only the images that changed come and go, so the others don't flicker. Each picture is downloaded and
   // decoded before its strip goes on the globe, so the strip never shows Cesium's white placeholder.
@@ -304,6 +378,13 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
         <p className="globe-note hint">{t('globe.missing', { list: tles.missing.join(', ') })}</p>
       )}
       {note && cesium && <p className="globe-note right hint">{note}</p>}
+      {cameraModes && cesium && (
+        <div className="chips globe-modes">
+          {(['follow', 'static'] as const).map(m => (
+            <button key={m} className={mode === m ? 'chip on' : 'chip'} onClick={() => setMode(m)}>{t(`globe.${m}`)}</button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

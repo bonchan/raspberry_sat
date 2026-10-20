@@ -97,6 +97,7 @@ ul.error { margin: 0; padding: 10px 10px 10px 28px; background: var(--panel); bo
 .globe-wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
 .globe-note { position: absolute; left: 8px; top: 4px; margin: 0; }
 .globe-note.right { left: auto; right: 8px; text-align: right; }
+.chips.globe-modes { position: absolute; right: 8px; top: 8px; margin: 0; }      /* follow / static during a pass */
 .globe .cesium-viewer-bottom { opacity: .6; }       /* the credits, kept but quiet */
 @media (max-width: 760px) {
   .globe.tall { height: 70vh; }
@@ -242,13 +243,8 @@ table.passes tr.live td { font-weight: 600; }
 
 /* live pass */
 .live-grid { display: grid; grid-template-columns: minmax(240px, 380px) 1fr; gap: 16px; }
-/* during a pass: sky, signal and the globe in one row; the globe below them when there is no room */
-.live-grid.with-globe { grid-template-columns: minmax(240px, 340px) minmax(280px, 1fr) minmax(300px, 1.3fr); }
-@media (max-width: 1000px) {
-  .live-grid.with-globe { grid-template-columns: minmax(240px, 380px) 1fr; }
-  .live-grid.with-globe .globe-section { grid-column: 1 / -1; }
-  .live-grid.with-globe .globe.fill { min-height: 440px; }
-}
+/* during a pass: the sky plot and the globe side by side, the globe as tall as the sky plot's section */
+.live-grid.with-globe { grid-template-columns: minmax(240px, 340px) 1fr; }
 @media (max-width: 760px) { .live-grid, .live-grid.with-globe { grid-template-columns: 1fr; } }
 .progress { height: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
 .progress > div { height: 100%; background: var(--accent); transition: width 1s linear; }

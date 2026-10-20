@@ -72,6 +72,11 @@ export default function Live() {
           <PassCards aos={aos} los={los} inPass />
           <Progress aos={aos} los={los} now={now} />
         </section>
+        <section>
+          <h2>{t('live.signal')}</h2>
+          <SignalTiles sample={live.current ?? samples[samples.length - 1]} caduBytes={live.cadu_bytes}
+            frequency={status.tracker?.frequency} />
+        </section>
         <div className="live-grid with-globe">
           <section>
             <h2>{t('live.sky')}</h2>
@@ -82,12 +87,7 @@ export default function Live() {
             </p>
             <SkyLegend sync />
           </section>
-          <section>
-            <h2>{t('live.signal')}</h2>
-            <SignalTiles sample={live.current ?? samples[samples.length - 1]} caduBytes={live.cadu_bytes}
-              frequency={status.tracker?.frequency} />
-          </section>
-          <GlobeSection highlight={current?.norad} fill />
+          <GlobeSection highlight={current?.norad} fill cameraModes />
         </div>
         <section>
           <h2>{t('live.thisPass')}</h2>
@@ -131,7 +131,7 @@ export default function Live() {
         </section>
       )}
       <NextPass next={next} />
-      <GlobeSection />
+      <GlobeSection order={nextOrder(passes, now)} />
       {status.satdump.state === 'running' && config && (
         <IdleReceiver stopsWhenIdle={config.tracking.stop_sdr_when_idle} frequency={status.tracker?.frequency} />
       )}
@@ -149,10 +149,6 @@ function NextPass({ next }: { next?: UpcomingPass }) {
       <p className="hint">
         {t('live.nextDetail', { min: Math.round((next.los - next.aos) / 60), el: Math.round(next.max_el) })}
       </p>
-      <div className="narrow">
-        <SkyPlot track={next.track} />
-        <SkyLegend />
-      </div>
       <p className="hint">{t('live.switches')}</p>
     </section>
   )
@@ -208,14 +204,27 @@ function SignalTiles({ sample, caduBytes, frequency }: { sample?: LiveSample; ca
 /** The satellites in the settings on a globe, where they are now; the one being received in yellow. */
 const LIVE_START_HEIGHT = 15_000_000     // metres above the station: the hemisphere around it
 
+/** NORAD number -> 1, 2, 3... in the order of their next recorded pass */
+function nextOrder(passes: UpcomingPass[], now: number): Record<number, number> {
+  const order: Record<number, number> = {}
+  let n = 0
+  for (const p of passes) {
+    if (p.scheduled && p.los > now && !(p.norad in order)) order[p.norad] = ++n
+  }
+  return order
+}
+
 /** The station and the enabled satellites, where they are now (pass images are on the Passes page).
-    fill: as tall as the row it sits in (during a pass). */
-function GlobeSection({ highlight, fill = false }: { highlight?: number; fill?: boolean }) {
+    fill: as tall as the row it sits in, with the follow/static camera buttons (during a pass). */
+function GlobeSection({ highlight, fill = false, order, cameraModes = false }: {
+  highlight?: number; fill?: boolean; order?: Record<number, number>; cameraModes?: boolean
+}) {
   const t = useT()
   return (
     <section className={fill ? 'globe-section' : undefined}>
       <h2>{t('globe.title')}</h2>
-      <Globe satellites highlight={highlight} size={fill ? 'fill' : 'tall'} startHeight={LIVE_START_HEIGHT} />
+      <Globe satellites highlight={highlight} size={fill ? 'fill' : 'tall'} startHeight={LIVE_START_HEIGHT}
+        order={order} cameraModes={cameraModes} />
     </section>
   )
 }
