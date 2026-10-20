@@ -70,13 +70,28 @@ export default function Passes() {
               ))}
             </div>
           </div>
-          {layout === 'grid' && <div className="gallery">{data.passes.map(p => <PassCard key={p.id} pass={p} />)}</div>}
+          {layout === 'grid' && <PassGrid passes={data.passes} />}
           {layout === 'list' && <PassList passes={data.passes} />}
           {layout === 'globe' && <PassesGlobe passes={data.passes} dayLabel={dayLabel} />}
         </>
       )}
     </>
   )
+}
+
+/** Cards under a heading per day, like the list; newest first. */
+function PassGrid({ passes }: { passes: PassSummary[] }) {
+  const label = useDayLabel()
+  const items: ReactNode[] = []
+  let day = ''
+  for (const p of passes) {
+    if (label(p.time) !== day) {
+      day = label(p.time)
+      items.push(<h3 key={`day-${p.id}`} className="pass-day">{day}</h3>)
+    }
+    items.push(<PassCard key={p.id} pass={p} />)
+  }
+  return <div className="gallery">{items}</div>
 }
 
 // the satellite name is the card's link, stretched over the whole card (CSS), so the Discord link

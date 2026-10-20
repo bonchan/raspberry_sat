@@ -322,6 +322,7 @@ a.button {
 a { color: var(--accent); }
 
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.gallery .pass-day { grid-column: 1 / -1; }      /* day headings across the whole row */
 .card {
   display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line);
   border-radius: 8px; overflow: hidden; color: inherit; text-decoration: none;
