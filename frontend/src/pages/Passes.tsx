@@ -156,8 +156,17 @@ function PassRow({ pass }: { pass: PassSummary }) {
 
 /** The pass's signal chart, bare; loaded once, when the row comes into view. Empty for passes without one. */
 function RowChart({ id }: { id: string }) {
+  const t = useT()
   const box = useRef<HTMLDivElement>(null)
   const [data, setData] = useState<PassSignalThumb | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  // a pass that lost its live signal: rebuild what SatDump's line time stamps still tell
+  async function rebuild() {
+    setBusy(true)
+    try { setData(await api.rebuildPassSignal(id)) } catch { /* the row keeps its button */ } finally { setBusy(false) }
+  }
+
   useEffect(() => {
     const el = box.current
     if (!el) return
@@ -174,6 +183,11 @@ function RowChart({ id }: { id: string }) {
     <div ref={box} className="pass-row-chart">
       {data && data.samples.length > 0 && data.start !== null && data.end !== null && (
         <SignalChart samples={data.samples} start={data.start} end={data.end} track={data.track ?? undefined} bare />
+      )}
+      {data && data.samples.length === 0 && data.can_rebuild && (
+        <button className="rebuild" disabled={busy} title={t('passes.rebuildHint')} onClick={rebuild}>
+          {busy ? t('passes.rebuilding') : t('passes.rebuild')}
+        </button>
       )}
     </div>
   )

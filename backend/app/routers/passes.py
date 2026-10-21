@@ -56,7 +56,18 @@ def get_signal(pass_id: str, points: int = Query(150, ge=10, le=2000)) -> dict:
         "end": orbit.get("los") or (samples[-1]["t"] if samples else None),
         "track": orbit.get("track"),
         "samples": passes.thin_samples(samples, points),
+        "can_rebuild": not samples and passes.product_file(folder) is not None,
     }
+
+
+@router.post("/{pass_id}/signal/rebuild")
+async def rebuild_signal(pass_id: str) -> dict:
+    """Rebuild a lost signal from SatDump's line time stamps and the orbit (passes.rebuild_signal);
+    answers like GET .../signal. Refused when the pass has a signal or nothing to rebuild it from."""
+    folder = folder_or_404(pass_id)
+    if not await asyncio.to_thread(passes.rebuild_signal, folder):
+        raise HTTPException(409, "this pass already has a signal, or nothing to rebuild one from")
+    return get_signal(pass_id, 150)
 
 
 @router.get("/{pass_id}/geo")

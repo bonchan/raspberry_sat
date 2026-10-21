@@ -1,8 +1,10 @@
 """Background jobs that run for the app's lifetime."""
 
 import asyncio
+import json
 import logging
 import time
+from pathlib import Path
 
 import httpx
 
@@ -27,6 +29,8 @@ POLL_INTERVAL = 1
 WATCHED_POLL = 0.25         # seconds between reads of SatDump's status while the Live page is open
 WATCH_HOLD = 5              # ... for this long after the page last asked
 HISTORY_STEP = 1            # seconds between the samples kept for the pass chart (and signal.json)
+LIVE_SIGNAL = "live_signal.jsonl"   # in the data dir: the current pass's samples as they come
+LIVE_SAVE = 5               # seconds between writes to it: a crash or power cut loses no more than that
 HOUSEKEEPING_INTERVAL = 15
 SCAN_INTERVAL = 30
 DAILY_RESTART = 24 * 3600   # SatDump only refreshes its orbit data (TLEs) when it starts
@@ -102,6 +106,59 @@ class Tracker:
 tracker = Tracker()
 
 
+class LiveSignalFile:
+    """The current pass's samples on disk, written every LIVE_SAVE seconds: a header line with when the
+    pass began, then one sample per line, appended. Only the samples are kept in memory otherwise, so
+    without this a crash, power cut or reboot before the pass is finished loses its signal."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.started: float | None = None       # the pass the file holds
+        self.saved_t = 0.0                      # time of the last sample written
+        self.saved_at = 0.0
+
+    def save(self, tracker: Tracker, now: float) -> None:
+        if not tracker.history or now - self.saved_at < LIVE_SAVE:
+            return
+        self.saved_at = now
+        new_pass = tracker.pass_started != self.started
+        fresh = tracker.history if new_pass else [s for s in tracker.history if s["t"] > self.saved_t]
+        if not fresh:
+            return
+        try:
+            with self.path.open("w" if new_pass else "a", encoding="utf-8") as f:
+                if new_pass:
+                    f.write(json.dumps({"pass_started": tracker.pass_started}) + "\n")
+                f.writelines(json.dumps(s) + "\n" for s in fresh)
+        except OSError:
+            log.exception("could not save the live signal")
+            return
+        self.started, self.saved_t = tracker.pass_started, fresh[-1]["t"]
+
+
+def load_live_signal(path: Path) -> dict | None:
+    """What LiveSignalFile saved of the last pass before the app stopped: {"pass_started", "samples"}.
+    A line cut short by the stop is skipped."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    rows = []
+    for line in lines:
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue
+    if not rows or "pass_started" not in rows[0]:
+        return None
+    samples = [r for r in rows[1:] if isinstance(r, dict) and "t" in r]
+    return {"pass_started": rows[0]["pass_started"], "samples": samples} if samples else None
+
+
+live_signal = LiveSignalFile(settings.DATA_DIR / LIVE_SIGNAL)
+recovered: dict | None = None       # the last pass's samples from before this start, if the app stopped
+
+
 def pass_facts(started: float, satellite: str) -> dict:
     """For pass.json: the pass's orbit (highest elevation, sky track) and, when this app watched it,
     its signal summary and samples (saved next to it as signal.json). No "orbit" key when there is
@@ -116,10 +173,16 @@ def pass_facts(started: float, satellite: str) -> dict:
             facts["orbit"] = orbits.pass_geometry(load_config(settings.CONFIG_FILE), tles, started, satellite)
         except Exception:
             log.exception("could not work out the orbit of a pass")
-    # the tracker keeps the last pass's samples until the next one starts
-    if tracker.history and abs(tracker.pass_started - started) < 15 * 60:
-        facts["signal"] = passes.signal_summary(tracker.history)
-        facts["samples"] = list(tracker.history)
+    # the tracker keeps the last pass's samples until the next one starts; after a crash, power cut or
+    # reboot, the samples saved while it was received
+    candidates = [(tracker.pass_started, tracker.history)]
+    if recovered:
+        candidates.append((recovered["pass_started"], recovered["samples"]))
+    for began, samples in candidates:
+        if samples and abs(began - started) < 15 * 60:
+            facts["signal"] = passes.signal_summary(samples)
+            facts["samples"] = list(samples)
+            break
     return facts
 
 
@@ -134,6 +197,7 @@ async def poll_tracker() -> None:
                 pass                        # still starting up; the page shows how old the data is
         else:
             tracker.update(None)
+        live_signal.save(tracker, time.time())
         await asyncio.sleep(WATCHED_POLL if tracker.watched() else POLL_INTERVAL)
 
 
@@ -197,6 +261,8 @@ async def scan_passes() -> None:
     (passes copied in by hand, SatDump stopped mid-decode) once a folder has been quiet for SETTLE.
     """
     reported: set[str] = set()          # folders whose error was already logged
+    global recovered
+    recovered = await asyncio.to_thread(load_live_signal, live_signal.path)
 
     try:
         for old, new in await asyncio.to_thread(passes.repair, settings.PASSES_DIR, guess_satellite):

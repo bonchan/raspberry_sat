@@ -6,7 +6,9 @@ decoding for a while after LOS) it is finished here: renamed to "<UTC start>_<sa
 pass.json is what marks a pass as finished. SatDump's own files are left as they are.
 """
 
+import bisect
 import json
+import math
 import re
 import time
 from statistics import median
@@ -15,6 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 from PIL import Image
+
+from app import georef
 
 SETTLE = 300                # seconds without a new file before a pass counts as finished
 META = "pass.json"
@@ -406,11 +410,11 @@ def sync_drops(samples: list[dict]) -> tuple[list[dict], dict[int, int]]:
 def signal_summary(samples: list[dict]) -> dict | None:
     """Peak and mean SNR (dB) of a pass's samples, the share of them with the deframer locked, where
     frames first and last synced (the elevations at which reception starts and ends), and the losses of
-    sync in between (sync_drops)."""
+    sync in between (sync_drops). Rebuilt samples have no SNR: then peak and mean are null."""
     snr = [s["snr"] for s in samples if isinstance(s.get("snr"), (int, float))]
-    if not snr:
-        return None
     locks = [bool(s["deframer_lock"]) for s in samples if "deframer_lock" in s]
+    if not snr and not locks:
+        return None
     synced = [s for s in samples if s.get("deframer_lock")]
     drops, tracked = sync_drops(samples)
 
@@ -418,8 +422,8 @@ def signal_summary(samples: list[dict]) -> dict | None:
         return {"t": s["t"], "el": s.get("el"), "az": s.get("az")}
 
     return {
-        "peak_snr": round(max(snr), 1),
-        "mean_snr": round(sum(snr) / len(snr), 1),
+        "peak_snr": round(max(snr), 1) if snr else None,
+        "mean_snr": round(sum(snr) / len(snr), 1) if snr else None,
         "locked": round(sum(locks) / len(locks), 3) if locks else None,
         "seconds": round(samples[-1]["t"] - samples[0]["t"]),
         "first_sync": place(synced[0]) if synced else None,
@@ -427,6 +431,65 @@ def signal_summary(samples: list[dict]) -> dict | None:
         "drops": drops,
         "tracked": tracked,         # seconds of reception per 10° of elevation
     }
+
+
+# ---------- a signal rebuilt after the live one was lost ----------
+
+REBUILD_NEAR = 0.7      # seconds: a second "has data" with a block of lines time-stamped this close (blocks ~1.23 s apart)
+
+
+def product_file(folder: Path) -> Path | None:
+    """SatDump's product.cbor of the pass's imager, with its line time stamps."""
+    return next(iter(sorted(folder.glob("*/product.cbor"))), None)
+
+
+def rebuild_samples(blocks: list[float], orbit: dict | None) -> list[dict]:
+    """Second by second over the pass: whether image data arrived (a block of lines time-stamped within
+    REBUILD_NEAR of it) and, from the orbit's sky track, where the satellite was. No SNR: SatDump only
+    reports it live. Without an orbit, from the first to the last block, with no position."""
+    times = sorted(blocks)
+    if not times:
+        return []
+    track = (orbit or {}).get("track") or []
+    if len(track) > 1:
+        start, end = orbit["aos"], orbit["los"]
+    else:
+        start, end, track = times[0], times[-1], []
+    step = (end - start) / (len(track) - 1) if track else 0
+    samples = []
+    for t in range(math.ceil(start), math.floor(end) + 1):
+        k = bisect.bisect_left(times, t)
+        near = any(abs(times[j] - t) <= REBUILD_NEAR for j in (k - 1, k) if 0 <= j < len(times))
+        sample: dict = {"t": float(t), "deframer_lock": near}
+        if track:
+            f = (t - start) / step
+            i = min(int(f), len(track) - 2)
+            (az0, el0), (az1, el1) = track[i], track[i + 1]
+            turn = (az1 - az0 + 180) % 360 - 180                  # the short way round north
+            sample["az"] = round((az0 + (f - i) * turn) % 360, 1)
+            sample["el"] = round(el0 + (f - i) * (el1 - el0), 1)
+        samples.append(sample)
+    return samples
+
+
+def rebuild_signal(folder: Path) -> bool:
+    """For a pass whose live signal was lost (the app stopped before the pass was finished): a signal
+    rebuilt from SatDump's line time stamps and the orbit, marked "rebuilt" in pass.json. Never replaces
+    a signal that was saved live. Returns whether it rebuilt one."""
+    meta = read_json(folder / META)
+    product = product_file(folder)
+    if meta is None or product is None or load_samples(folder):
+        return False
+    samples = rebuild_samples(georef.data_times(product), meta.get("orbit"))
+    if not samples:
+        return False
+    write_samples(folder, samples)
+    summary = signal_summary(samples)
+    if summary:
+        summary["rebuilt"] = True
+    meta["signal"] = summary
+    write_meta(folder, meta)
+    return True
 
 
 def refresh_signal_summaries(passes_dir: Path) -> int:
@@ -440,7 +503,10 @@ def refresh_signal_summaries(passes_dir: Path) -> int:
         samples = load_samples(folder)
         if not samples:
             continue
+        rebuilt = (meta.get("signal") or {}).get("rebuilt")
         meta["signal"] = signal_summary(samples)
+        if rebuilt and meta["signal"]:
+            meta["signal"]["rebuilt"] = True
         write_meta(folder, meta)
         changed += 1
     return changed
@@ -527,6 +593,7 @@ def summary(meta: dict) -> dict:
         "last_sync": signal.get("last_sync"),
         "drops": signal.get("drops"),
         "tracked": signal.get("tracked"),
+        "rebuilt": bool(signal.get("rebuilt")),       # from line time stamps after the live signal was lost
         "discord_url": (meta.get("discord") or {}).get("url"),    # see discord.py
     }
 

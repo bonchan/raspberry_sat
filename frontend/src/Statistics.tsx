@@ -161,9 +161,12 @@ function QualityTable({ groups }: { groups: Group[] | null }) {
 const BANDS = [0, 10, 20, 30, 40, 50, 60, 70, 80]
 const bandOf = (el: number) => Math.min(80, Math.max(0, Math.floor(el / 10) * 10))
 
-/** a fade: the signal went with the sync (antenna, reflections, obstructions); otherwise the signal held
-    and only the lock was lost (the Pi or the demodulator) */
-const faded = (d: SyncDrop) => d.snr_during == null || d.snr_before == null || d.snr_during < Math.max(3, d.snr_before / 2)
+/** a fade: the signal went with the sync (antenna, reflections, obstructions); held: the signal stayed
+    and only the lock was lost (the Pi or the demodulator); unknown: no SNR (a rebuilt signal) */
+function kind(d: SyncDrop): 'faded' | 'held' | 'unknown' {
+  if (d.snr_during == null || d.snr_before == null) return 'unknown'
+  return d.snr_during < Math.max(3, d.snr_before / 2) ? 'faded' : 'held'
+}
 
 /** Where sync was lost over all passes with a saved signal: how many, which kind, how long, in which
     direction, and per elevation band per minute received there. "…" while loading (passes null). */
@@ -172,7 +175,8 @@ function Drops({ passes }: { passes: PassSummary[] | null }) {
   const loading = passes === null
   const seen = (passes ?? []).filter(p => p.drops != null)
   const drops = seen.flatMap(p => p.drops!)
-  const fades = drops.filter(faded).length
+  const fades = drops.filter(d => kind(d) === 'faded').length
+  const unknown = drops.filter(d => kind(d) === 'unknown').length
   const bands = BANDS.map(band => {
     const minutes = seen.reduce((sum, p) => sum + (p.tracked?.[String(band)] ?? 0), 0) / 60
     const n = drops.filter(d => d.el != null && bandOf(d.el) === band).length
@@ -191,7 +195,10 @@ function Drops({ passes }: { passes: PassSummary[] | null }) {
         <Fact label={t('stats.dropsCount')} loading={loading}
           value={t('stats.dropsValue', { n: drops.length, passes: seen.length, clean: seen.filter(p => p.drops!.length === 0).length })} />
         <Fact label={t('stats.dropsKind')} loading={loading}
-          value={<>{t('stats.faded', { n: fades })} · {t('stats.held', { n: drops.length - fades })}</>} />
+          value={<>
+            {t('stats.faded', { n: fades })} · {t('stats.held', { n: drops.length - fades - unknown })}
+            {unknown > 0 && <> · {t('stats.unknown', { n: unknown })}</>}
+          </>} />
         <Fact label={t('stats.dropsLength')} loading={loading}
           value={lengths.length ? t('stats.dropsLengthValue', { s: median(lengths)!.toFixed(0) }) : '–'} />
         <Fact label={t('stats.dropsDirection')} loading={loading} value={directions || '–'} />

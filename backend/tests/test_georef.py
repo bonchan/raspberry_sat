@@ -45,6 +45,30 @@ def test_timestamp_filter_and_lines():
     assert georef.line_times([-1, 11.2], cfg) == [-1, -1, 10.7, 11.2]
 
 
+def test_fill_gaps_between_known_times_only():
+    assert georef.fill_gaps([-1, 10.0, -1, -1, 13.0, -1]) == [-1, 10.0, 11.0, 12.0, 13.0, -1]
+
+
+def test_missing_blocks_keep_the_image_in_one_piece(tmp_path):
+    lines = TLE.strip().splitlines()
+    first = predict(station_config(), parse_tles(TLE), EPOCH, hours=24)[0]
+    start = (first["aos"] + first["los"]) / 2 - 12
+    blocks = [start + i * 1.23 for i in range(21)]
+    for i in range(3, 18, 2):
+        blocks[i] = -1                                          # every other block lost, as in a weak pass
+    product = tmp_path / "product.cbor"
+    product.write_bytes(cbor2.dumps({
+        "images": [{"timestamps": blocks}], "projection_cfg": CFG,
+        "tle": {"line1": lines[1], "line2": lines[2]},
+    }))
+    grid = georef.georeference(product, 1568, len(blocks) * 8, rows=20, cols=3)
+    width = len(grid["cols"])
+    placed = [any(grid["points"][i * width:(i + 1) * width]) for i in range(len(grid["rows"]))]
+    inside = placed[placed.index(True):len(placed) - placed[::-1].index(True)]
+    assert all(inside)                                          # no holes between the first and last data
+    assert len(georef.data_times(product)) == 21 - 8 - 1        # 8 lost, and SatDump's filter drops the first
+
+
 def test_grid_lies_under_the_orbit(tmp_path):
     lines = TLE.strip().splitlines()
     first = predict(station_config(), parse_tles(TLE), EPOCH, hours=24)[0]

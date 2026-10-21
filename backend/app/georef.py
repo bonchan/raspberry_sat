@@ -125,6 +125,31 @@ def line_times(stamps: list[float], cfg: dict) -> list[float]:
     return [-1 if t == -1 else t + i * step for t in stamps for i in range(-(n // 2), n // 2)]
 
 
+def fill_gaps(times: list[float]) -> list[float]:
+    """Lines without a time (no data reached them) between two that have one get theirs by interpolation:
+    the satellite kept moving at the same pace, so the image (black there) stays in one piece instead of
+    breaking into strips. Lines before the first or after the last time stay without."""
+    known = [i for i, t in enumerate(times) if t != -1]
+    out = list(times)
+    for a, b in zip(known, known[1:]):
+        for i in range(a + 1, b):
+            out[i] = times[a] + (times[b] - times[a]) * (i - a) / (b - a)
+    return out
+
+
+def data_times(product: Path) -> list[float]:
+    """When image data arrived during the pass: the time stamps of the blocks of lines SatDump decoded,
+    after its own filtering, from the channel with the most of them."""
+    data = cbor2.loads(product.read_bytes())
+    cfg = data.get("projection_cfg") or {}
+    best: list[float] = []
+    for img in data.get("images", []):
+        stamps = [t for t in filter_timestamps(img.get("timestamps") or [], cfg) if t != -1]
+        if len(stamps) > len(best):
+            best = stamps
+    return best
+
+
 # ---------- the grid ----------
 
 def georeference(product: Path, width: int, height: int, rows: int = 64, cols: int = 25) -> dict | None:
@@ -140,7 +165,7 @@ def georeference(product: Path, width: int, height: int, rows: int = 64, cols: i
     tall_enough = [t for t in channels if len(t) >= height]
     if not tall_enough:
         return None
-    times = min(tall_enough, key=len)[:height]
+    times = fill_gaps(min(tall_enough, key=len)[:height])
 
     sat = Satrec.twoline2rv(tle["line1"], tle["line2"])
     scan_angle = cfg["scan_angle"]

@@ -92,6 +92,7 @@ export interface TleSet {
 /** a pass's signal thinned for a small chart, with its span and elevation track */
 export interface PassSignalThumb {
   start: number | null; end: number | null; track: [number, number][] | null; samples: LiveSample[]
+  can_rebuild: boolean          // no signal saved, but SatDump's line time stamps can rebuild part of it
 }
 /** the pass as the orbits describe it; track is [az, el] every 10 s from AOS to LOS */
 export interface PassOrbit {
@@ -99,7 +100,10 @@ export interface PassOrbit {
   aos_az: number; los_az: number; track: [number, number][]
 }
 /** SNR in dB; locked: share of the recording with the deframer locked */
-export interface PassSignal { peak_snr: number; mean_snr: number; locked: number | null; seconds: number }
+/** SNR null when rebuilt: rebuilt from line time stamps after the live signal was lost (no SNR then) */
+export interface PassSignal {
+  peak_snr: number | null; mean_snr: number | null; locked: number | null; seconds: number; rebuilt?: boolean
+}
 /** where a message went; channel is its name */
 export interface DiscordSent { url: string; channel: string | null }
 /** a pass on Discord: set when it was posted, error when the last try failed (an earlier post stays noted) */
@@ -218,6 +222,7 @@ export const api = {
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
   getPassGeo: (id: string) => request<PassGeo>('GET', `/passes/${encodeURIComponent(id)}/geo`),
   getPassSignal: (id: string) => request<PassSignalThumb>('GET', `/passes/${encodeURIComponent(id)}/signal?points=150`),
+  rebuildPassSignal: (id: string) => request<PassSignalThumb>('POST', `/passes/${encodeURIComponent(id)}/signal/rebuild`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),
   postPass: (id: string) => request<PassDiscord>('POST', `/passes/${encodeURIComponent(id)}/discord`),
   testDiscord: (discord: Discord) => request<DiscordSent>('POST', '/discord/test', discord),

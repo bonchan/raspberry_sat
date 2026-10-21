@@ -381,6 +381,7 @@ html.page-wide main { max-width: none; }
 .pass-row-text { display: grid; gap: 2px; min-width: 0; flex: 0 1 360px; }   /* same width: charts line up */
 .pass-row-chart { flex: 1 1 200px; min-width: 0; display: flex; justify-content: center; }
 .pass-row-chart .chart { height: 56px; max-width: 420px; }
+.pass-row-chart .rebuild { position: relative; z-index: 1; align-self: center; }      /* over the row's link */
 .pass-row-discord { flex: 0 0 24px; display: flex; justify-content: flex-end; }   /* kept when empty: charts line up */
 @media (max-width: 760px) {
   .pass-row { flex-wrap: wrap; }

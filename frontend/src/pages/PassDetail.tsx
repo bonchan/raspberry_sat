@@ -105,8 +105,10 @@ export default function PassDetail() {
               </dd>
             </>}
             {signal && <>
-              <dt>{t('detail.signal')}</dt>
-              <dd>{t('detail.signalValue', { peak: signal.peak_snr.toFixed(1), mean: signal.mean_snr.toFixed(1) })}</dd>
+              {signal.peak_snr != null && signal.mean_snr != null && <>
+                <dt>{t('detail.signal')}</dt>
+                <dd>{t('detail.signalValue', { peak: signal.peak_snr.toFixed(1), mean: signal.mean_snr.toFixed(1) })}</dd>
+              </>}
               {signal.locked !== null && <>
                 <dt>{t('detail.locked')}</dt>
                 <dd>{t('detail.lockedValue', { p: percent(signal.locked), d: duration(signal.seconds) })}</dd>
@@ -154,6 +156,7 @@ export default function PassDetail() {
           {/* the elevation curve spans AOS to LOS; without an orbit, the samples set the span */}
           <SignalChart samples={pass.samples} track={orbit?.track}
             start={orbit?.aos ?? pass.samples[0].t} end={orbit?.los ?? pass.samples[pass.samples.length - 1].t} />
+          {signal?.rebuilt && <p className="hint">{t('detail.rebuilt')}</p>}
         </section>
       )}
 
