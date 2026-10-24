@@ -338,8 +338,10 @@ def add_orbits(passes_dir: Path, facts: PassFacts) -> int:
     return added
 
 
-def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts | None = None) -> Path:
-    """Rename the folder, make thumbnails, write pass.json. Returns the folder's new path."""
+def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts | None = None,
+             progress: Callable[[int, int], None] | None = None) -> Path:
+    """Rename the folder, make thumbnails, write pass.json. Returns the folder's new path.
+    progress(done, total) after each thumbnail."""
     source_name = folder.name
     dataset = read_json(folder / "dataset.json") or {}
     started = pass_time(folder, source_name, dataset)
@@ -350,9 +352,8 @@ def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts
         folder = folder.rename(target)
 
     images = []
-    for f in sorted(satdump_files(folder)):
-        if f.suffix.lower() not in IMAGE_TYPES:
-            continue
+    files = [f for f in sorted(satdump_files(folder)) if f.suffix.lower() in IMAGE_TYPES]
+    for f in files:
         rel = f.relative_to(folder).as_posix()
         info = describe_image(rel)
         info["bytes"] = f.stat().st_size
@@ -363,6 +364,8 @@ def finalize(folder: Path, guess: SatelliteGuess | None = None, facts: PassFacts
         except (OSError, Image.DecompressionBombError) as e:    # broken or half-written image
             info["error"] = str(e)
         images.append(info)
+        if progress:
+            progress(len(images), len(files))
 
     main = choose_main(images)
     meta = {

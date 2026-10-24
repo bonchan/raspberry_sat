@@ -1,5 +1,5 @@
 """The WebSocket topics beyond SatDump's status and the live signal (those are in tasks.py): what the
-Status, Logs, Passes, Upcoming and Settings pages show. A producer per topic looks every few seconds while
+Status, Logs, Passes, Upcoming and Settings pages show, and how far a pass is after LOS (processing.py). A producer per topic looks every few seconds while
 a tab is subscribed and publishes only when something changed; a nudge (hub.nudge) makes it look right
 away, as when a pass is finished or deleted. Log lines (supervisor.py) and saved settings
 (routers/config.py) are published where they happen.
@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from typing import Any
 
-from app import passes, settings
+from app import passes, processing, settings
 from app.config import load_config
 from app.hub import hub
 from app.routers import schedule as schedule_api
@@ -48,6 +48,7 @@ TOPICS: dict[str, tuple[Callable[[], Any], float | None]] = {
     "passes": (passes_list, 10),
     "schedule": (schedule_with_tracks, 60),
     "tles": (schedule_api.get_tles, 60),
+    "processing": (processing.view, 2),
     "config": (lambda: load_config(settings.CONFIG_FILE).model_dump(), None),
     "logs": (logs_snapshot, None),
 }

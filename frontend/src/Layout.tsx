@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useRef, type CSSProperties } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useNow } from './hooks'
 import { useT, type Key } from './i18n'
 import { useConnection, useTopic } from './stream'
@@ -31,6 +31,21 @@ function UpdateBadge() {
   const data = useTopic('update')
   if (!data?.behind && !data?.running) return null
   return <NavLink className="badge" to="/status#updates">{t('update.badge')}</NavLink>
+}
+
+// a pass being worked on after LOS, how far it is; the Live page shows it itself
+function ProcessingBadge() {
+  const t = useT()
+  const processing = useTopic('processing')
+  const { pathname } = useLocation()
+  if (!processing || pathname.startsWith('/live')) return null
+  const p = processing.percent
+  return (
+    <NavLink className="badge processing" to="/live" style={{ '--p': `${p ?? 0}%` } as CSSProperties}
+      title={`${processing.satellite ?? processing.pass}: ${t(`processing.${processing.step}`)}`}>
+      {t('header.processing', { p: p === null ? '…' : `${p}%` })}
+    </NavLink>
+  )
 }
 
 // nothing while SatDump runs; red when it doesn't, or when the Pi does not answer
@@ -70,6 +85,7 @@ export default function Layout() {
           ))}
         </nav>
         <div className="badges">
+          <ProcessingBadge />
           <UpdateBadge />
           <SatdumpBadge />
         </div>

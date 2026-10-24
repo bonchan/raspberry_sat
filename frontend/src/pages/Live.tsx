@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { LiveSample, LiveState, UpcomingPass } from '../api'
+import type { LiveSample, LiveState, Processing, UpcomingPass } from '../api'
 import { useNow, useVisible } from '../hooks'
 import { clock, size, utcClock } from '../format'
 import { useT, type Key } from '../i18n'
@@ -50,6 +50,7 @@ export default function Live() {
   const schedule = useTopic('schedule')
   const config = useTopic('config')
   const { live, samples } = useLive(visible)
+  const processing = useTopic('processing') ?? null
   const now = useNow()
 
   if (!status || !live) return <section><p className="hint">{t('common.loading')}</p></section>
@@ -122,9 +123,16 @@ export default function Live() {
           <h2>{t('live.lastPass')}</h2>
           <p>
             {t('live.ended', { local: clock(live.last_los), utc: utcClock(live.last_los) })}{' '}
-            {live.folder ? t('live.decoding') : <Link to="/passes">{t('live.seeInPasses')}</Link>}
+            {processing ? null : live.folder ? t('live.decoding') : <Link to="/passes">{t('live.seeInPasses')}</Link>}
           </p>
+          {processing && <ProcessingBar processing={processing} />}
           <SignalChart samples={samples} start={live.pass_started} end={live.last_los} />
+        </section>
+      )}
+      {!recent && processing && (
+        <section>
+          <h2>{t('live.processingTitle', { name: processing.satellite ?? processing.pass })}</h2>
+          <ProcessingBar processing={processing} />
         </section>
       )}
       <NextPass next={next} />
@@ -148,6 +156,23 @@ function NextPass({ next }: { next?: UpcomingPass }) {
       </p>
       <p className="hint">{t('live.switches')}</p>
     </section>
+  )
+}
+
+/** How far the last pass is after LOS: SatDump's own progress in the first step, an estimate while it
+    makes the images (it says nothing then), the thumbnails counted. */
+function ProcessingBar({ processing }: { processing: Processing }) {
+  const t = useT()
+  const p = processing.percent
+  return (
+    <div className="processing-block">
+      <div className="processing-step">
+        <span>{t(`processing.${processing.step}`)}</span>
+        <b>{p === null ? '…' : `${p}%`}</b>
+      </div>
+      <div className="progress"><div style={{ width: `${p ?? 0}%` }} /></div>
+      {processing.step === 'images' && <p className="hint">{t('processing.estimateHint')}</p>}
+    </div>
   )
 }
 

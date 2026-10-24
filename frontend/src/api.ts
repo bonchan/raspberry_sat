@@ -196,6 +196,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   throw new ApiError(`${method} ${path} failed (${res.status})`, details)
 }
 
+/** the pass being worked on after LOS (topic "processing"); percent is null while there is nothing to go by */
+export interface Processing {
+  pass: string
+  satellite: string | null
+  step: 'decode' | 'images' | 'thumbnails'
+  percent: number | null
+}
+
 export const api = {
   getConfig: () => request<Config>('GET', '/config'),
   getStatus: () => request<Status>('GET', '/status'),

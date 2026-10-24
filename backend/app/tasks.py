@@ -469,7 +469,7 @@ async def scan_passes() -> None:
         if folder is not None:
             if folder.is_dir() and not passes.is_finished(folder):
                 try:
-                    await pass_finished(await asyncio.to_thread(passes.finalize, folder, guess_satellite, pass_facts))
+                    await pass_finished(await finish(folder))
                 except Exception as e:
                     report_error(folder.name, f"{type(e).__name__}: {e}")
             continue
@@ -486,6 +486,23 @@ async def scan_passes() -> None:
             await pass_finished(folder)
         for name, error in errors:
             report_error(name, error)
+
+
+finishing = {"folder": None, "done": 0, "total": 0}     # the pass whose thumbnails are being made (processing.py)
+
+
+def thumbnail_made(done: int, total: int) -> None:
+    finishing.update(done=done, total=total)
+
+
+async def finish(folder: Path) -> Path:
+    """passes.finalize once SatDump is done with a pass, its thumbnails counted for the topic "processing"."""
+    finishing.update(folder=folder, done=0, total=0)
+    try:
+        return await asyncio.to_thread(passes.finalize, folder, guess_satellite, pass_facts, thumbnail_made)
+    finally:
+        finishing["folder"] = None
+        hub.nudge("processing")
 
 
 async def pass_finished(folder) -> None:

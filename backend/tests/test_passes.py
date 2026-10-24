@@ -119,6 +119,12 @@ def test_repair_names_unknown_passes(tmp_path):
     assert fixed == [(folder.name, folder.name.replace("unknown-meteor", "meteor-m2-4"))]
 
 
+def test_finalize_counts_its_thumbnails(tmp_path):
+    seen = []
+    passes.finalize(make_pass(tmp_path), progress=lambda done, total: seen.append((done, total)))
+    assert seen == [(1, 3), (2, 3), (3, 3)]
+
+
 def test_finalize_stores_orbit_and_signal(tmp_path):
     orbit = {"aos": STARTED - 60, "los": STARTED + 840, "max_el": 47.3, "track": [[10.0, 0.0], [190.0, 0.0]]}
     signal = {"peak_snr": 12.1, "mean_snr": 7.4, "locked": 0.9, "seconds": 780}

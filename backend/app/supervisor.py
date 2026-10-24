@@ -37,6 +37,10 @@ PROGRESS = re.compile(r"^Progress (?:nan|-?[\d.]+)%, ")
 # what SatDump prints when a pass's folder is made (at AOS) and when its images are all written (after LOS)
 PASS_FOLDER = re.compile(r"Generated folder name : (.+)$")
 PASS_DONE = "Pipeline Processing Done!"
+# ... and in between, working on the pass after LOS: each step, and how far it is in a step that reads a
+# file (every 10 s; unlike the live "Progress nan%, SNR ..." lines, nothing follows the percentage)
+PASS_STEP = re.compile(r"^Processing data to level (\S+)")
+STEP_PROGRESS = re.compile(r"^Progress (-?[\d.]+)%$")
 
 
 @dataclass
@@ -73,6 +77,9 @@ class Supervisor:
         self._wake = asyncio.Event()
         self.decoding: deque[Path] = deque()            # pass folders SatDump started, oldest first
         self.passes_done: asyncio.Queue[Path] = asyncio.Queue()   # folders whose images are written
+        self.last_done: tuple[Path, float] | None = None          # the latest of those, and when
+        self.step: str | None = None                # the step SatDump is in after LOS (processing.py)
+        self.step_progress: float | None = None     # ... and how far, in percent, when it says
         self._file: logging.Logger | None = None
         self._tasks: set[asyncio.Task] = set()
 
@@ -199,6 +206,7 @@ class Supervisor:
 
             self.state, self.started_at, self.exit_code = "running", time.time(), None
             self.decoding.clear()           # a pass the last run was decoding is left to the quiet-folder check
+            self.step = self.step_progress = None
             await asyncio.gather(self._pump(self.proc.stdout), self.proc.wait())
             self.exit_code = self.proc.returncode
             ran = time.time() - self.started_at
@@ -231,13 +239,24 @@ class Supervisor:
                 self._watch(text)
 
     def _watch(self, text: str) -> None:
-        """Follow passes through SatDump's output, so a pass is finished as soon as its images are written."""
-        m = PASS_FOLDER.search(text)
-        if m:
+        """Follow passes through SatDump's output, so a pass is finished as soon as its images are written,
+        and the pages can show how far it is (topic "processing")."""
+        if m := PASS_FOLDER.search(text):
             self.decoding.append(Path(m.group(1).strip()))
-        elif text.startswith(PASS_DONE) and self.decoding:
-            # SatDump decodes passes one after the other, so this is the oldest one still decoding
-            self.passes_done.put_nowait(self.decoding.popleft())
+        elif text.startswith(PASS_DONE):
+            self.step = self.step_progress = None
+            if self.decoding:
+                # SatDump decodes passes one after the other, so this is the oldest one still decoding
+                folder = self.decoding.popleft()
+                self.last_done = (folder, time.time())
+                self.passes_done.put_nowait(folder)
+        elif m := PASS_STEP.match(text):
+            self.step, self.step_progress = m.group(1), None
+        elif m := STEP_PROGRESS.match(text):
+            self.step_progress = float(m.group(1))
+        else:
+            return
+        hub.nudge("processing")
 
     async def _terminate(self) -> None:
         proc = self.proc
