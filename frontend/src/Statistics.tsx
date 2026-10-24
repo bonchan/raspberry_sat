@@ -1,11 +1,11 @@
 // Station statistics on the Status page, worked out here from the pass list: how often reception works,
 // the elevations at which it starts and ends, and how pass quality (by highest elevation) turns out.
 
-import { api, type PassSummary, type SyncDrop } from './api'
+import type { PassSummary, SyncDrop } from './api'
 import Fact, { WAIT } from './Fact'
-import { usePolling } from './hooks'
 import { compass, longDate, percent, size } from './format'
 import { useT, type Key } from './i18n'
+import { useTopic } from './stream'
 import { EXCELLENT, GOOD, elevationQuality } from './UpcomingPasses'
 
 const QUALITIES = ['fair', 'good', 'excellent'] as const
@@ -24,7 +24,7 @@ const watched = (passes: PassSummary[]) => passes.filter(p => p.locked != null)
 
 export default function Statistics() {
   const t = useT()
-  const { data, error } = usePolling(api.getPasses, 60000)
+  const data = useTopic('passes') ?? null
 
   // until the pass list arrives, the same rows and table with "…", so the page doesn't move
   if (!data) {
@@ -33,7 +33,6 @@ export default function Statistics() {
     return (
       <section>
         <h2>{t('stats.title')}</h2>
-        {error && <p className="error">{error}</p>}
         <dl className="facts">{rows.map(k => <Fact key={k} label={t(k)} loading value={null} />)}</dl>
         <h3 className="subhead">{t('stats.byQuality')}</h3>
         <QualityTable groups={null} />

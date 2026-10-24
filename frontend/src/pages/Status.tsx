@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { api, type SatdumpProcess, type Status as StatusData, type SystemInfo, type ThrottleFlag } from '../api'
 import { useConfirm } from '../Dialog'
-import { useNow, usePolling } from '../hooks'
+import { useNow } from '../hooks'
 import { duration, gb, longDate, percent } from '../format'
 import { useT, type Key } from '../i18n'
 import Fact from '../Fact'
+import { useConnection, useTopic } from '../stream'
 import Statistics from '../Statistics'
 import Updates from '../Updates'
 
@@ -16,8 +17,9 @@ const STATE_CLASS: Record<SatdumpProcess['state'], string> = {
 /** SatDump, then the system it runs on and its updates. */
 export default function Status() {
   const t = useT()
-  const { data: status, error } = usePolling(api.getStatus, 2000)
-  const { data: system } = usePolling(api.getSystem, 10000)
+  const status = useTopic('status') ?? null
+  const connection = useConnection()
+  const system = useTopic('system') ?? null
   const { hash, key } = useLocation()
   const loaded = !!status && !!system
 
@@ -28,7 +30,7 @@ export default function Status() {
 
   return (
     <>
-      {error && <p className="error">{t('status.backendDown', { error })}</p>}
+      {connection === 'down' && <p className="error">{t('status.backendDown')}</p>}
       <Receiver status={status} />
       <SystemFacts system={system} />
       <Statistics />

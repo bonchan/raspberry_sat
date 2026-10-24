@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from app import discord, georef, passes, settings
+from app.hub import hub
 from app.config import load_config
 
 router = APIRouter(prefix="/passes", tags=["passes"])
@@ -67,6 +68,7 @@ async def rebuild_signal(pass_id: str) -> dict:
     folder = folder_or_404(pass_id)
     if not await asyncio.to_thread(passes.rebuild_signal, folder):
         raise HTTPException(409, "this pass already has a signal, or nothing to rebuild one from")
+    hub.nudge("passes")
     return get_signal(pass_id, 150)
 
 
@@ -132,6 +134,8 @@ async def post_to_discord(pass_id: str) -> dict:
         return await discord.post_pass(folder, config)
     except discord.DiscordError as e:
         raise HTTPException(502, str(e)) from e
+    finally:
+        hub.nudge("passes")                             # posted, or the error noted in pass.json
 
 
 @router.delete("/{pass_id}")
@@ -140,4 +144,5 @@ def delete_pass(pass_id: str) -> dict:
     if not passes.is_finished(folder):
         raise HTTPException(409, "this pass is still being received or decoded")
     shutil.rmtree(folder)
+    hub.nudge("passes")
     return {"deleted": pass_id}

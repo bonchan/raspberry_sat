@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type Live as LiveData, type LiveSample, type UpcomingPass } from '../api'
-import { useNow, usePolling, useVisible } from '../hooks'
+import type { LiveSample, LiveState, UpcomingPass } from '../api'
+import { useNow, useVisible } from '../hooks'
 import { clock, size, utcClock } from '../format'
 import { useT, type Key } from '../i18n'
 import Globe from '../Globe'
@@ -9,50 +9,46 @@ import PassCards from '../PassCards'
 import SignalChart from '../SignalChart'
 import SpectrumPlot from '../SpectrumPlot'
 import SkyPlot, { SkyLegend } from '../SkyPlot'
+import { subscribe, useTopic } from '../stream'
 
 const FRAME_BYTES = 1024            // one Meteor LRPT frame (CADU) in SatDump's .cadu file
 
-/** The live endpoint, polled every `ms`; samples accumulate, and start over when a new pass begins. */
-function useLive(ms: number) {
-  const [live, setLive] = useState<LiveData | null>(null)
+/** The topic "live": a snapshot with the samples so far, then the latest reading and a new sample a
+    second; the samples start over when a new pass begins. Subscribed only while `enabled`. */
+function useLive(enabled: boolean) {
+  const [live, setLive] = useState<LiveState | null>(null)
   const [samples, setSamples] = useState<LiveSample[]>([])
-  const every = useRef(ms)
-  every.current = ms
   useEffect(() => {
-    let alive = true
-    let timer: number | undefined
-    let last = 0
-    let started = -1
-    async function poll() {
-      try {
-        const r = await api.getLive(last)
-        if (!alive) return
-        if (r.pass_started !== started) {
-          started = r.pass_started
-          setSamples(r.history)
-        } else if (r.history.length) {
-          setSamples(prev => [...prev, ...r.history])
+    if (!enabled) return
+    let started: number | null = null
+    return subscribe('live', message => {
+      if (message.kind === 'snapshot') {
+        started = message.pass_started
+        setSamples(message.history)
+      } else {
+        if (started === null) return                       // the snapshot comes first
+        if (message.pass_started !== started) {
+          started = message.pass_started
+          setSamples(message.sample ? [message.sample] : [])
+        } else if (message.sample) {
+          setSamples(prev => [...prev, message.sample!])
         }
-        if (r.history.length) last = r.history[r.history.length - 1].t
-        setLive(r)
-      } catch { /* backend restarting */ }
-      if (alive) timer = window.setTimeout(poll, every.current)
-    }
-    poll()
-    return () => { alive = false; window.clearTimeout(timer) }
-  }, [])
+      }
+      const { receiving, pass_started, last_los, current, folder, cadu_bytes } = message
+      setLive({ receiving, pass_started, last_los, current, folder, cadu_bytes })
+    })
+  }, [enabled])
   return { live, samples }
 }
 
 export default function Live() {
   const t = useT()
-  // four times a second while this page is on screen (the backend then reads SatDump as often); slowly when hidden
+  // pushed four times a second while this page is on screen (the backend reads SatDump as often); nothing when hidden
   const visible = useVisible()
-  const every = visible ? 250 : 5000
-  const { data: status } = usePolling(api.getStatus, every)
-  const { data: schedule } = usePolling(api.getSchedule, 60000)
-  const { data: config } = usePolling(api.getConfig, 60000)
-  const { live, samples } = useLive(every)
+  const status = useTopic('status', visible)
+  const schedule = useTopic('schedule')
+  const config = useTopic('config')
+  const { live, samples } = useLive(visible)
   const now = useNow()
 
   if (!status || !live) return <section><p className="hint">{t('common.loading')}</p></section>

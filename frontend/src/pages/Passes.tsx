@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api, passFile, type PassSignalThumb, type PassSummary } from '../api'
-import { usePolling } from '../hooks'
 import { clock, longDate, longDay, percent, sameDay, size } from '../format'
 import DiscordIcon from '../DiscordIcon'
 import SignalChart from '../SignalChart'
 import { useT } from '../i18n'
+import { useTopic } from '../stream'
 import PassesGlobe from '../PassesGlobe'
 import { elevationQuality } from '../UpcomingPasses'
 
@@ -33,7 +33,7 @@ function useDayLabel() {
 export default function Passes() {
   const t = useT()
   const dayLabel = useDayLabel()
-  const { data, error } = usePolling(api.getPasses, 15000)
+  const data = useTopic('passes')        // pushed when a pass is finished, deleted or changed
   const [layout, setLayoutState] = useState<Layout>(storedLayout)
 
   function setLayout(next: Layout) {
@@ -43,7 +43,6 @@ export default function Passes() {
 
   return (
     <>
-      {error && <p className="error">{error}</p>}
       {data && data.in_progress.length > 0 && (
         <section>
           <h2>{t('passes.inProgress')}</h2>

@@ -35,7 +35,7 @@ const en = {
   'state.waiting': 'crashed, starting again shortly',
   'state.not_installed': 'SatDump is not installed',
 
-  'status.backendDown': 'Backend not answering: {error}',
+  'status.backendDown': 'The Pi is not answering; trying again…',
   'status.state': 'State',
   'status.runningFor': 'Running for',
   'status.lastExit': 'Last exit code',
@@ -508,7 +508,7 @@ const es: Record<Key, string> = {
   'state.waiting': 'se cerró, vuelve a arrancar en breve',
   'state.not_installed': 'SatDump no está instalado',
 
-  'status.backendDown': 'El backend no responde: {error}',
+  'status.backendDown': 'La Pi no responde; reintentando…',
   'status.state': 'Estado',
   'status.runningFor': 'En marcha desde hace',
   'status.lastExit': 'Último código de salida',

@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { api, type UpcomingPass } from './api'
-import { useNow, usePolling } from './hooks'
+import type { UpcomingPass } from './api'
+import { useNow } from './hooks'
 import { clock, compass, duration, sameDay, utcClock, weekdayAndDay } from './format'
 import { useT } from './i18n'
 import SkyPlot, { SkyLegend } from './SkyPlot'
+import { useTopic } from './stream'
 
 // how good a pass is, from its highest elevation
 export const GOOD = 30
@@ -23,7 +24,7 @@ interface Props { minElevation?: number; station?: string; showLow?: boolean }
 
 export default function UpcomingPasses({ minElevation, station, showLow = true }: Props) {
   const t = useT()
-  const { data, error } = usePolling(api.getSchedule, 60000)
+  const data = useTopic('schedule')
   const now = useNow()
   const [selected, setSelected] = useState<string | null>(null)
 
@@ -62,7 +63,6 @@ export default function UpcomingPasses({ minElevation, station, showLow = true }
   return (
     <section>
       <h2>{station ? t('up.titleAt', { station, span }) : t('up.title', { span })}</h2>
-      {error && <p className="error">{error}</p>}
       {data?.error && <p className="hint">{data.error}</p>}
       {data?.missing?.length ? <p className="hint">{t('up.missing', { list: data.missing.join(', ') })}</p> : null}
       {data && !data.error && passes.length === 0 && <p className="hint">{t('up.none')}</p>}

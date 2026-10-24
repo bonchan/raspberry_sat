@@ -1,10 +1,11 @@
-// SatDump's spectrum drawn here from the numbers /api/spectrum reads back out of its picture: the trace
-// with a frequency axis and the downlink band marked, and a waterfall of the last half minute under it.
+// SatDump's spectrum drawn here from the numbers the backend reads back out of its picture (topic
+// "spectrum"): the trace with a frequency axis and the downlink band marked, and a waterfall of the last
+// half minute under it.
 
 import { useEffect, useRef } from 'react'
-import { api } from './api'
-import { usePolling, useVisible } from './hooks'
+import { useVisible } from './hooks'
 import { useT } from './i18n'
+import { useTopic } from './stream'
 
 const W = 512, PLOT_H = 200, AXIS_H = 22
 const ROWS = 120                // waterfall rows, one per reading: 30 s at four a second
@@ -27,11 +28,11 @@ function heat(x: number): [number, number, number] {
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]
 }
 
-/** Polls four times a second while the page is on screen; nothing while hidden. */
+/** Pushed four times a second while the page is on screen; not subscribed while hidden. */
 export default function SpectrumPlot() {
   const t = useT()
   const visible = useVisible()
-  const { data, error } = usePolling(api.getSpectrum, 250, visible)
+  const data = useTopic('spectrum', visible)        // four times a second while on screen; null: SatDump has none
   const range = useRef<Range | null>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
 
@@ -59,7 +60,7 @@ export default function SpectrumPlot() {
     ctx.putImageData(row, 0, 0)
   }, [data])     // one row per reading; the colours use the scale of the moment
 
-  if (!data) return <p className="hint">{error ? t('live.noSpectrum') : t('common.loading')}</p>
+  if (!data) return <p className="hint">{data === null ? t('live.noSpectrum') : t('common.loading')}</p>
 
   const y = (db: number) => (hi - Math.min(hi, Math.max(lo, db))) / (hi - lo) * PLOT_H
   const x = (offsetHz: number) => (0.5 + offsetHz / data.samplerate) * W

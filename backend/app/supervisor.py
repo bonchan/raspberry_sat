@@ -7,12 +7,13 @@ import re
 import shutil
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from app import settings
 from app.config import load_config
+from app.hub import hub
 from app.satdump_cfg import build_autotrack_config
 
 log = logging.getLogger(__name__)
@@ -84,7 +85,9 @@ class Supervisor:
 
     def _add(self, level: str, source: str, text: str) -> None:
         self.last_seq += 1
-        self.lines.append(LogLine(self.last_seq, time.time(), level, source, text))
+        line = LogLine(self.last_seq, time.time(), level, source, text)
+        self.lines.append(line)
+        hub.publish("logs", {"kind": "update", "lines": [asdict(line)], "last": self.last_seq})
         if self._file:
             self._file.info("%-7s %-8s %s", source, level, text)
 

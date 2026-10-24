@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, type LogLine } from '../api'
+import { subscribe } from '../stream'
 import { clockSeconds } from '../format'
 import { useT } from '../i18n'
 
@@ -9,30 +10,14 @@ export default function Logs() {
   const t = useT()
   const [lines, setLines] = useState<LogLine[]>([])
   const [showDebug, setShowDebug] = useState(false)
-  const last = useRef(0)
   const box = useRef<HTMLDivElement>(null)
   const atBottom = useRef(true)
 
-  useEffect(() => {
-    let alive = true
-    let timer: number | undefined
-    async function poll() {
-      try {
-        const r = await api.getLogs(last.current)
-        if (!alive) return
-        if (r.last < last.current) {            // the app restarted: its numbering starts over
-          last.current = 0
-          setLines([])
-        } else if (r.lines.length) {
-          last.current = r.last
-          setLines(prev => [...prev, ...r.lines].slice(-MAX_LINES))
-        }
-      } catch { /* backend restarting; try again */ }
-      if (alive) timer = window.setTimeout(poll, 2000)
-    }
-    poll()
-    return () => { alive = false; window.clearTimeout(timer) }
-  }, [])
+  // everything kept on subscribing (and after the app restarts), then each line as it is written
+  useEffect(() => subscribe('logs', message => {
+    if (message.kind === 'snapshot') setLines(message.lines.slice(-MAX_LINES))
+    else setLines(prev => [...prev, ...message.lines].slice(-MAX_LINES))
+  }), [])
 
   useLayoutEffect(() => {
     if (atBottom.current && box.current) box.current.scrollTop = box.current.scrollHeight

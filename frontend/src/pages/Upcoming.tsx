@@ -1,20 +1,22 @@
 import { Link } from 'react-router-dom'
-import { api, type Status as StatusData, type UpcomingPass } from '../api'
-import { useNow, usePolling } from '../hooks'
+import type { Status as StatusData, UpcomingPass } from '../api'
+import { useNow } from '../hooks'
 import { useT } from '../i18n'
 import PassCards from '../PassCards'
 import UpcomingPasses from '../UpcomingPasses'
+import { useConnection, useTopic } from '../stream'
 
 /** The home page: the next pass and the upcoming passes. */
 export default function Upcoming() {
   const t = useT()
-  const { data: status, error } = usePolling(api.getStatus, 2000)
-  const { data: config } = usePolling(api.getConfig, 60000)
-  const { data: schedule } = usePolling(api.getSchedule, 60000)
+  const status = useTopic('status') ?? null
+  const connection = useConnection()
+  const config = useTopic('config')
+  const schedule = useTopic('schedule')
 
   return (
     <>
-      {error && <p className="error">{t('status.backendDown', { error })}</p>}
+      {connection === 'down' && <p className="error">{t('status.backendDown')}</p>}
       <NextPass status={status} passes={schedule?.passes ?? []} />
       <UpcomingPasses minElevation={config?.tracking.min_elevation}
         station={config?.stations[config.active_station]?.name}

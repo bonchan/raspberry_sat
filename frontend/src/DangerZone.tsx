@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from './api'
 import { useConfirm } from './Dialog'
-import { usePolling } from './hooks'
 import { useT, type Key } from './i18n'
+import { useTopic } from './stream'
 
 type Action = 'restart-app' | 'reboot' | 'poweroff'
 
@@ -20,8 +20,8 @@ const ACTIONS: { action: Action; title: Key; hint: Key; button: Key; confirm: Ke
 export default function DangerZone() {
   const t = useT()
   const ask = useConfirm()
-  const { data: update } = usePolling(api.getUpdate, 60000)
-  const { data: status } = usePolling(api.getStatus, 5000)
+  const update = useTopic('update')
+  const status = useTopic('status')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState('')
   const [error, setError] = useState('')

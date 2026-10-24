@@ -8,9 +8,9 @@ import { useEffect, useRef, useState } from 'react'
 import type { BoundingSphere, Cartesian3, Primitive, Viewer } from 'cesium'
 import { eciToEcf, gstime, propagate, twoline2satrec, type SatRec } from 'satellite.js'
 import { api, passFile, type PassGeo, type PassSummary, type TleSet } from './api'
-import { usePolling } from './hooks'
 import { useT } from './i18n'
 import { scanLine, type Vec } from './scan'
+import { useTopic } from './stream'
 
 type CesiumNS = typeof import('cesium')
 
@@ -285,7 +285,7 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
   const [placedCount, setPlacedCount] = useState(0)     // bumps when a picture arrives, to fly to it
   const [cesium, setCesium] = useState<CesiumNS | null>(null)
   const [failed, setFailed] = useState('')
-  const { data: tles } = usePolling(api.getTles, 60 * 60 * 1000)     // SatDump refreshes them daily
+  const tles = useTopic('tles')            // pushed again when SatDump refreshes them (daily) or the settings change
   const drapeKey = drapes.map(d => d.id).join('|')
 
   useEffect(() => {

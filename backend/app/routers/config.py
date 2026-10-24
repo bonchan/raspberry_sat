@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app import settings
 from app.config import Config, load_config, save_config
+from app.hub import hub
 from app.satdump_cfg import build_autotrack_config
 from app.supervisor import supervisor
 
@@ -22,6 +23,7 @@ def put_config(config: Config) -> Config:
     # FastAPI has already validated the body; an invalid one never gets here (422)
     before = satdump_view(load_config(settings.CONFIG_FILE))
     save_config(settings.CONFIG_FILE, config)
+    hub.publish("config", config.model_dump())          # other open tabs see the new settings
     # only settings SatDump sees are worth a restart (not Discord, display, ...)
     if satdump_view(config) != before:
         supervisor.request_restart("settings changed")

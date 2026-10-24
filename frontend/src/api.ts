@@ -132,9 +132,10 @@ export interface LiveSample {
   t: number; az?: number; el?: number; snr?: number; peak_snr?: number; freq?: number
   viterbi_ber?: number; viterbi_lock?: number | boolean; deframer_lock?: boolean; rs_avg?: number
 }
-export interface Live {
-  receiving: boolean; pass_started: number; last_los: number; history: LiveSample[]
-  current: LiveSample | null        // the latest reading; history keeps one a second
+/** the current (or last) pass as it happens: the latest reading and the data received so far */
+export interface LiveState {
+  receiving: boolean; pass_started: number; last_los: number
+  current: LiveSample | null        // the latest reading; the samples keep one a second
   folder: string | null; cadu_bytes: number
 }
 /** SatDump's spectrum: dB across the band (null: below the scale), the tuned frequency in the middle */
@@ -198,11 +199,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export const api = {
   getConfig: () => request<Config>('GET', '/config'),
   putConfig: (config: Config) => request<Config>('PUT', '/config', config),
-  getSystem: () => request<SystemInfo>('GET', '/system'),
-  getStatus: () => request<Status>('GET', '/status'),
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),
-  getLogs: (after: number) => request<{ lines: LogLine[]; last: number }>('GET', `/logs?after=${after}`),
   testReceiver: (sdr: Sdr) => request<ReceiverTest>('POST', '/receiver/test', sdr),
   getNetworks: () => request<NetworksState>('GET', '/networks'),
   scanNetworks: () => request<{ networks: NearbyNetwork[] }>('GET', '/networks/scan'),
@@ -211,14 +209,8 @@ export const api = {
     request<{ uuid: string }>('PATCH', `/networks/${encodeURIComponent(uuid)}`, { priority }),
   forgetNetwork: (uuid: string) => request<{ forgotten: string }>('DELETE', `/networks/${encodeURIComponent(uuid)}`),
   power: (action: 'restart-app' | 'reboot' | 'poweroff') => request<{ action: string }>('POST', `/system/${action}`),
-  getUpdate: () => request<UpdateState>('GET', '/update'),
   checkUpdate: () => request<UpdateState>('POST', '/update/check'),
   applyUpdate: () => request<UpdateState>('POST', '/update/apply'),
-  getSchedule: () => request<Schedule>('GET', '/schedule'),
-  getLive: (after: number) => request<Live>('GET', `/live?after=${after}`),
-  getTles: () => request<TleSet>('GET', '/tles'),
-  getSpectrum: () => request<Spectrum>('GET', '/spectrum'),
-  getPasses: () => request<PassList>('GET', '/passes'),
   getPass: (id: string) => request<PassDetail>('GET', `/passes/${encodeURIComponent(id)}`),
   getPassGeo: (id: string) => request<PassGeo>('GET', `/passes/${encodeURIComponent(id)}/geo`),
   getPassSignal: (id: string) => request<PassSignalThumb>('GET', `/passes/${encodeURIComponent(id)}/signal?points=150`),

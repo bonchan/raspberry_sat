@@ -27,7 +27,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), cesiumStatic()],
     server: {
-      proxy: { '/api': env.API_TARGET || 'http://localhost:8000' },
+      // ws: the pages' live data comes over a WebSocket (/api/ws)
+      proxy: { '/api': { target: env.API_TARGET || 'http://localhost:8000', ws: true } },
     },
   }
 })

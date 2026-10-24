@@ -8,8 +8,10 @@ from pathlib import Path
 
 import httpx
 
-from app import discord, orbits, passes, settings, updater
+from app import discord, orbits, passes, settings, spectrum, updater
 from app.config import load_config
+from app.hub import hub
+from app.satdump_cfg import FFT_MAX, FFT_MIN
 from app.supervisor import supervisor
 
 log = logging.getLogger(__name__)
@@ -186,6 +188,114 @@ def pass_facts(started: float, satellite: str) -> dict:
     return facts
 
 
+# ---------- what the pages show, for the REST endpoints and the WebSocket topics alike ----------
+
+def status_view() -> dict:
+    """SatDump's process and its status server's last answer (topic "status", GET /api/status)."""
+    return {
+        "satdump": supervisor.snapshot(),
+        "tracker": tracker.data,
+        "tracker_age": time.time() - tracker.updated_at if tracker.data else None,
+        "receiving": tracker.receiving(),
+        "overhead": tracker.overhead(),
+    }
+
+
+def live_files() -> dict:
+    folder = passes.active_folder(settings.PASSES_DIR)
+    return {"folder": folder.name if folder else None, "cadu_bytes": passes.cadu_bytes(folder) if folder else 0}
+
+
+def live_view(after: float = 0) -> dict:
+    """The current (or last) pass as it happens: signal samples newer than `after`, the latest reading,
+    data received so far (GET /api/live; the topic "live" starts with it)."""
+    return {
+        "receiving": tracker.receiving(),
+        "pass_started": tracker.pass_started,
+        "last_los": tracker.last_los,
+        "history": [s for s in tracker.history if s["t"] > after],
+        "current": tracker.current(),
+        **live_files(),
+    }
+
+
+class NoSpectrum(Exception):
+    pass
+
+
+async def read_spectrum() -> dict:
+    """SatDump's spectrum as dB values (spectrum.py), 512 across the band, the tuned frequency in the
+    middle. SatDump only computes it while someone asks, and stops 10 s after the last time."""
+    try:
+        r = await http.get(f"http://{settings.SATDUMP_HTTP}/fft.jpeg")
+    except httpx.HTTPError as e:
+        raise NoSpectrum("SatDump is not answering") from e
+    if r.status_code != 200 or not r.content:
+        raise NoSpectrum("SatDump has no spectrum yet")
+    db = await asyncio.to_thread(spectrum.trace, r.content)
+    return {
+        "db": db, "min": FFT_MIN, "max": FFT_MAX,
+        "frequency": (tracker.data or {}).get("frequency"),
+        "samplerate": load_config(settings.CONFIG_FILE).sdr.samplerate,
+        "time": time.time(),
+    }
+
+
+class TrackerPush:
+    """After each read of SatDump: its status (topic "status"), its process when that changed ("satdump"),
+    and the live signal ("live": the latest reading every time, a new sample once a second)."""
+
+    def __init__(self) -> None:
+        self.process: dict | None = None
+        self.sample_t = 0.0             # time of the last sample sent
+        self.files = {"folder": None, "cadu_bytes": 0}
+
+    def __call__(self) -> None:
+        if hub.watching("status"):
+            hub.publish("status", status_view())
+        process = supervisor.snapshot()
+        if process != self.process:
+            self.process = process
+            hub.publish("satdump", process)
+        if not hub.watching("live"):
+            return
+        update = {"kind": "update", "receiving": tracker.receiving(), "pass_started": tracker.pass_started,
+                  "last_los": tracker.last_los, "current": tracker.current()}
+        latest = tracker.history[-1] if tracker.history else None
+        if latest and latest["t"] > self.sample_t:
+            self.sample_t = latest["t"]
+            update["sample"] = latest
+            self.files = live_files()       # the folder and the data in it: once a second is plenty
+        hub.publish("live", {**update, **self.files})
+
+
+push_tracker = TrackerPush()
+
+SPECTRUM_EVERY = 0.25       # seconds between spectra while a tab shows it
+
+
+async def push_spectrum() -> None:
+    """The spectrum four times a second while a tab shows it (topic "spectrum", null while SatDump has
+    none); nothing otherwise."""
+    while True:
+        if not hub.watching("spectrum"):
+            await asyncio.sleep(0.5)
+            continue
+        try:
+            hub.publish("spectrum", await read_spectrum())
+        except NoSpectrum:
+            hub.publish("spectrum", None)
+        except Exception:
+            log.exception("reading the spectrum failed")
+        await asyncio.sleep(SPECTRUM_EVERY)
+
+
+hub.topic("status", status_view)
+hub.topic("satdump", supervisor.snapshot)
+hub.topic("live", lambda: {"kind": "snapshot", **live_view()})
+hub.topic("spectrum")
+
+
 async def poll_tracker() -> None:
     while True:
         if supervisor.state == "running":
@@ -198,7 +308,9 @@ async def poll_tracker() -> None:
         else:
             tracker.update(None)
         live_signal.save(tracker, time.time())
-        await asyncio.sleep(WATCHED_POLL if tracker.watched() else POLL_INTERVAL)
+        push_tracker()
+        # faster while a tab shows the live signal (or asks over REST)
+        await asyncio.sleep(WATCHED_POLL if tracker.watched() or hub.watching("live") else POLL_INTERVAL)
 
 
 def safe_to_restart() -> bool:
@@ -335,6 +447,7 @@ def report_ready(folder) -> None:
         text += f", {meta['coverage']:.0%} of the main image received"
     if meta.get("orbit"):
         text += f", highest elevation {meta['orbit']['max_el']:.0f}°"
-    if meta.get("signal"):
+    if (meta.get("signal") or {}).get("peak_snr") is not None:
         text += f", peak SNR {meta['signal']['peak_snr']} dB"
     supervisor.note("info", text)
+    hub.nudge("passes")

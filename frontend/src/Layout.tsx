@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { api } from './api'
-import { useNow, usePolling } from './hooks'
+import { useNow } from './hooks'
 import { useT, type Key } from './i18n'
+import { useConnection, useTopic } from './stream'
 import { clockSeconds, utcClock } from './format'
 
 const links: { to: string; label: Key; end?: boolean }[] = [
@@ -28,7 +28,7 @@ function Clock() {
 // shown only when the last check found new commits upstream
 function UpdateBadge() {
   const t = useT()
-  const { data } = usePolling(api.getUpdate, 10 * 60 * 1000)
+  const data = useTopic('update')
   if (!data?.behind && !data?.running) return null
   return <NavLink className="badge" to="/status#updates">{t('update.badge')}</NavLink>
 }
@@ -36,9 +36,10 @@ function UpdateBadge() {
 // nothing while SatDump runs; red when it doesn't, or when the Pi does not answer
 function SatdumpBadge() {
   const t = useT()
-  const { data, error } = usePolling(api.getStatus, 5000)
-  const state = data?.satdump.state
-  if (error) return <NavLink className="badge danger" to="/status">{t('header.offline')}</NavLink>
+  const process = useTopic('satdump')
+  const connection = useConnection()
+  const state = process?.state
+  if (connection === 'down') return <NavLink className="badge danger" to="/status">{t('header.offline')}</NavLink>
   if (!state || state === 'running') return null
   return <NavLink className="badge danger" to="/status">SatDump: {t(`state.${state}` as Key)}</NavLink>
 }

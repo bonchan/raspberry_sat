@@ -2,16 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { api, ApiError, type PendingCommit, type UpdateState } from './api'
 import { useConfirm } from './Dialog'
 import Fact from './Fact'
-import { usePolling } from './hooks'
 import { clock, longDate } from './format'
 import { useT } from './i18n'
+import { useTopic } from './stream'
 
 /** The Updates section of the Status tab: what is new upstream, Update now, and the last update's log. */
 export default function Updates() {
   const t = useT()
   const ask = useConfirm()
-  // every few seconds, to follow an update while it runs; checking upstream is a separate button
-  const { data: polled, error } = usePolling(api.getUpdate, 3000)
+  // pushed when it changes (every few seconds while an update runs); checking upstream is a separate button
+  const polled = useTopic('update') ?? null
   const [fresh, setFresh] = useState<UpdateState | null>(null)
   const [busy, setBusy] = useState<'check' | 'apply' | null>(null)
   const [actionError, setActionError] = useState('')
@@ -44,7 +44,6 @@ export default function Updates() {
     return (
       <section id="updates">
         <h2>{t('status.updates')}</h2>
-        {error && <p className="error">{error}</p>}
         <dl className="facts">
           <Fact label={t('update.current')} loading value={null} />
           <Fact label={t('update.branch')} loading value={null} />
