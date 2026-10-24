@@ -241,10 +241,21 @@ def time_from_name(name: str) -> float | None:
         return None
 
 
+def stuck_clock(folder: Path) -> bool:
+    """The satellite's clock in this pass's data was stuck (georef.stamps_stuck), so SatDump's times for it,
+    dataset.json's included, are wrong."""
+    product = product_file(folder)
+    try:
+        return product is not None and georef.product_stuck(product)
+    except (OSError, ValueError):
+        return False
+
+
 def pass_time(folder: Path, source_name: str, dataset: dict) -> float:
     """When the pass happened. dataset.json's timestamp when SatDump knew it (it writes -1 when the
-    received data had no usable time), else the time in SatDump's folder name, else the oldest file."""
-    if plausible_time(dataset.get("timestamp")):
+    received data had no usable time) and the satellite's clock was not stuck; else the time in SatDump's
+    folder name (the Pi's clock when recording began); else the oldest file."""
+    if plausible_time(dataset.get("timestamp")) and not stuck_clock(folder):
         return float(dataset["timestamp"])
     return time_from_name(source_name) or \
         min((f.stat().st_mtime for f in satdump_files(folder)), default=folder.stat().st_mtime)
@@ -270,8 +281,10 @@ def pass_satellite(dataset: dict, started: float, guess: SatelliteGuess | None) 
 
 
 def repair(passes_dir: Path, guess: SatelliteGuess | None = None) -> list[tuple[str, str]]:
-    """Fix finished passes saved before the fallbacks existed: SatDump's -1 timestamp (shown as 1969)
-    and "Unknown Meteor". Corrects pass.json and the folder name. Returns [(old name, new name)]."""
+    """Fix finished passes saved before the fallbacks existed: SatDump's -1 timestamp (shown as 1969),
+    a time taken from a stuck satellite clock (then its orbit is worked out again, and a signal rebuilt
+    from those stamps dropped), and "Unknown Meteor". Corrects pass.json and the folder name.
+    Returns [(old name, new name)]."""
     fixed = []
     for folder in pass_folders(passes_dir):
         meta = read_json(folder / META)
@@ -281,6 +294,16 @@ def repair(passes_dir: Path, guess: SatelliteGuess | None = None) -> list[tuple[
         if not plausible_time(meta.get("time")):
             meta["time"] = pass_time(folder, str(meta.get("source_name", "")), {})
             changed = True
+        if stuck_clock(folder):
+            named = time_from_name(str(meta.get("source_name", "")))
+            if named and abs(named - meta["time"]) > 60:
+                meta["time"] = named
+                meta.pop("orbit", None)                         # found again at startup (add_orbits)
+                changed = True
+            if (meta.get("signal") or {}).get("rebuilt"):       # rebuilt from stamps that meant nothing
+                (folder / SAMPLES).unlink(missing_ok=True)
+                meta["signal"] = None
+                changed = True
         if not known_satellite(str(meta.get("satellite") or "")):
             name = pass_satellite({"satellite": meta.get("satellite")}, meta["time"], guess)
             if known_satellite(name):

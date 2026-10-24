@@ -195,6 +195,15 @@ def test_sync_drops_during_reception():
     assert passes.sync_drops([sample(0, 10, 1.0, False)]) == ([], {})
 
 
+def test_stuck_satellite_clock_takes_the_time_from_the_folder_name(tmp_path):
+    import cbor2
+    folder = make_pass(tmp_path, name=SATDUMP_NAME)                # dataset.json says 2026-10-12 13:10
+    (folder / "MSU-MR" / "product.cbor").write_bytes(cbor2.dumps(
+        {"images": [{"timestamps": [STARTED + (0.231 * i) % 1 for i in range(40)]}]}))
+    finished = passes.finalize(folder)
+    assert finished.name == "2026-10-15_1921Z_meteor-m2-3"          # the Pi's clock, from SatDump's folder name
+
+
 def test_finalize_ready_leaves_fresh_folders(tmp_path):
     make_pass(tmp_path, name="old")
     make_pass(tmp_path, name="fresh", satellite="METEOR-M2-4", age=10)

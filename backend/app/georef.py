@@ -125,6 +125,30 @@ def line_times(stamps: list[float], cfg: dict) -> list[float]:
     return [-1 if t == -1 else t + i * step for t in stamps for i in range(-(n // 2), n // 2)]
 
 
+BLOCK_PERIOD = 1.2311   # seconds between MSU-MR's blocks of 8 lines, as SatDump's stamps of good passes show
+
+
+def stamps_stuck(stamps: list[float]) -> bool:
+    """Time stamps that don't move on: the satellite's clock in the data was stuck (seen on METEOR-M2-4,
+    2026-10-21: every block stamped within one second, only the milliseconds turning). Their spread is
+    then a small part of the time the blocks took to arrive."""
+    valid = [t for t in stamps if t != -1]
+    return len(valid) >= 10 and max(valid) - min(valid) < 0.25 * len(valid) * BLOCK_PERIOD
+
+
+def product_stuck(product: Path) -> bool:
+    """Whether a channel of this product.cbor has stuck time stamps."""
+    data = cbor2.loads(product.read_bytes())
+    return any(stamps_stuck(img.get("timestamps") or []) for img in data.get("images", []))
+
+
+def restamp(stamps: list[float], anchor: float) -> list[float]:
+    """Stuck stamps replaced by the blocks' steady pace, the first block with data at `anchor`
+    (the pass's first sync); blocks without data stay without."""
+    first = next(i for i, t in enumerate(stamps) if t != -1)
+    return [-1 if t == -1 else anchor + (i - first) * BLOCK_PERIOD for i, t in enumerate(stamps)]
+
+
 def fill_gaps(times: list[float]) -> list[float]:
     """Lines without a time (no data reached them) between two that have one get theirs by interpolation:
     the satellite kept moving at the same pace, so the image (black there) stays in one piece instead of
@@ -139,11 +163,13 @@ def fill_gaps(times: list[float]) -> list[float]:
 
 def data_times(product: Path) -> list[float]:
     """When image data arrived during the pass: the time stamps of the blocks of lines SatDump decoded,
-    after its own filtering, from the channel with the most of them."""
+    after its own filtering, from the channel with the most of them. Nothing when they are stuck."""
     data = cbor2.loads(product.read_bytes())
     cfg = data.get("projection_cfg") or {}
     best: list[float] = []
     for img in data.get("images", []):
+        if stamps_stuck(img.get("timestamps") or []):
+            continue
         stamps = [t for t in filter_timestamps(img.get("timestamps") or [], cfg) if t != -1]
         if len(stamps) > len(best):
             best = stamps
@@ -152,16 +178,26 @@ def data_times(product: Path) -> list[float]:
 
 # ---------- the grid ----------
 
-def georeference(product: Path, width: int, height: int, rows: int = 64, cols: int = 25) -> dict | None:
+def georeference(product: Path, width: int, height: int, rows: int = 64, cols: int = 25,
+                 anchor: float | None = None) -> dict | None:
     """Latitude and longitude of a grid of pixels of an image `width` x `height` from this product's
-    instrument, or None when the product has no usable projection for an image that size."""
+    instrument, or None when the product has no usable projection for an image that size. Stuck time
+    stamps are rebuilt from the blocks' pace when `anchor` (the time of the first data, from the pass's
+    signal) is known; without it the image can't be placed."""
     data = cbor2.loads(product.read_bytes())
     cfg, tle = data.get("projection_cfg") or {}, data.get("tle") or {}
     if cfg.get("type") != "normal_single_line" or cfg.get("image_width") != width or not tle.get("line1"):
         return None
     # the line times of the channel closest to the image's height: a composite has its channels' height,
     # or a few lines less when SatDump cut it to its shortest channel (same first line)
-    channels = [line_times(filter_timestamps(img.get("timestamps") or [], cfg), cfg) for img in data.get("images", [])]
+    channels = []
+    for img in data.get("images", []):
+        stamps = img.get("timestamps") or []
+        if stamps_stuck(stamps):
+            if anchor is None:
+                return None
+            stamps = restamp(stamps, anchor)
+        channels.append(line_times(filter_timestamps(stamps, cfg), cfg))
     tall_enough = [t for t in channels if len(t) >= height]
     if not tall_enough:
         return None

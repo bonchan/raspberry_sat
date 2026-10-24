@@ -69,6 +69,30 @@ def test_missing_blocks_keep_the_image_in_one_piece(tmp_path):
     assert len(georef.data_times(product)) == 21 - 8 - 1        # 8 lost, and SatDump's filter drops the first
 
 
+def test_stuck_clock_is_detected_and_restamped(tmp_path):
+    # like METEOR-M2-4 on 2026-10-21: the milliseconds turn, the seconds stay
+    stuck = [1000.0 + (0.231 * i) % 1 for i in range(40)]
+    assert georef.stamps_stuck(stuck)
+    assert not georef.stamps_stuck([1000.0 + 1.2311 * i for i in range(40)])
+    stuck[5] = -1
+    restamped = georef.restamp(stuck, 500.0)
+    assert restamped[0] == 500.0 and restamped[5] == -1 and abs(restamped[10] - (500.0 + 10 * 1.2311)) < 1e-9
+
+    lines = TLE.strip().splitlines()
+    first = predict(station_config(), parse_tles(TLE), EPOCH, hours=24)[0]
+    product = tmp_path / "product.cbor"
+    product.write_bytes(cbor2.dumps({"images": [{"timestamps": stuck}], "projection_cfg": CFG,
+                                     "tle": {"line1": lines[1], "line2": lines[2]}}))
+    assert georef.product_stuck(product)
+    assert georef.data_times(product) == []
+    assert georef.georeference(product, 1568, 40 * 8) is None                    # nothing to place it by
+    grid = georef.georeference(product, 1568, 40 * 8, rows=8, cols=3, anchor=(first["aos"] + first["los"]) / 2 - 25)
+    width = len(grid["cols"])
+    middles = [grid["points"][i * width + 1] for i in range(len(grid["rows"]))]
+    placed = [m for m in middles if m]
+    assert km_between(placed[0], placed[-1]) > 200                               # a strip along the track again
+
+
 def test_grid_lies_under_the_orbit(tmp_path):
     lines = TLE.strip().splitlines()
     first = predict(station_config(), parse_tles(TLE), EPOCH, hours=24)[0]

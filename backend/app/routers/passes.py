@@ -56,7 +56,7 @@ def get_signal(pass_id: str, points: int = Query(150, ge=10, le=2000)) -> dict:
         "end": orbit.get("los") or (samples[-1]["t"] if samples else None),
         "track": orbit.get("track"),
         "samples": passes.thin_samples(samples, points),
-        "can_rebuild": not samples and passes.product_file(folder) is not None,
+        "can_rebuild": not samples and passes.product_file(folder) is not None and not passes.stuck_clock(folder),
     }
 
 
@@ -75,13 +75,19 @@ async def get_geo(pass_id: str) -> dict:
     """Where the pass's image lies on Earth (georef.py): the raw version of its main image and the
     latitude/longitude of a grid of its pixels, for draping it over a map."""
     folder = folder_or_404(pass_id)
-    image = passes.drape_image(passes.load_pass(folder) or {})
+    meta = passes.load_pass(folder) or {}
+    image = passes.drape_image(meta)
     product = folder / PurePosixPath(image["path"]).parent / "product.cbor" if image else None
     if image is None or product is None or not product.is_file():
         raise HTTPException(404, "this pass has no image that can be placed on the map")
-    grid = await asyncio.to_thread(georef.georeference, product, image["width"], image["height"])
+    # when the satellite's clock was stuck, the line times are rebuilt from the first sync of the live signal
+    signal = meta.get("signal") or {}
+    anchor = None if signal.get("rebuilt") else (signal.get("first_sync") or {}).get("t")
+    grid = await asyncio.to_thread(georef.georeference, product, image["width"], image["height"], anchor=anchor)
     if grid is None:
-        raise HTTPException(404, "SatDump's georeferencing does not fit this pass's image")
+        stuck = await asyncio.to_thread(passes.stuck_clock, folder)
+        raise HTTPException(404, "the satellite's clock in this pass's data was stuck, and there is no signal "
+                                 "to place it by" if stuck else "SatDump's georeferencing does not fit this pass's image")
     return {"image": image["path"], **grid}
 
 

@@ -266,7 +266,7 @@ async def scan_passes() -> None:
 
     try:
         for old, new in await asyncio.to_thread(passes.repair, settings.PASSES_DIR, guess_satellite):
-            supervisor.note("info", f"pass {old} lacked a time or satellite name from SatDump; now {new}")
+            supervisor.note("info", f"pass {old}: time or satellite name from SatDump fixed; now {new}")
     except Exception:
         log.exception("repairing pass times failed")
     try:
