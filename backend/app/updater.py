@@ -17,6 +17,12 @@ from app import settings
 UNIT = "raspberry_sat-update"
 LOG_TAIL = 300
 
+# What the Pi doesn't use: the central gallery (hub/), notes (docs/, README.md) and the rotator's Arduino
+# sketches. Commits that touch only these need no update; scripts/self_update.sh pulls them without
+# rebuilding or restarting (it keeps the same list).
+NOT_ON_PI = ("hub/", "docs/", "arduino/", "README.md")
+PULL_ONLY = "== no rebuild"     # self_update.sh's line when it skipped update.sh
+
 
 class UpdateError(Exception):
     pass
@@ -33,13 +39,19 @@ def git(*args: str, timeout: float = 30) -> str:
     return r.stdout
 
 
+def affects_pi(path: str) -> bool:
+    """Whether a file of the repo is something the Pi runs or builds (see NOT_ON_PI)."""
+    return not any(path == p or (p.endswith("/") and path.startswith(p)) for p in NOT_ON_PI)
+
+
 def commit_info(rev: str) -> dict:
     h, short, ts, subject = git("log", "-1", "--format=%H%x1f%h%x1f%ct%x1f%s", rev).strip().split("\x1f", 3)
     return {"hash": h, "short": short, "time": int(ts), "subject": subject}
 
 
 def pending_commits(upstream: str) -> list[dict]:
-    """Commits upstream that this checkout does not have, newest first, with the files each changes."""
+    """Commits upstream that this checkout does not have, newest first, with the files each changes and
+    whether any of them is one the Pi uses (a merge lists no files, so it counts as not)."""
     out = git("log", "--format=%H%x1f%h%x1f%an%x1f%ct%x1f%s%x1f%b%x1e", f"HEAD..{upstream}")
     commits = []
     for record in out.split("\x1e"):
@@ -47,15 +59,17 @@ def pending_commits(upstream: str) -> list[dict]:
             continue
         h, short, author, ts, subject, body = record.lstrip("\n").split("\x1f", 5)
         commits.append({"hash": h, "short": short, "author": author, "time": int(ts),
-                        "subject": subject, "body": body.strip(), "files": []})
+                        "subject": subject, "body": body.strip(), "files": [], "affects_pi": False})
 
     by_hash = {c["hash"]: c for c in commits}
     for chunk in git("log", "--format=%x1e%H", "--name-status", f"HEAD..{upstream}").split("\x1e"):
         lines = [line for line in chunk.splitlines() if line.strip()]
         if lines and lines[0].strip() in by_hash:
+            c = by_hash[lines[0].strip()]
             for line in lines[1:]:
                 parts = line.split("\t")        # "M\tpath", or "R100\told\tnew" for a rename
-                by_hash[lines[0].strip()]["files"].append({"status": parts[0][:1], "path": parts[-1]})
+                c["files"].append({"status": parts[0][:1], "path": parts[-1]})
+                c["affects_pi"] = c["affects_pi"] or any(affects_pi(p) for p in parts[1:])
     return commits
 
 
@@ -67,9 +81,12 @@ def cached() -> dict | None:
 
 
 def check(fetch: bool) -> dict:
-    """Compare this checkout with its upstream branch; with `fetch`, ask the remote first (needs the network)."""
+    """Compare this checkout with its upstream branch; with `fetch`, ask the remote first (needs the network).
+    `pi_changes`: how many of the files pulling would change are ones the Pi uses; 0 means there is nothing
+    to update, even with new commits (the page then shows no "Update available")."""
     result = {"checked_at": time.time(), "error": None, "current": None, "branch": None, "upstream": None,
-              "behind": 0, "ahead": 0, "commits": [], "diffstat": "", "dirty": []}
+              "behind": 0, "ahead": 0, "commits": [], "diffstat": "", "dirty": [],
+              "pi_changes": 0, "not_on_pi": list(NOT_ON_PI)}
     try:
         if fetch:
             git("fetch", "--quiet", "--prune", "origin", timeout=120)
@@ -86,6 +103,11 @@ def check(fetch: bool) -> dict:
             if result["behind"]:
                 result["commits"] = pending_commits(upstream)
                 result["diffstat"] = git("diff", "--shortstat", "HEAD", upstream).strip()
+                # what pulling brings, all commits together; a file moved out of the Pi's folders counts
+                # (without renames, git lists its old path as deleted)
+                changed = [p.strip() for p in
+                           git("diff", "--name-only", "--no-renames", f"HEAD...{upstream}").splitlines()]
+                result["pi_changes"] = sum(1 for p in changed if p and affects_pi(p))
         # "XY path"; includes mode changes like a chmod +x made on the Pi
         result["dirty"] = [line[3:] for line in git("status", "--porcelain").splitlines() if line.strip()]
     except UpdateError as e:
@@ -110,14 +132,16 @@ def running() -> bool:
 
 
 def last_run() -> dict | None:
-    """The log of the latest update (each run starts a new one) and how it ended."""
+    """The log of the latest update (each run starts a new one), how it ended, and whether it only pulled
+    (nothing the Pi uses had changed, so nothing was rebuilt or restarted)."""
     path = log_path()
     if not path.exists():
         return None
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     result = "ok" if any(l.startswith("== done") for l in lines) else \
         "failed" if any(l.startswith("== FAILED") for l in lines) else None
-    return {"log": lines[-LOG_TAIL:], "result": result, "changed_at": path.stat().st_mtime}
+    return {"log": lines[-LOG_TAIL:], "result": result, "changed_at": path.stat().st_mtime,
+            "pull_only": any(l.startswith(PULL_ONLY) for l in lines)}
 
 
 def start(blocked: str | None = None) -> None:

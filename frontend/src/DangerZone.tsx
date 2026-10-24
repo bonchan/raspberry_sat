@@ -26,6 +26,7 @@ export default function DangerZone() {
   const [error, setError] = useState('')
 
   const behind = update?.behind ?? 0
+  const forPi = (update?.pi_changes ?? 0) > 0      // false: the new commits only touch what the Pi doesn't use
 
   async function run(a: (typeof ACTIONS)[number]) {
     // asked when needed: this page doesn't follow SatDump's status
@@ -50,7 +51,9 @@ export default function DangerZone() {
         <div>
           <b>{t('danger.update')}</b>
           <p className="hint">
-            {behind === 0 ? t('status.upToDate') : behind === 1 ? t('status.updatesOne') : t('status.updatesMany', { n: behind })}
+            {behind === 0 ? t('status.upToDate')
+              : !forPi ? (behind === 1 ? t('status.notPiOne') : t('status.notPiMany', { n: behind }))
+              : behind === 1 ? t('status.updatesOne') : t('status.updatesMany', { n: behind })}
           </p>
         </div>
         <Link className="button danger" to="/status#updates">{t('danger.updateButton')}</Link>

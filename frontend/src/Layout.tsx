@@ -25,11 +25,11 @@ function Clock() {
   )
 }
 
-// shown only when the last check found new commits upstream
+// shown only when the last check found new commits upstream that change something the Pi uses
 function UpdateBadge() {
   const t = useT()
   const data = useTopic('update')
-  if (!data?.behind && !data?.running) return null
+  if (!data?.pi_changes && !data?.running) return null
   return <NavLink className="badge" to="/status#updates">{t('update.badge')}</NavLink>
 }
 

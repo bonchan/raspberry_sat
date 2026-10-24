@@ -57,6 +57,9 @@ export default function Updates() {
   const behind = data.behind ?? 0
   const commits = data.commits ?? []
   const dirty = data.dirty ?? []
+  const forPi = (data.pi_changes ?? 0) > 0       // false: the new commits only touch what the Pi doesn't use
+  const piCommits = commits.filter(c => c.affects_pi).length
+  const notOnPi = (data.not_on_pi ?? []).join(', ')
   const updated = data.current && firstSeen.current && data.current.hash !== firstSeen.current
   const wait = data.blocked
   const blocked = data.running || !!wait || dirty.length > 0 || (data.ahead ?? 0) > 0 || behind === 0
@@ -65,7 +68,8 @@ export default function Updates() {
     <section id="updates">
       <h2>{t('status.updates')}</h2>
       {data.error && <p className="error">{data.error}</p>}
-      {updated && (
+      {updated && data.last_run?.pull_only && <p className="ok">{t('update.pulled', { short: data.current!.short })}</p>}
+      {updated && !data.last_run?.pull_only && (
         <p className="ok">
           {t('update.reload', { short: data.current!.short })}{' '}
           <button className="primary" onClick={() => window.location.reload()}>{t('update.reloadButton')}</button>
@@ -94,6 +98,10 @@ export default function Updates() {
           <h3 className="subhead">{behind === 1 ? t('update.behindOne', { upstream: data.upstream! })
             : t('update.behindMany', { n: behind, upstream: data.upstream! })}</h3>
           {data.diffstat && <p className="hint">{data.diffstat}</p>}
+          {forPi && piCommits > 0 && piCommits < commits.length && (
+            <p className="hint">{piCommits === 1 ? t('update.forPiOne', { paths: notOnPi })
+              : t('update.forPiMany', { n: piCommits, paths: notOnPi })}</p>
+          )}
           <ul className="commits">
             {commits.map(c => <Commit key={c.hash} commit={c} />)}
           </ul>
@@ -108,19 +116,24 @@ export default function Updates() {
       {(data.ahead ?? 0) > 0 && <p className="warning">{t('update.ahead', { n: data.ahead! })}</p>}
       {behind > 0 && (
         <>
-          <p className="hint">{t('update.explain')}</p>
+          <p className="hint">{forPi ? t('update.explain') : t('update.explainNotPi', { paths: notOnPi })}</p>
           {wait && (
             <p className="caution">
               {wait.reason === 'pass_soon' ? t('update.waitPass', { satellite: wait.satellite, time: clock(wait.aos) })
                 : t(wait.reason === 'receiving' ? 'update.waitReceiving' : 'update.waitDecoding')}
             </p>
           )}
-          <button className="primary" disabled={blocked || busy !== null}
+          {/* nothing for the Pi: a plain button, pulling is optional (scripts/self_update.sh then skips the rebuild) */}
+          <button className={forPi ? 'primary' : undefined} disabled={blocked || busy !== null}
             onClick={async () => {
-              if (await ask({ title: t('update.title'), message: t('update.confirm', { short: commits[0]?.short ?? '' }),
-                              confirmLabel: t('update.button') })) run('apply')
+              const short = commits[0]?.short ?? ''
+              if (await ask({
+                title: t('update.title'),
+                message: forPi ? t('update.confirm', { short }) : t('update.pullConfirm', { short }),
+                confirmLabel: forPi ? t('update.button') : t('update.pullButton'),
+              })) run('apply')
             }}>
-            {t('update.button')}
+            {forPi ? t('update.button') : t('update.pullButton')}
           </button>
         </>
       )}
@@ -162,9 +175,12 @@ function UpdateLog({ lines, open, follow }: { lines: string[]; open: boolean; fo
 function Commit({ commit }: { commit: PendingCommit }) {
   const t = useT()
   return (
-    <li>
+    <li className={commit.affects_pi ? undefined : 'not-pi'}>
       <div><b>{commit.subject}</b></div>
-      <div className="hint"><code>{commit.short}</code> · {commit.author} · {longDate(commit.time)}</div>
+      <div className="hint">
+        <code>{commit.short}</code> · {commit.author} · {longDate(commit.time)}
+        {!commit.affects_pi && <> · {t('update.notOnPi')}</>}
+      </div>
       {commit.body && <pre className="commit-body">{commit.body}</pre>}
       {commit.files.length > 0 && (
         <details>

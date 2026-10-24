@@ -146,13 +146,17 @@ export interface Spectrum {
 export interface CommitInfo { hash: string; short: string; time: number; subject: string }
 export interface PendingCommit extends CommitInfo {
   author: string; body: string; files: { status: string; path: string }[]
+  affects_pi: boolean       // changes a file the Pi uses, not only what not_on_pi lists
 }
 export interface UpdateState {
   checked_at?: number; error?: string | null
   current?: CommitInfo | null; branch?: string | null; upstream?: string | null
   behind?: number; ahead?: number; commits?: PendingCommit[]; diffstat?: string; dirty?: string[]
+  pi_changes?: number       // files pulling would change that the Pi uses; 0: nothing to update
+  not_on_pi?: string[]      // what the Pi doesn't use: "hub/", "docs/", "arduino/", "README.md"
   running: boolean
-  last_run: { log: string[]; result: 'ok' | 'failed' | null; changed_at: number } | null
+  // pull_only: nothing the Pi uses had changed, so nothing was rebuilt or restarted
+  last_run: { log: string[]; result: 'ok' | 'failed' | null; changed_at: number; pull_only?: boolean } | null
   blocked: UpdateBlocker | null     // why Update now has to wait for a pass
 }
 export type UpdateBlocker =

@@ -113,6 +113,11 @@ so restarting the app does not interrupt it. It refuses while a pass is being re
 when the checkout has local changes, or when the Pi has commits of its own. It needs passwordless
 sudo for the app's user, which Raspberry Pi OS gives the first user.
 
+Commits that only touch what the Pi doesn't use (`hub/`, `docs/`, `arduino/`, this README) don't count:
+no "Update available" for them, and the Update page shows them dimmed. **Pull anyway** brings them
+in seconds without rebuilding or restarting. Together with commits that do change the Pi, the update
+runs as usual.
+
 Logs: the Logs page, `~/raspberry_sat_data/logs/satdump.log` for SatDump's full output, and
 `journalctl -u raspberry_sat -f` for the app itself.
 
