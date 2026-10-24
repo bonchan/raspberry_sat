@@ -21,7 +21,6 @@ export default function DangerZone() {
   const t = useT()
   const ask = useConfirm()
   const update = useTopic('update')
-  const status = useTopic('status')
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState('')
   const [error, setError] = useState('')
@@ -29,7 +28,9 @@ export default function DangerZone() {
   const behind = update?.behind ?? 0
 
   async function run(a: (typeof ACTIONS)[number]) {
-    const warning = status?.receiving ? t('danger.passWarning') + '\n\n' : ''
+    // asked when needed: this page doesn't follow SatDump's status
+    const receiving = await api.getStatus().then(s => s.receiving, () => false)
+    const warning = receiving ? t('danger.passWarning') + '\n\n' : ''
     if (!(await ask({ title: t(a.title), message: warning + t(a.confirm), confirmLabel: t(a.button), danger: true }))) return
     setBusy(true); setError(''); setDone('')
     try {

@@ -35,8 +35,10 @@ def system_info() -> Awaitable[dict]:
     return asyncio.to_thread(system_api.get_system)
 
 
-def schedule_with_tracks() -> Awaitable[dict]:
-    return schedule_api.get_schedule(True)
+async def schedule_with_tracks() -> dict:
+    # without when it was worked out (every few minutes): sent when the passes change, not on every recompute
+    result = await schedule_api.get_schedule(True)
+    return {k: v for k, v in result.items() if k != "computed_at"}
 
 
 # topic: (snapshot, then every so many seconds while watched; None: published where it changes)

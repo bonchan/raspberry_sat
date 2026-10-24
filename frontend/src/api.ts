@@ -125,7 +125,7 @@ export interface UpcomingPass {
   aos_az: number; los_az: number; track: [number, number][]; scheduled: boolean
 }
 export interface Schedule {
-  passes: UpcomingPass[]; computed_at: number; days?: number; tle_updated_at?: number; missing?: string[]; error?: string
+  passes: UpcomingPass[]; computed_at?: number; days?: number; tle_updated_at?: number; missing?: string[]; error?: string
 }
 /** one sample per second during a pass; signal fields only while SatDump's pipeline reports them */
 export interface LiveSample {
@@ -198,6 +198,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   getConfig: () => request<Config>('GET', '/config'),
+  getStatus: () => request<Status>('GET', '/status'),
   putConfig: (config: Config) => request<Config>('PUT', '/config', config),
   satdump: (action: 'start' | 'stop' | 'restart') => request<SatdumpProcess>('POST', `/satdump/${action}`),
   getSatdumpConfig: () => request<unknown>('GET', '/satdump/config'),

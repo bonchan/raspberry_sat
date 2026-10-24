@@ -28,7 +28,7 @@ def guess_satellite(when: float) -> str | None:
 http = httpx.AsyncClient(timeout=5)
 
 POLL_INTERVAL = 1
-WATCHED_POLL = 0.25         # seconds between reads of SatDump's status while the Live page is open
+WATCHED_POLL = 0.25         # seconds between reads of SatDump's status while the Live page follows a pass
 WATCH_HOLD = 5              # ... for this long after the page last asked
 HISTORY_STEP = 1            # seconds between the samples kept for the pass chart (and signal.json)
 LIVE_SIGNAL = "live_signal.jsonl"   # in the data dir: the current pass's samples as they come
@@ -241,32 +241,92 @@ async def read_spectrum() -> dict:
     }
 
 
+STALE_AFTER = 10            # seconds without an answer from SatDump before the pages say so
+SPECTRUM_FRESH = 2          # a spectrum read this recently: a tab shows it and the SDR is running
+FILES_EVERY = 5             # seconds between looks at the pass folder outside a pass (decoding after LOS)
+
+spectrum_at = 0.0           # when the last spectrum was read (push_spectrum)
+
+
+def spectrum_shown() -> bool:
+    """A tab shows the spectrum and SatDump has one, so the SDR is on (between passes: when the settings
+    keep it on)."""
+    return hub.watching("spectrum") and time.time() - spectrum_at < SPECTRUM_FRESH
+
+
+def stale() -> bool:
+    """SatDump runs but its status server stopped answering."""
+    return tracker.data is not None and time.time() - tracker.updated_at > STALE_AFTER
+
+
+def pace() -> str:
+    """How closely the pages follow SatDump:
+    "fast"   a pass is being recorded, or a tab shows the spectrum: every read, four a second while the
+             Live page is open;
+    "steady" a satellite is overhead but too low to record, or SatDump stopped answering: once a second;
+    "quiet"  otherwise: only when something on the pages changes. They work out where the satellites are
+             and the time themselves (from the orbit data and their clock)."""
+    if tracker.receiving() or spectrum_shown():
+        return "fast"
+    if tracker.overhead() or stale():
+        return "steady"
+    return "quiet"
+
+
+def _second(t: float | None) -> int | None:
+    return round(t) if isinstance(t, (int, float)) else None
+
+
+def status_key(view: dict) -> tuple:
+    """What the pages show from the status when nothing is overhead: the position and the age of the
+    answer change on every read, these only when something happens."""
+    data = view["tracker"] or {}
+    t = data.get("object_tracker") or {}
+    return (view["satdump"], view["receiving"], view["overhead"], view["tracker"] is None,
+            t.get("object_name"), t.get("next_event_is_aos"), _second(t.get("next_aos_time")),
+            _second(t.get("next_los_time")), data.get("frequency"))
+
+
 class TrackerPush:
     """After each read of SatDump: its status (topic "status"), its process when that changed ("satdump"),
-    and the live signal ("live": the latest reading every time, a new sample once a second)."""
+    and the live signal ("live": during a pass the latest reading every time and a new sample once a
+    second; otherwise only when it changed). How often the status goes out: pace()."""
 
     def __init__(self) -> None:
         self.process: dict | None = None
-        self.sample_t = 0.0             # time of the last sample sent
+        self.status: tuple | None = None    # status_key of the last read
+        self.sample_t = 0.0                 # time of the last sample sent
         self.files = {"folder": None, "cadu_bytes": 0}
+        self.files_at = 0.0
+        self.live: dict | None = None       # the last "live" update sent
 
     def __call__(self) -> None:
-        if hub.watching("status"):
-            hub.publish("status", status_view())
+        view = status_view()
+        key = status_key(view)
+        if hub.watching("status") and (key != self.status or pace() != "quiet"):
+            hub.publish("status", view)
+        self.status = key
         process = supervisor.snapshot()
         if process != self.process:
             self.process = process
             hub.publish("satdump", process)
         if not hub.watching("live"):
             return
-        update = {"kind": "update", "receiving": tracker.receiving(), "pass_started": tracker.pass_started,
+        receiving = tracker.receiving()
+        now = time.time()
+        update = {"kind": "update", "receiving": receiving, "pass_started": tracker.pass_started,
                   "last_los": tracker.last_los, "current": tracker.current()}
         latest = tracker.history[-1] if tracker.history else None
         if latest and latest["t"] > self.sample_t:
             self.sample_t = latest["t"]
             update["sample"] = latest
-            self.files = live_files()       # the folder and the data in it: once a second is plenty
-        hub.publish("live", {**update, **self.files})
+            self.files, self.files_at = live_files(), now   # the folder and the data in it: once a second is plenty
+        elif not receiving and now - self.files_at >= FILES_EVERY:
+            self.files, self.files_at = live_files(), now   # after LOS: decoding, then finished
+        message = {**update, **self.files}
+        if receiving or message != self.live:
+            self.live = message
+            hub.publish("live", message)
 
 
 push_tracker = TrackerPush()
@@ -277,12 +337,14 @@ SPECTRUM_EVERY = 0.25       # seconds between spectra while a tab shows it
 async def push_spectrum() -> None:
     """The spectrum four times a second while a tab shows it (topic "spectrum", null while SatDump has
     none); nothing otherwise."""
+    global spectrum_at
     while True:
         if not hub.watching("spectrum"):
             await asyncio.sleep(0.5)
             continue
         try:
             hub.publish("spectrum", await read_spectrum())
+            spectrum_at = time.time()
         except NoSpectrum:
             hub.publish("spectrum", None)
         except Exception:
@@ -309,8 +371,9 @@ async def poll_tracker() -> None:
             tracker.update(None)
         live_signal.save(tracker, time.time())
         push_tracker()
-        # faster while a tab shows the live signal (or asks over REST)
-        await asyncio.sleep(WATCHED_POLL if tracker.watched() or hub.watching("live") else POLL_INTERVAL)
+        # faster while a tab shows a pass or the spectrum on the Live page (or asks over REST)
+        fast = pace() == "fast" and (tracker.watched() or hub.watching("live"))
+        await asyncio.sleep(WATCHED_POLL if fast else POLL_INTERVAL)
 
 
 def safe_to_restart() -> bool:

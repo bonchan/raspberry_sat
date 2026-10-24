@@ -141,6 +141,10 @@ def predict(config: Config, tles: dict[int, tuple[str, str, str]], now: float, h
 
 def describe_pass(sat: EarthSatellite, station, rise, set_) -> dict:
     ts = timescale()
+    # from the whole second: worked out again a few minutes later (from another start time), the same pass
+    # comes out exactly the same, and the topic "schedule" is only sent when the passes change
+    rise = ts.from_datetime(datetime.fromtimestamp(round(unix(rise)), timezone.utc))
+    set_ = ts.from_datetime(datetime.fromtimestamp(round(unix(set_)), timezone.utc))
     n = max(2, int((set_.tt - rise.tt) * 86400 / TRACK_STEP) + 1)
     times = ts.tt_jd(np.linspace(rise.tt, set_.tt, n))
     alt, az, _ = (sat - station).at(times).altaz()

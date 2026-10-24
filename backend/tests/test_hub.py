@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 
 from fastapi import WebSocketDisconnect
 
@@ -84,6 +85,78 @@ def test_tracker_push_sends_a_sample_once(monkeypatch):
     first, second = sent[1]["data"], sent[2]["data"]
     assert first["sample"] == {"t": 1000.0, "snr": 5.0} and first["cadu_bytes"] == 2048
     assert "sample" not in second and second["folder"] == "x"
+
+
+def pushed(tab: Client) -> list[str]:
+    return [json.loads(tab.queue.get_nowait())["topic"] for _ in range(tab.queue.qsize())]
+
+
+def between_passes(az: float) -> dict:
+    """SatDump's status with the next pass still to come; the satellite's position changes every read."""
+    return {"frequency": 137.9e6, "object_tracker": {
+        "object_name": "METEOR-M2 4", "next_event_is_aos": True, "next_aos_time": 5000.0, "next_los_time": 5900.0,
+        "sat_current_pos": {"az": az, "el": -40.0}}}
+
+
+def watched_tracker(monkeypatch, *topics: str) -> tuple[Client, Tracker]:
+    hub = Hub()
+    tab = Client(None)
+    tab.topics = set(topics)
+    hub.clients.add(tab)
+    monkeypatch.setattr(tasks, "hub", hub)
+    tracker = Tracker()
+    monkeypatch.setattr(tasks, "tracker", tracker)
+    monkeypatch.setattr(tasks, "live_files", lambda: {"folder": None, "cadu_bytes": 0})
+    return tab, tracker
+
+
+def test_between_passes_only_changes_go_out(monkeypatch):
+    tab, tracker = watched_tracker(monkeypatch, "status", "live")
+    push = TrackerPush()
+    for az in (10.0, 11.0, 12.0):
+        tracker.update(between_passes(az))
+        push()
+    assert tasks.pace() == "quiet"
+    assert pushed(tab) == ["status", "satdump", "live"]     # the first read, then nothing
+    later = between_passes(13.0)
+    later["object_tracker"]["next_aos_time"] = 9000.0       # the next pass changed
+    tracker.update(later)
+    push()
+    assert pushed(tab) == ["status"]
+
+
+def test_every_read_goes_out_during_a_pass(monkeypatch):
+    tab, tracker = watched_tracker(monkeypatch, "status", "live")
+    push = TrackerPush()
+    for az in (10.0, 11.0):
+        tracker.update({**between_passes(az), "live_pipeline": {}})
+        push()
+    assert tasks.pace() == "fast"
+    assert pushed(tab) == ["status", "satdump", "live", "status", "live"]
+
+
+def test_a_low_pass_goes_out_once_a_read(monkeypatch):
+    tab, tracker = watched_tracker(monkeypatch, "status")
+    overhead = between_passes(10.0)
+    overhead["object_tracker"].update(next_event_is_aos=False, next_los_time=time.time() + 300)
+    tracker.update(overhead)
+    assert tasks.pace() == "steady"
+
+
+def test_the_spectrum_on_screen_counts_as_a_pass(monkeypatch):
+    tab, tracker = watched_tracker(monkeypatch, "spectrum", "live")
+    tracker.update(between_passes(10.0))
+    monkeypatch.setattr(tasks, "spectrum_at", 0.0)
+    assert tasks.pace() == "quiet"                          # shown, but SatDump has no spectrum (SDR off)
+    monkeypatch.setattr(tasks, "spectrum_at", time.time())
+    assert tasks.pace() == "fast"
+
+
+def test_a_silent_satdump_is_followed_every_read(monkeypatch):
+    tab, tracker = watched_tracker(monkeypatch, "status")
+    tracker.update(between_passes(10.0))
+    tracker.updated_at -= tasks.STALE_AFTER + 1
+    assert tasks.pace() == "steady"
 
 
 def test_nudge_is_taken_once():

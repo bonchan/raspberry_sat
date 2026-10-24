@@ -43,7 +43,8 @@ function useLive(enabled: boolean) {
 
 export default function Live() {
   const t = useT()
-  // pushed four times a second while this page is on screen (the backend reads SatDump as often); nothing when hidden
+  // while this page is on screen: four times a second during a pass or with the spectrum shown, once a second
+  // for a low pass, otherwise only when something changes (the globe and the clocks run on their own)
   const visible = useVisible()
   const status = useTopic('status', visible)
   const schedule = useTopic('schedule')
