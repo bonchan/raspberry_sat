@@ -11,6 +11,19 @@ export const utc = (unix: number) => new Date(unix * 1000).toISOString().slice(0
 export const clock = (unix: number) =>
   new Date(unix * 1000).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', hour12: false })
 
+/** "14 min 03 s", as on the Pi */
+export function duration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
+  if (d > 0) return `${d} d ${String(h).padStart(2, '0')} h`
+  if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min`
+  if (m > 0) return `${m} min ${String(r).padStart(2, '0')} s`
+  return `${r} s`
+}
+
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+export const compass = (az: number) => COMPASS[Math.round(az / 45) % 8]
+
 export const percent = (share: number) => Math.round(share * 100) + '%'
 
 /** "Today", "Yesterday", "Wednesday 14 October" (with the year when it isn't this one) */

@@ -27,11 +27,18 @@ export interface SignalThumb {
 export interface PassList { passes: PassCard[]; more: boolean; receivers: ReceiverName[]; stations: StationName[] }
 
 export interface HubImage { path: string; name: string | null; variants: string[]; width: number | null; height: number | null }
-/** the pass.json the Pi sent, the parts the pass page shows */
+/** where reception started or ended: time, elevation, azimuth */
+export interface SyncPoint { t: number; el: number | null; az: number | null }
+/** the pass.json the Pi sent, the parts the pass page shows (as the Pi's pass page) */
 export interface PassMeta {
   coverage?: number | null
-  orbit?: { max_el: number; aos: number; los: number; aos_az: number; los_az: number } | null
-  signal?: { peak_snr: number; mean_snr: number; locked: number | null } | null
+  /** track: [az, el] every 10 s from AOS to LOS */
+  orbit?: { max_el: number; tca: number; aos: number; los: number; aos_az: number; los_az: number; track?: [number, number][] } | null
+  /** locked: share of the `seconds` recorded with frames syncing */
+  signal?: {
+    peak_snr: number | null; mean_snr: number | null; locked: number | null; seconds?: number
+    first_sync?: SyncPoint | null; last_sync?: SyncPoint | null
+  } | null
 }
 export interface PassDetail {
   id: string; receiver: ReceiverName; pass: string

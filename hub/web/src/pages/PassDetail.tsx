@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, fileUrl, imageLabel, type PassDetail as Pass, type SignalThumb } from '../api'
-import { elevationQuality, longDate, percent, utc } from '../format'
+import { api, fileUrl, imageLabel, type PassDetail as Pass, type SignalThumb, type SyncPoint } from '../api'
+import { clock, compass, duration, elevationQuality, longDate, percent, utc } from '../format'
 import SignalChart from '../SignalChart'
+import SkyPlot from '../SkyPlot'
 
 // pass.json comes from the Pi: show only what is there
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+
+/** "15° elevation at 17:49, S", as on the Pi */
+const syncAt = (s: SyncPoint) =>
+  `${isNum(s.el) ? s.el.toFixed(0) : '?'}° elevation at ${clock(s.t)}, ${isNum(s.az) ? compass(s.az) : '?'}`
 
 /** One pass: the image (any of those sent, large), its facts; admins can delete it. */
 export default function PassDetail({ admin }: { admin: boolean }) {
@@ -60,7 +65,7 @@ export default function PassDetail({ admin }: { admin: boolean }) {
           <h2>{pass.satellite} · {where?.name ?? pass.receiver.name}</h2>
           <Link to="/">All passes</Link>
         </div>
-        <div className="pass-top">
+        <div className="pass-top hub-pass-top">
           <div>
             {image
               ? <img className="hero" src={fileUrl(pass.receiver.id, pass.pass, 'large', image.path)} alt={imageLabel(image)}
@@ -76,21 +81,42 @@ export default function PassDetail({ admin }: { admin: boolean }) {
               </div>
             )}
           </div>
-          <dl className="facts">
-            <dt>Time</dt><dd>{longDate(pass.time)}<br /><span className="hint">{utc(pass.time)}</span></dd>
-            {where && <><dt>Station</dt><dd>{where.name ?? where.id}
-              {isNum(where.lat) && isNum(where.lon) && <><br /><span className="hint">{where.lat.toFixed(3)}, {where.lon.toFixed(3)}</span></>}
-            </dd></>}
-            <dt>Receiver</dt><dd>{pass.receiver.name}</dd>
-            {orbit && isNum(orbit.max_el) && <><dt>Highest</dt><dd>
-              <span className={`el q-${elevationQuality(orbit.max_el)}`}>{Math.round(orbit.max_el)}°</span></dd></>}
-            {signal && isNum(signal.peak_snr) && isNum(signal.mean_snr) && <><dt>Signal</dt><dd>
-              peak {signal.peak_snr.toFixed(1)} dB, mean {signal.mean_snr.toFixed(1)} dB
-              {isNum(signal.locked) && <><br /><span className="hint">locked {percent(signal.locked)} of the time</span></>}</dd></>}
-            {isNum(coverage) && <><dt>Received</dt><dd>{percent(coverage)} of the main image</dd></>}
-            {image?.width && image.height && <><dt>Size</dt><dd>{image.width} × {image.height} px on the Pi</dd></>}
-            <dt>Uploaded</dt><dd>{longDate(pass.uploaded_at)}</dd>
-          </dl>
+          <div>
+            {/* the same facts, in the same words, as the Pi's pass page; then where it came from */}
+            <dl className="facts">
+              <dt>Time</dt><dd>{longDate(pass.time)} ({utc(pass.time)})</dd>
+              {orbit && isNum(orbit.max_el) && <>
+                <dt>Highest elevation</dt>
+                <dd>
+                  <span className={`el q-${elevationQuality(orbit.max_el)}`}>{orbit.max_el.toFixed(1)}°</span>
+                  {isNum(orbit.tca) && <> at {clock(orbit.tca)}</>}
+                </dd>
+              </>}
+              {orbit && isNum(orbit.aos) && isNum(orbit.los) && <>
+                <dt>Above the horizon</dt>
+                <dd>
+                  {clock(orbit.aos)} – {clock(orbit.los)} ({duration(orbit.los - orbit.aos)})
+                  {isNum(orbit.aos_az) && isNum(orbit.los_az) && <>, {compass(orbit.aos_az)} → {compass(orbit.los_az)}</>}
+                </dd>
+              </>}
+              {signal && isNum(signal.peak_snr) && isNum(signal.mean_snr) && <>
+                <dt>Signal (SNR)</dt><dd>peak {signal.peak_snr.toFixed(1)} dB, average {signal.mean_snr.toFixed(1)} dB</dd>
+              </>}
+              {signal && isNum(signal.locked) && <>
+                <dt>Locked</dt>
+                <dd>{percent(signal.locked)}{isNum(signal.seconds) && <> of {duration(signal.seconds)} recorded</>}</dd>
+              </>}
+              {isNum(coverage) && <><dt>Received</dt><dd>{percent(coverage)} of the main image</dd></>}
+              {signal?.first_sync && <><dt>First sync</dt><dd>{syncAt(signal.first_sync)}</dd></>}
+              {signal?.last_sync && <><dt>Last sync</dt><dd>{syncAt(signal.last_sync)}</dd></>}
+              {where && <><dt>Station</dt><dd>{where.name ?? where.id}
+                {isNum(where.lat) && isNum(where.lon) && <span className="hint"> ({where.lat.toFixed(3)}, {where.lon.toFixed(3)})</span>}
+              </dd></>}
+              <dt>Receiver</dt><dd>{pass.receiver.name}</dd>
+              <dt>Uploaded</dt><dd>{longDate(pass.uploaded_at)}</dd>
+            </dl>
+            {orbit?.track && orbit.track.length > 1 && <SkyPlot track={orbit.track} signal={chart} />}
+          </div>
         </div>
         {admin && <div className="row" style={{ marginTop: 12 }}><button className="danger" onClick={remove}>Delete pass</button></div>}
       </section>

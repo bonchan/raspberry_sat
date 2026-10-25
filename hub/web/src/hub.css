@@ -12,6 +12,11 @@
 
 .add-receiver { display: grid; grid-template-columns: minmax(0, 360px) auto; gap: 10px; align-items: end; }
 @media (max-width: 600px) { .add-receiver { grid-template-columns: 1fr; } }
+/* a pass: the image, and beside it the facts (worded as on the Pi) with the sky plot under them */
+.hub-pass-top { grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); }
+.hub-pass-top .sky { max-width: 260px; }
+@media (max-width: 760px) { .hub-pass-top { grid-template-columns: 1fr; } }
+
 /* Passes: the receiver and station filters, under the title */
 .filters { display: grid; gap: 4px; }
 .filters .chips { margin-top: 0; }
