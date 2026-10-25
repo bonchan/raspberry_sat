@@ -345,7 +345,13 @@ a.card:hover, .pass-card:hover { border-color: var(--accent); }
 .card-link::after { content: ""; position: absolute; inset: 0; }     /* the whole card opens the pass */
 .discord-link { position: relative; z-index: 1; display: flex; color: #5865f2; }     /* Discord blurple */
 .discord-link:hover { color: #8c94f7; }
+.hub-link { position: relative; z-index: 1; }       /* a destination's page for the pass, over the card's link */
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.title-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Settings → Destinations: one block per destination */
+.destination { padding: 12px 0; border-top: 1px solid var(--line); }
+.destination .caution { margin: 8px 0 0; }
+.destination > .hint { margin: 0; }
 section > .title-row { margin-bottom: 12px; }
 .title-row h2 { margin: 0; }
 

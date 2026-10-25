@@ -93,6 +93,49 @@ class Discord(BaseModel):
         return self
 
 
+class Destination(BaseModel):
+    """A website that collects passes from several stations, such as the raspberry-sat hub (hub/): its
+    Stations page gives the URL and this station's token. Sending: destinations.py."""
+    name: str = "hub"                      # shown on the pass page; also the key of its notes in pass.json
+    url: str = ""                          # https://raspberry-sat-hub.<subdomain>.workers.dev/ingest
+    token: str = ""
+    mode: Literal["off", "auto", "manual"] = "off"   # auto: each finished pass; manual: a button on the pass page
+    images: list[str] = []                 # what to send, as Discord's composites; empty = one per composite
+    full_size: bool = False                # the large JPEG at full size instead of 1600 px wide
+    delete_after_upload: bool = False      # once sent, keep only the main image (and pass data) on the Pi
+    # automatic sending starts with passes finished after this; set when it is switched on (routers/config.py),
+    # 0 after "Send older passes"
+    since: float = 0
+
+    @field_validator("name")
+    @classmethod
+    def plain_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) > 40:
+            raise ValueError("give the destination a name, up to 40 characters")
+        return v
+
+    @field_validator("url")
+    @classmethod
+    def http_url(cls, v: str) -> str:
+        v = v.strip().rstrip("/")
+        if v and not v.startswith(("https://", "http://")):
+            raise ValueError("the URL starts with https://")
+        return v
+
+    @field_validator("token")
+    @classmethod
+    def bare_token(cls, v: str) -> str:
+        v = v.strip()
+        return v[7:].strip() if v.lower().startswith("bearer ") else v
+
+    @model_validator(mode="after")
+    def can_send_when_on(self):
+        if self.mode != "off" and not (self.url and self.token):
+            raise ValueError(f"sending to {self.name} needs its URL and token")
+        return self
+
+
 class Storage(BaseModel):
     keep_days: int = Field(14, ge=1)
     max_gb: float = Field(40.0, gt=0)
@@ -120,6 +163,7 @@ class Config(BaseModel):
     tracking: Tracking = Field(default_factory=Tracking)
     rotator: Rotator = Field(default_factory=Rotator)
     discord: Discord = Field(default_factory=Discord)
+    destinations: list[Destination] = []
     storage: Storage = Field(default_factory=Storage)
     display: Display = Field(default_factory=Display)
 
@@ -137,6 +181,16 @@ class Config(BaseModel):
         if not 0 <= self.active_station < len(self.stations):
             raise ValueError("active_station must point at one of the stations")
         return self
+
+    @model_validator(mode="after")
+    def destination_names_differ(self):
+        names = [d.name.casefold() for d in self.destinations]
+        if len(names) != len(set(names)):
+            raise ValueError("two destinations have the same name")
+        return self
+
+    def destination(self, name: str) -> Destination | None:
+        return next((d for d in self.destinations if d.name == name), None)
 
     @property
     def station(self) -> Station:

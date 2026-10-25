@@ -5,7 +5,7 @@ from pathlib import Path, PurePosixPath
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from app import discord, georef, passes, settings
+from app import destinations, discord, georef, passes, settings
 from app.hub import hub
 from app.config import load_config
 
@@ -29,6 +29,16 @@ def image_or_404(folder: Path, path: str) -> str:
     return f.relative_to(folder.resolve()).as_posix()
 
 
+def image_path_or_404(folder: Path, path: str) -> str:
+    """As image_or_404, for an image whose original may be gone (deleted after it went to a destination,
+    destinations.slim): only the path is checked, its thumbnail stays."""
+    root = folder.resolve()
+    f = (root / path).resolve()
+    if root not in f.parents or f.suffix.lower() not in passes.IMAGE_TYPES or passes.is_ours(root, f):
+        raise HTTPException(404, "no such image")
+    return f.relative_to(root).as_posix()
+
+
 @router.get("")
 def get_passes() -> dict:
     return passes.list_passes(settings.PASSES_DIR)
@@ -42,6 +52,8 @@ def get_pass(pass_id: str) -> dict:
         raise HTTPException(409, "this pass is still being received or decoded")
     meta["files"] = passes.other_files(folder)
     meta["samples"] = passes.load_samples(folder)
+    for image in meta.get("images", []):
+        image["gone"] = not (folder / image["path"]).is_file()      # deleted after upload: only its thumbnail
     return meta
 
 
@@ -96,7 +108,7 @@ async def get_geo(pass_id: str) -> dict:
 @router.get("/{pass_id}/thumb/{path:path}")
 def get_thumb(pass_id: str, path: str) -> FileResponse:
     folder = folder_or_404(pass_id)
-    thumb = passes.thumb_path(folder, image_or_404(folder, path))
+    thumb = passes.thumb_path(folder, image_path_or_404(folder, path))
     if not thumb.is_file():
         raise HTTPException(404, "no thumbnail")
     return FileResponse(thumb, headers=CACHE_DAY)
@@ -136,6 +148,27 @@ async def post_to_discord(pass_id: str) -> dict:
         raise HTTPException(502, str(e)) from e
     finally:
         hub.nudge("passes")                             # posted, or the error noted in pass.json
+
+
+@router.post("/{pass_id}/destinations/{name}")
+async def send_to_destination(pass_id: str, name: str) -> dict:
+    """Send the pass to a destination now (the button on the pass page). Returns its note in pass.json.
+    Deleting after upload, when that is on, follows within a minute (tasks.send_to_destinations)."""
+    folder = folder_or_404(pass_id)
+    if not passes.is_finished(folder):
+        raise HTTPException(409, "this pass is still being received or decoded")
+    config = load_config(settings.CONFIG_FILE)
+    dest = config.destination(name)
+    if dest is None:
+        raise HTTPException(404, "no such destination")
+    if dest.mode == "off":
+        raise HTTPException(409, f"sending to {name} is off in Settings")
+    try:
+        return await destinations.send_pass(folder, config, dest)
+    except destinations.DestinationError as e:
+        raise HTTPException(502, str(e)) from e
+    finally:
+        hub.nudge("passes")
 
 
 @router.delete("/{pass_id}")

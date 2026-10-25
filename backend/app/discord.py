@@ -115,10 +115,11 @@ def entry_match(entry: str, image: dict) -> str | None:
     return None
 
 
-def pick_images(folder: Path, meta: dict, wanted: list[str]) -> list[dict]:
-    """The images to post, at most MAX_FILES. Any image whose file is there, however it looks.
+def pick_images(folder: Path, meta: dict, wanted: list[str], limit: int = MAX_FILES) -> list[dict]:
+    """The images to post, at most `limit`. Any image whose file is there, however it looks.
     `wanted` empty: one per composite, the main image first, then by name, each composite's variant
-    from VARIANT_ORDER. Otherwise in the order of `wanted`; an entry naming a composite gets that variant."""
+    from VARIANT_ORDER. Otherwise in the order of `wanted`; an entry naming a composite gets that variant.
+    Also picks what destinations.py sends."""
     images = [i for i in meta.get("images", []) if (folder / i["path"]).is_file()]
     groups: dict[tuple[str, str], list[dict]] = {}
     for image in images:
@@ -133,13 +134,13 @@ def pick_images(folder: Path, meta: dict, wanted: list[str]) -> list[dict]:
     if not wanted:
         chosen = [min(group, key=rank) for group in groups.values()]
         chosen.sort(key=lambda i: (i["path"] != meta.get("main"), i["name"].casefold()))
-        return chosen[:MAX_FILES]
+        return chosen[:limit]
     chosen = []
     for entry in wanted:
         found = [i for i in images if entry_match(entry, i) == "image"] or \
                 [min(g, key=rank) for g in groups.values() if entry_match(entry, g[0]) == "composite"]
         chosen += [i for i in found if i not in chosen]
-    return chosen[:MAX_FILES]
+    return chosen[:limit]
 
 
 def message_text(meta: dict, has_images: bool, station: str, lang: str) -> str:

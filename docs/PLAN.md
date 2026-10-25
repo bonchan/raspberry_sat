@@ -96,6 +96,11 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
   - a projection onto a fixed lat/lon box: same size and area every pass, for comparing weather or
     animations; parts of a pass outside the box are cut off.
 - **Releases only:** an update channel that follows tags instead of every commit on `main`.
+- **TODO: drop the old `rsat` names.** They were renamed to `RASPBERRY_SAT_*` / `raspberry-sat-*`, but the old
+  ones are still read so Pis updating across the rename keep working. Once every Pi has updated once since
+  (on the Pi, `systemctl cat raspberry_sat` shows `RASPBERRY_SAT_DATA`), remove the `RSAT_` fallback in
+  `env()` in `backend/app/settings.py` and in `DATA_DIR` in `scripts/update.sh`, and `OLD_PREFIX` in
+  `frontend/src/storage.ts` (browsers then forget choices saved under the old names, once).
 - **Fallback hotspot with captive portal** when the Pi has no network (dropped for now; the phone-hotspot
   trick on the Networks page covers moving the Pi).
 

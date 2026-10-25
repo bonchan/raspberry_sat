@@ -17,13 +17,20 @@ export interface Discord {
   mode: DiscordMode; application_id: string; bot_token: string; channel_id: string
   composites: string[]; post_failed: boolean
 }
+/** a website collecting passes from several stations, such as the raspberry-sat hub (backend/app/destinations.py) */
+export interface Destination {
+  name: string; url: string; token: string; mode: DiscordMode
+  images: string[]                  // like Discord's composites; empty: one per composite
+  full_size: boolean; delete_after_upload: boolean
+  since: number                     // set by the app: automatic sending takes passes finished after it
+}
 export interface Storage { keep_days: number; max_gb: number; keep_baseband: boolean }
 export interface Display { show_low_passes: boolean; language: 'en' | 'es'; upcoming_days: number }
 
 export interface Config {
   stations: Station[]; active_station: number   // index of the station SatDump uses
   sdr: Sdr; satellites: Satellite[]; tracking: Tracking
-  rotator: Rotator; discord: Discord; storage: Storage; display: Display
+  rotator: Rotator; discord: Discord; destinations: Destination[]; storage: Storage; display: Display
 }
 
 export interface SystemInfo {
@@ -63,6 +70,7 @@ export interface LogLine { seq: number; time: number; level: string; source: str
 export interface PassImage {
   path: string; instrument: string; name: string; variants: string[]; bytes: number
   width?: number; height?: number; mean?: number; coverage?: number; error?: string
+  gone?: boolean                    // deleted from the Pi after upload: only its thumbnail is left (pass page)
 }
 // null for passes finished before these were saved (signal), or that no orbit matched
 export interface PassSummary {
@@ -73,6 +81,8 @@ export interface PassSummary {
   drops: SyncDrop[] | null                 // losses of sync between them
   tracked: Record<string, number> | null   // seconds of reception per 10° of elevation ("0", "10"... "80")
   discord_url: string | null        // the Discord message, once posted
+  hubs: Record<string, string>      // destination name -> the pass's page there, once sent
+  slimmed: boolean                  // deleted from the Pi but the main image, after upload
 }
 export interface SyncPoint { t: number; el: number | null; az: number | null }
 /** a loss of sync during a pass: where, how long, and the median SNR before and during it */
@@ -110,12 +120,20 @@ export interface DiscordSent { url: string; channel: string | null }
 export interface PassDiscord extends Partial<DiscordSent> {
   posted_at?: number; images?: number; error?: string; failed_at?: number
 }
+/** a pass on a destination: uploaded_at and url once there; error, attempts and next_try when the last try failed */
+export interface PassHub {
+  id?: string; url?: string; uploaded_at?: number; images?: number
+  error?: string; failed_at?: number; attempts?: number; next_try?: number
+}
 export interface PassDetail {
   id: string; satellite: string; time: number; main: string | null; coverage: number | null
   size: number; source_name: string; images: PassImage[]; files: { path: string; bytes: number }[]
   orbit?: PassOrbit | null; signal?: PassSignal | null
   samples: LiveSample[]             // one per second while it was received; empty for older passes
   discord?: PassDiscord             // missing until it is first posted
+  hubs?: Record<string, PassHub>    // per destination name, once tried
+  // deleted from the Pi but the main image, once it was on this destination
+  slimmed?: { at: number; destination: string; url: string | null; freed: number }
 }
 export interface PassList { passes: PassSummary[]; in_progress: { id: string; last_activity: number }[] }
 
@@ -231,6 +249,11 @@ export const api = {
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),
   postPass: (id: string) => request<PassDiscord>('POST', `/passes/${encodeURIComponent(id)}/discord`),
   testDiscord: (discord: Discord) => request<DiscordSent>('POST', '/discord/test', discord),
+  testDestination: (d: Destination) =>
+    request<{ station: { id: string; name: string }; protocol: number }>('POST', '/destinations/test', d),
+  sendOlder: (name: string) => request<{ queued: number }>('POST', `/destinations/${encodeURIComponent(name)}/older`),
+  sendToDestination: (id: string, name: string) =>
+    request<PassHub>('POST', `/passes/${encodeURIComponent(id)}/destinations/${encodeURIComponent(name)}`),
 }
 
 // what the bot may do in the server it is added to: View Channels, Send Messages, Attach Files

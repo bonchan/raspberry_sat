@@ -3,10 +3,11 @@ import { api, ApiError, type Config, type Satellite, type Station } from '../api
 import { CheckField, ListField, NumberField, SelectField, TextField } from '../fields'
 import { LANGUAGES, useLanguage, useT } from '../i18n'
 import DangerZone from '../DangerZone'
+import Destinations from '../Destinations'
 import DiscordCheck from '../DiscordCheck'
 import ReceiverTest from '../ReceiverTest'
 
-type Section = keyof Omit<Config, 'satellites' | 'stations' | 'active_station'>
+type Section = keyof Omit<Config, 'satellites' | 'stations' | 'active_station' | 'destinations'>
 
 // number inputs in tables: an emptied box becomes NaN, which the backend rejects with a readable error
 const numValue = (v: number) => Number.isNaN(v) ? '' : v
@@ -196,6 +197,9 @@ export default function Settings() {
         </div>
         <DiscordCheck discord={discord} />
       </section>
+
+      <Destinations list={config.destinations} dirty={dirty}
+        onChange={list => setConfig({ ...config, destinations: list })} />
 
       <section>
         <h2>{t('settings.storage')}</h2>

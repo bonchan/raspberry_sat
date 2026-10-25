@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 
-from app import discord, orbits, passes, settings, spectrum, updater
+from app import destinations, discord, orbits, passes, settings, spectrum, updater
 from app.config import load_config
 from app.hub import hub
 from app.satdump_cfg import FFT_MAX, FFT_MIN
@@ -186,6 +186,12 @@ def pass_facts(started: float, satellite: str) -> dict:
             facts["samples"] = list(samples)
             break
     return facts
+
+
+def new_pass_facts(started: float, satellite: str) -> dict:
+    """pass_facts for a pass being finished, plus the station that received it: the one selected now.
+    Stations move, and the hub (destinations.py) shows where each pass came from."""
+    return {**pass_facts(started, satellite), "station": load_config(settings.CONFIG_FILE).station.model_dump()}
 
 
 # ---------- what the pages show, for the REST endpoints and the WebSocket topics alike ----------
@@ -429,6 +435,61 @@ async def check_updates() -> None:
         await asyncio.sleep(UPDATE_CHECK_INTERVAL)
 
 
+UPLOAD_INTERVAL = 60        # seconds between looks for passes to send to destinations
+
+
+async def send_to_destinations() -> None:
+    """Send finished passes to the destinations set to automatic, newest first and one after another, then
+    delete what destinations set to delete after upload have (destinations.py). Not while SatDump receives
+    or decodes a pass: that needs the CPU."""
+    await asyncio.sleep(UPLOAD_INTERVAL)
+    while True:
+        worked = False
+        try:
+            if not tracker.receiving() and not await asyncio.to_thread(passes.output_busy, settings.PASSES_DIR):
+                worked = await destination_step(load_config(settings.CONFIG_FILE))
+        except Exception:
+            log.exception("sending passes to destinations failed")
+        await asyncio.sleep(1 if worked else UPLOAD_INTERVAL)
+
+
+async def destination_step(config) -> bool:
+    """One upload, or else one deletion after upload, if any is due. Returns whether it did one."""
+    now = time.time()
+    job = await asyncio.to_thread(destinations.next_upload, settings.PASSES_DIR, config, now)
+    if job:
+        folder, dest = job
+        try:
+            note = await destinations.send_pass(folder, config, dest)
+        except destinations.DestinationError as e:
+            if e.whole:
+                # the destination is down or refuses this station: one line, not one per pass and try
+                if destinations.went_down(dest.name, time.time()) == 1:
+                    supervisor.note("error", f"could not send passes to {dest.name}: {e}; trying again in a "
+                                             "minute, then less and less often")
+            else:
+                note = destinations.notes(passes.read_json(folder / passes.META) or {}).get(dest.name) or {}
+                if note.get("attempts") == 1:
+                    supervisor.note("error", f"{dest.name} refused pass {folder.name}: {e}")
+            return False
+        finally:
+            hub.nudge("passes")
+        if destinations.came_back(dest.name):
+            supervisor.note("info", f"{dest.name} takes passes again")
+        supervisor.note("info", f"sent pass {folder.name} to {dest.name} with {note['images']} images")
+        return True
+
+    slim = await asyncio.to_thread(destinations.next_slim, settings.PASSES_DIR, config, now)
+    if slim:
+        folder, dest, note = slim
+        freed = await asyncio.to_thread(destinations.slim, folder, dest, note)
+        supervisor.note("info", f"pass {folder.name} is on {dest.name}: deleted all but its main image "
+                                f"from the Pi ({freed / 1e6:.0f} MB)")
+        hub.nudge("passes")
+        return True
+    return False
+
+
 async def scan_passes() -> None:
     """Finish passes SatDump is done with: rename, thumbnails, pass.json.
 
@@ -478,7 +539,7 @@ async def scan_passes() -> None:
             continue                    # SatDump is receiving, or may still be decoding: leave its folders alone
         try:
             done, errors = await asyncio.to_thread(passes.finalize_ready, settings.PASSES_DIR, guess_satellite,
-                                                   pass_facts)
+                                                   new_pass_facts)
         except Exception:
             log.exception("pass scan failed")
             continue
@@ -499,7 +560,7 @@ async def finish(folder: Path) -> Path:
     """passes.finalize once SatDump is done with a pass, its thumbnails counted for the topic "processing"."""
     finishing.update(folder=folder, done=0, total=0)
     try:
-        return await asyncio.to_thread(passes.finalize, folder, guess_satellite, pass_facts, thumbnail_made)
+        return await asyncio.to_thread(passes.finalize, folder, guess_satellite, new_pass_facts, thumbnail_made)
     finally:
         finishing["folder"] = None
         hub.nudge("processing")

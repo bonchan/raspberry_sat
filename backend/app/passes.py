@@ -621,6 +621,10 @@ def summary(meta: dict) -> dict:
         "tracked": signal.get("tracked"),
         "rebuilt": bool(signal.get("rebuilt")),       # from line time stamps after the live signal was lost
         "discord_url": (meta.get("discord") or {}).get("url"),    # see discord.py
+        # {destination name: the pass's page there}, once sent (destinations.py)
+        "hubs": {name: note["url"] for name, note in (meta.get("hubs") or {}).items()
+                 if isinstance(note, dict) and note.get("url") and note.get("uploaded_at")},
+        "slimmed": bool(meta.get("slimmed")),       # deleted from the Pi but the main image, after upload
     }
 
 

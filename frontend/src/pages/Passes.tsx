@@ -225,6 +225,11 @@ function ImagesLine({ pass }: { pass: PassSummary }) {
     <span className="hint">
       {pass.coverage !== null && <>{t('passes.received', { p: percent(pass.coverage) })} · </>}
       {t('passes.images', { n: pass.image_count })} · {size(pass.size)}
+      {/* where it was sent (destinations); above the card's link so they can be clicked */}
+      {Object.entries(pass.hubs ?? {}).map(([name, url]) => (
+        <span key={name}> · <a className="hub-link" href={url} target="_blank" rel="noreferrer"
+          title={t('passes.onHub', { name })}>{name} ↗</a></span>
+      ))}
     </span>
   )
 }

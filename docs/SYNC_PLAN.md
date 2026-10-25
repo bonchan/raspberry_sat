@@ -103,7 +103,7 @@ hub/
   `NEW_USER_ROLE` in wrangler.jsonc: `pending` (default) or `viewer`.
 - English only for now.
 
-## Station side (to build next)
+## Station side (built; backend/app/destinations.py, Settings → Destinations)
 
 ### pass.json: where it was received
 

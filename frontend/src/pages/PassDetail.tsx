@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, ApiError, passFile, type DiscordMode, type PassDetail as Pass, type PassDiscord, type PassImage } from '../api'
+import {
+  api, ApiError, passFile, type Destination, type DiscordMode, type PassDetail as Pass, type PassDiscord, type PassHub,
+  type PassImage,
+} from '../api'
 import { useConfirm } from '../Dialog'
 import DiscordIcon from '../DiscordIcon'
 import { clock, compass, duration, longDate, percent, size, utc } from '../format'
@@ -49,12 +52,13 @@ export default function PassDetail() {
   const [error, setError] = useState('')
   const [open, setOpen] = useState<PassImage | null>(null)
   const [discordMode, setDiscordMode] = useState<DiscordMode>('off')
+  const [dests, setDests] = useState<Destination[]>([])
 
   useEffect(() => {
     api.getPass(id).then(setPass, e => setError(String(e.message)))
   }, [id])
   useEffect(() => {
-    api.getConfig().then(c => setDiscordMode(c.discord.mode), () => {})
+    api.getConfig().then(c => { setDiscordMode(c.discord.mode); setDests(c.destinations ?? []) }, () => {})
   }, [])
 
   const groups = useMemo(() => pass ? groupImages(pass.images, pass.main) : [], [pass])
@@ -80,6 +84,10 @@ export default function PassDetail() {
   const samples = pass.samples ?? []
   const ends = syncEnds(samples)
   const syncKnown = samples.some(s => s.deframer_lock !== undefined)
+  const slim = pass.slimmed
+  // where the images deleted from the Pi can still be seen
+  const hub = slim?.url ? { name: slim.destination, url: slim.url } : null
+  const noteHub = (name: string, note: PassHub) => setPass({ ...pass, hubs: { ...pass.hubs, [name]: note } })
 
   return (
     <>
@@ -87,8 +95,17 @@ export default function PassDetail() {
         <p><Link to="/passes">{t('detail.back')}</Link></p>
         <div className="title-row">
           <h2>{pass.satellite}</h2>
-          <DiscordButton pass={pass} mode={discordMode} onChange={d => setPass({ ...pass, discord: d })} />
+          <div className="title-actions">
+            <DiscordButton pass={pass} mode={discordMode} onChange={d => setPass({ ...pass, discord: d })} />
+            {dests.map(d => <HubButton key={d.name} pass={pass} dest={d} onChange={noteHub} />)}
+          </div>
         </div>
+        {slim && (
+          <p className="hint">
+            {t('detail.slimmed', { time: longDate(slim.at), name: slim.destination })}
+            {hub && <> <a href={hub.url} target="_blank" rel="noreferrer">{t('detail.slimmedOpen', { name: hub.name })}</a></>}
+          </p>
+        )}
         <div className="pass-top">
           <dl className="facts">
             <dt>{t('detail.time')}</dt><dd>{longDate(pass.time)} ({utc(pass.time)})</dd>
@@ -127,6 +144,7 @@ export default function PassDetail() {
             <dt>{t('detail.folder')}</dt>
             <dd>{pass.id}{pass.source_name !== pass.id && <span className="hint"> {t('detail.was', { name: pass.source_name })}</span>}</dd>
             <DiscordFact pass={pass} mode={discordMode} />
+            {dests.map(d => <HubFact key={d.name} pass={pass} dest={d} />)}
           </dl>
           {(orbit || samples.length > 0) && (
             <div>
@@ -170,7 +188,7 @@ export default function PassDetail() {
         <button className="danger" onClick={remove}>{t('detail.delete')}</button>
       </section>
 
-      {open && <Lightbox passId={pass.id} image={open} onClose={() => setOpen(null)} />}
+      {open && <Lightbox passId={pass.id} image={open} hub={hub} onClose={() => setOpen(null)} />}
     </>
   )
 }
@@ -227,6 +245,66 @@ function DiscordFact({ pass, mode }: { pass: Pass; mode: DiscordMode }) {
   )
 }
 
+const errorText = (e: unknown) => e instanceof ApiError && e.details.length ? e.details.join(' ') : String(e)
+
+/** Next to the satellite name: sends the pass to a destination (Settings → Destinations). Shows when sending
+ *  is by hand, or when it is automatic and the pass isn't there yet (an older pass) or the last try failed. */
+function HubButton({ pass, dest, onChange }: { pass: Pass; dest: Destination; onChange: (name: string, note: PassHub) => void }) {
+  const t = useT()
+  const ask = useConfirm()
+  const [sending, setSending] = useState(false)
+  const note = pass.hubs?.[dest.name]
+  if (dest.mode === 'off' || !(dest.mode === 'manual' || note?.error || !note?.uploaded_at)) return null
+  const name = dest.name
+
+  async function send() {
+    if (note?.uploaded_at && !note.error && !(await ask({
+      title: t('detail.hubSendAgain', { name }), message: t('detail.hubConfirmAgain', { name }),
+      confirmLabel: t('detail.hubSendAgain', { name }),
+    }))) return
+    setSending(true)
+    try {
+      onChange(name, await api.sendToDestination(pass.id, name))
+    } catch (e) {
+      onChange(name, { ...note, error: errorText(e) })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const label = sending ? t('detail.hubSending')
+    : note?.error ? t('detail.hubRetry', { name })
+    : note?.uploaded_at ? t('detail.hubSendAgain', { name })
+    : t('detail.hubSend', { name })
+  return <button disabled={sending} onClick={send}>{label}</button>
+}
+
+/** Whether and where the pass is on a destination, and why the last try failed. */
+function HubFact({ pass, dest }: { pass: Pass; dest: Destination }) {
+  const t = useT()
+  const note = pass.hubs?.[dest.name]
+  if (dest.mode === 'off' && !note) return null
+  return (
+    <>
+      <dt>{dest.name}</dt>
+      <dd>
+        {note?.uploaded_at
+          ? <>
+              {t('detail.hubSent', { time: longDate(note.uploaded_at), n: note.images ?? 0 })}
+              {note.url && <> · <a href={note.url} target="_blank" rel="noreferrer">{t('detail.hubOpen')}</a></>}
+            </>
+          : t('detail.hubNotSent')}
+        {note?.error && (
+          <div className="error">
+            {t('detail.hubFailed', { error: note.error })}
+            {note.next_try && dest.mode === 'auto' && <span className="hint"> · {t('detail.hubNextTry', { time: clock(note.next_try) })}</span>}
+          </div>
+        )}
+      </dd>
+    </>
+  )
+}
+
 function GroupCard({ passId, group, onOpen }: { passId: string; group: Group; onOpen: (i: PassImage) => void }) {
   const t = useT()
   const { lang } = useLanguage()
@@ -252,7 +330,9 @@ function GroupCard({ passId, group, onOpen }: { passId: string; group: Group; on
   )
 }
 
-function Lightbox({ passId, image, onClose }: { passId: string; image: PassImage; onClose: () => void }) {
+/** An image large. One deleted from the Pi after upload (gone) shows its thumbnail and where it went. */
+function Lightbox({ passId, image, hub, onClose }:
+  { passId: string; image: PassImage; hub: { name: string; url: string } | null; onClose: () => void }) {
   const t = useT()
   const { lang } = useLanguage()
   useEffect(() => {
@@ -263,12 +343,17 @@ function Lightbox({ passId, image, onClose }: { passId: string; image: PassImage
 
   return (
     <div className="lightbox" onClick={onClose}>
-      <img src={passFile(passId, 'large', image.path)} alt={image.name} />
+      <img src={passFile(passId, image.gone ? 'thumb' : 'large', image.path)} alt={image.name} />
       <div className="lightbox-bar" onClick={e => e.stopPropagation()}>
         <span>{image.name} · {variantLabel(lang, image.variants)}</span>
-        <a href={passFile(passId, 'file', image.path)} target="_blank" rel="noreferrer">
-          {t('detail.original', { w: image.width ?? '?', h: image.height ?? '?', size: size(image.bytes) })}
-        </a>
+        {image.gone
+          ? <span className="hint">
+              {t('detail.gone')}
+              {hub && <> <a href={hub.url} target="_blank" rel="noreferrer">{t('detail.slimmedOpen', { name: hub.name })}</a></>}
+            </span>
+          : <a href={passFile(passId, 'file', image.path)} target="_blank" rel="noreferrer">
+              {t('detail.original', { w: image.width ?? '?', h: image.height ?? '?', size: size(image.bytes) })}
+            </a>}
         <button onClick={onClose}>{t('common.close')}</button>
       </div>
     </div>
