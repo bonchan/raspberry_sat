@@ -4,5 +4,7 @@ CLOUDFLARE_SETUP.md
 # Node and Wrangler
 node_modules/
 dist/
+# CesiumJS, copied from node_modules at build (vite.config.ts)
+web/public/cesium/
 .wrangler/
 .dev.vars*

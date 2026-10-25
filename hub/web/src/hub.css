@@ -12,8 +12,9 @@
 
 .add-receiver { display: grid; grid-template-columns: minmax(0, 360px) auto; gap: 10px; align-items: end; }
 @media (max-width: 600px) { .add-receiver { grid-template-columns: 1fr; } }
-.filters { display: grid; gap: 4px; justify-items: end; }
-.filters .chips { margin-top: 0; justify-content: flex-end; }
+/* Passes: the receiver and station filters, under the title */
+.filters { display: grid; gap: 4px; }
+.filters .chips { margin-top: 0; }
 
 .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .actions button { padding: 4px 10px; }

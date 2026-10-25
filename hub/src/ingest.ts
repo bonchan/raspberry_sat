@@ -2,16 +2,18 @@
 //   GET    /ingest/hello                                   which receiver this token is (the Test button)
 //   PUT    /ingest/passes/<pass>/files/thumb/<image>.jpg   a thumbnail (480 px JPEG), body = the file
 //   PUT    /ingest/passes/<pass>/files/large/<image>.jpg   the image to show (1600 px or full-size JPEG)
-//   POST   /ingest/passes/<pass>                           {pass: pass.json, images: [image paths]}: the pass
-//                                                          shows once its files are all there; answers its
-//                                                          id, link and the receiver's id
+//   POST   /ingest/passes/<pass>                           {pass: pass.json, images: [image paths], geo?, signal?}:
+//                                                          the pass shows once its files are all there; answers
+//                                                          its id, link and the receiver's id. geo: where one of
+//                                                          the images lies (the globe), signal: the signal
+//                                                          thinned for a chart
 //   DELETE /ingest/passes/<pass>                           remove it
 // <pass> is the folder name on the Pi, <image> the image's path in that folder. pass.json's "station" says
 // which of the Pi's stations (places) received it: {id, name, lat, lon, alt}. Every call can be repeated:
 // a pass sent again replaces the one before.
 
 import type { Env } from './env'
-import { deletePrefix, fileKey, passPrefix, type Kind } from './files'
+import { dataKey, deletePrefix, fileKey, passPrefix, type DataName, type Kind } from './files'
 import { HttpError, isObject, json, match, now, num, readJson, sha256 } from './http'
 import { imagePath, passId, passName } from './names'
 
@@ -51,8 +53,37 @@ function stationOf(meta: Record<string, unknown>) {
   return { id, name, lat: num(s.lat), lon: num(s.lon), alt: num(s.alt) }
 }
 
+const numbers = (a: unknown, max: number): a is number[] =>
+  Array.isArray(a) && a.length <= max && a.every(v => typeof v === 'number' && Number.isFinite(v))
+
+/** geo, when it is the grid georef.py makes for one of the images sent; else null (the pass shows anyway). */
+function geoOf(value: unknown, paths: string[]) {
+  if (!isObject(value)) return null
+  const { image, width, height, rows, cols, points } = value
+  if (typeof image !== 'string' || !paths.includes(image) || num(width) === null || num(height) === null) return null
+  if (!numbers(rows, 2000) || !numbers(cols, 2000) || !Array.isArray(points) || points.length !== rows.length * cols.length) return null
+  if (!points.every(p => p === null || (Array.isArray(p) && p.length === 2 && numbers(p, 2)))) return null
+  return { image, width, height, rows, cols, points }
+}
+
+/** signal, when it is the Pi's signal thinned for a chart ({start, end, track, samples}); else null. */
+function signalOf(value: unknown) {
+  if (!isObject(value)) return null
+  const { start, end, track, samples } = value
+  if (num(start) === null || num(end) === null || !Array.isArray(samples) || !samples.length || samples.length > 5000
+      || !samples.every(isObject)) return null
+  if (track != null && !(Array.isArray(track) && track.length <= 5000)) return null
+  return { start, end, track: track ?? null, samples }
+}
+
+async function putData(env: Env, receiver: Receiver, pass: string, name: DataName, data: unknown) {
+  const key = dataKey(receiver.id, pass, name)
+  if (data) await env.FILES.put(key, JSON.stringify(data), { httpMetadata: { contentType: 'application/json' } })
+  else await env.FILES.delete(key)       // sent again without it: none now
+}
+
 async function commit(request: Request, env: Env, receiver: Receiver, pass: string): Promise<Response> {
-  const body = await readJson<{ pass?: unknown; images?: unknown }>(request)
+  const body = await readJson<{ pass?: unknown; images?: unknown; geo?: unknown; signal?: unknown }>(request)
   const meta = body.pass
   if (!isObject(meta)) throw new HttpError(400, '"pass" must be the pass.json object')
   const time = num(meta.time)
@@ -89,18 +120,23 @@ async function commit(request: Request, env: Env, receiver: Receiver, pass: stri
   for (const key of LOCAL_KEYS) delete stored[key]
   const t = now()
 
+  const geo = geoOf(body.geo, paths), chart = signalOf(body.signal)
+  await putData(env, receiver, pass, 'geo', geo)
+  await putData(env, receiver, pass, 'signal', chart)
+
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO passes (receiver, id, time, satellite, station_id, station_name, lat, lon, main, coverage,
-         max_el, peak_snr, meta, uploaded_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+         max_el, peak_snr, meta, uploaded_at, drape, signal)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
        ON CONFLICT (receiver, id) DO UPDATE SET time = excluded.time, satellite = excluded.satellite,
          station_id = excluded.station_id, station_name = excluded.station_name, lat = excluded.lat,
          lon = excluded.lon, main = excluded.main, coverage = excluded.coverage, max_el = excluded.max_el,
-         peak_snr = excluded.peak_snr, meta = excluded.meta, uploaded_at = excluded.uploaded_at`,
+         peak_snr = excluded.peak_snr, meta = excluded.meta, uploaded_at = excluded.uploaded_at,
+         drape = excluded.drape, signal = excluded.signal`,
     ).bind(receiver.id, pass, time, meta.satellite, station?.id ?? null, station?.name ?? null,
       station?.lat ?? null, station?.lon ?? null, main, num(meta.coverage), num(orbit.max_el),
-      num(signal.peak_snr), JSON.stringify(stored), t),
+      num(signal.peak_snr), JSON.stringify(stored), t, geo?.image ?? null, chart ? 1 : 0),
     // the station's name and position as its latest pass has them (an older pass sent again doesn't win)
     ...(station ? [env.DB.prepare(
       `INSERT INTO stations (receiver, id, name, lat, lon, alt, last_pass) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)

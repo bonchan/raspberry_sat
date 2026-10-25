@@ -7,6 +7,10 @@ export const longDate = (unix: number) =>
 
 export const utc = (unix: number) => new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 
+/** "13:10" */
+export const clock = (unix: number) =>
+  new Date(unix * 1000).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', hour12: false })
+
 export const percent = (share: number) => Math.round(share * 100) + '%'
 
 /** "Today", "Yesterday", "Wednesday 14 October" (with the year when it isn't this one) */

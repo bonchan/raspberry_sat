@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, fileUrl, imageLabel, type PassDetail as Pass } from '../api'
+import { api, fileUrl, imageLabel, type PassDetail as Pass, type SignalThumb } from '../api'
 import { elevationQuality, longDate, percent, utc } from '../format'
+import SignalChart from '../SignalChart'
 
 // pass.json comes from the Pi: show only what is there
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -14,13 +15,16 @@ export default function PassDetail({ admin }: { admin: boolean }) {
   const [error, setError] = useState('')
   const [shown, setShown] = useState<string | null>(null)
   const [zoom, setZoom] = useState(false)
+  const [chart, setChart] = useState<SignalThumb | null>(null)
 
   useEffect(() => {
     let alive = true
+    setChart(null)
     api.pass(id).then(p => {
       if (!alive) return
       setPass(p)
       setShown(p.main ?? p.images[0]?.path ?? null)
+      if (p.signal) api.signal(id).then(s => alive && setChart(s), () => {})
     }, e => alive && setError(e.message))
     return () => { alive = false }
   }, [id])
@@ -90,6 +94,12 @@ export default function PassDetail({ admin }: { admin: boolean }) {
         </div>
         {admin && <div className="row" style={{ marginTop: 12 }}><button className="danger" onClick={remove}>Delete pass</button></div>}
       </section>
+      {chart && chart.samples.length > 0 && (
+        <section>
+          <h2>Signal over the pass</h2>
+          <SignalChart signal={chart} />
+        </section>
+      )}
       {zoom && image && (
         <div className="lightbox" onClick={() => setZoom(false)}>
           <img src={fileUrl(pass.receiver.id, pass.pass, 'large', image.path)} alt={imageLabel(image)} />

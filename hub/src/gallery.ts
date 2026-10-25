@@ -2,7 +2,7 @@
 
 import { requireUser } from './auth'
 import type { Env } from './env'
-import { deletePrefix, fileKey, passPrefix, type Kind } from './files'
+import { dataKey, deletePrefix, fileKey, passPrefix, type DataName, type Kind } from './files'
 import { HttpError, json, match } from './http'
 import { RECEIVER_ID, imagePath, passId, passName, splitPassId } from './names'
 
@@ -12,6 +12,7 @@ interface PassRow {
   receiver: string; id: string; time: number; satellite: string; main: string | null
   coverage: number | null; max_el: number | null; peak_snr: number | null
   station_id: string | null; station_name: string | null; receiver_name: string; images: number
+  drape: string | null; signal: number
 }
 
 /** A page of passes, newest first: `before` (a pass's time) for the next page; `receiver`, and `station`
@@ -23,17 +24,17 @@ async function list(env: Env, url: URL): Promise<Response> {
   if (receiver !== null && !RECEIVER_ID.test(receiver)) throw new HttpError(400, 'no such receiver')
   const { results } = await env.DB.prepare(
     `SELECT p.receiver, p.id, p.time, p.satellite, p.main, p.coverage, p.max_el, p.peak_snr,
-       p.station_id, p.station_name, r.name AS receiver_name,
+       p.station_id, p.station_name, p.drape, p.signal, r.name AS receiver_name,
        (SELECT COUNT(*) FROM images i WHERE i.receiver = p.receiver AND i.pass = p.id) AS images
      FROM passes p JOIN receivers r ON r.id = p.receiver
      WHERE (?1 IS NULL OR p.time < ?1) AND (?2 IS NULL OR p.receiver = ?2) AND (?3 IS NULL OR p.station_id = ?3)
      ORDER BY p.time DESC LIMIT ?4`,
   ).bind(before, receiver, station, PAGE + 1).all<PassRow>()
   const receivers = await env.DB.prepare('SELECT id, name FROM receivers ORDER BY name').all<{ id: string; name: string }>()
-  const stations = await env.DB.prepare('SELECT receiver, id, name FROM stations ORDER BY name')
-    .all<{ receiver: string; id: string; name: string }>()
+  const stations = await env.DB.prepare('SELECT receiver, id, name, lat, lon FROM stations ORDER BY name')
+    .all<{ receiver: string; id: string; name: string; lat: number | null; lon: number | null }>()
   return json({
-    passes: results.slice(0, PAGE).map(r => ({ ...r, pass: r.id, id: passId(r.receiver, r.id) })),
+    passes: results.slice(0, PAGE).map(r => ({ ...r, signal: !!r.signal, pass: r.id, id: passId(r.receiver, r.id) })),
     more: results.length > PAGE,
     receivers: receivers.results,
     stations: stations.results,
@@ -44,11 +45,12 @@ async function detail(env: Env, id: string): Promise<Response> {
   const { receiver, pass } = splitPassId(id)
   const row = await env.DB.prepare(
     `SELECT p.time, p.satellite, p.main, p.meta, p.uploaded_at, p.station_id, p.station_name, p.lat, p.lon,
-       r.name AS receiver_name
+       p.drape, p.signal, r.name AS receiver_name
      FROM passes p JOIN receivers r ON r.id = p.receiver WHERE p.receiver = ? AND p.id = ?`,
   ).bind(receiver, pass).first<{
     time: number; satellite: string; main: string | null; meta: string; uploaded_at: number
     station_id: string | null; station_name: string | null; lat: number | null; lon: number | null; receiver_name: string
+    drape: string | null; signal: number
   }>()
   if (!row) throw new HttpError(404, 'no such pass')
   const { results } = await env.DB.prepare(
@@ -61,7 +63,7 @@ async function detail(env: Env, id: string): Promise<Response> {
     id, receiver: { id: receiver, name: row.receiver_name }, pass,
     station: row.station_id ? { id: row.station_id, name: row.station_name, lat: row.lat, lon: row.lon } : null,
     time: row.time, satellite: row.satellite, main: row.main, uploaded_at: row.uploaded_at,
-    meta: JSON.parse(row.meta), images,
+    meta: JSON.parse(row.meta), images, drape: row.drape, signal: !!row.signal,
   })
 }
 
@@ -72,6 +74,17 @@ async function file(request: Request, env: Env, receiver: string, pass: string, 
     'Content-Type': object.httpMetadata?.contentType ?? 'image/jpeg',
     'Cache-Control': 'private, max-age=86400',
     ETag: object.httpEtag,
+  })
+  return 'body' in object ? new Response(object.body, { headers }) : new Response(null, { status: 304, headers })
+}
+
+/** geo.json (where the image lies: the globe) or signal.json (the chart) of a pass, as the Pi sent it. */
+async function data(request: Request, env: Env, id: string, name: DataName): Promise<Response> {
+  const { receiver, pass } = splitPassId(id)
+  const object = await env.FILES.get(dataKey(receiver, pass, name), { onlyIf: request.headers })
+  if (!object) throw new HttpError(404, name === 'geo' ? 'this pass can\'t be placed on the globe' : 'no signal for this pass')
+  const headers = new Headers({
+    'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, max-age=3600', ETag: object.httpEtag,
   })
   return 'body' in object ? new Response(object.body, { headers }) : new Response(null, { status: 304, headers })
 }
@@ -100,6 +113,11 @@ export async function route(request: Request, env: Env, url: URL): Promise<Respo
   if (m && method === 'DELETE') {
     await requireUser(request, env, 'admin')
     return remove(env, m[0])
+  }
+  m = match(path, /^\/api\/passes\/([^/]+)\/(geo|signal)$/)
+  if (m && method === 'GET') {
+    await requireUser(request, env, 'admin', 'viewer')
+    return data(request, env, m[0], m[1] as DataName)
   }
   m = match(path, /^\/api\/files\/([^/]+)\/([^/]+)\/(thumb|large)\/(.+)\.jpg$/)
   if (m && method === 'GET') {

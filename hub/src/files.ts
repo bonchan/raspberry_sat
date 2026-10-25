@@ -8,6 +8,10 @@ export const passPrefix = (receiver: string, pass: string) => `${receiverPrefix(
 export const fileKey = (receiver: string, pass: string, kind: Kind, path: string) =>
   `${passPrefix(receiver, pass)}${kind}/${path}.jpg`
 
+/** passes/<receiver>/<pass>/geo.json (where the image lies, for the globe) and signal.json (for the chart) */
+export type DataName = 'geo' | 'signal'
+export const dataKey = (receiver: string, pass: string, name: DataName) => `${passPrefix(receiver, pass)}${name}.json`
+
 /** Delete everything under `prefix`, at most `rounds` × 1000 files per call. Returns whether all is gone
     (a big receiver takes several calls: the page repeats until it is). */
 export async function deletePrefix(bucket: R2Bucket, prefix: string, rounds = 5): Promise<boolean> {

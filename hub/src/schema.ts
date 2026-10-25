@@ -111,6 +111,12 @@ const MIGRATIONS: string[][] = [
       FOREIGN KEY (receiver, pass) REFERENCES passes(receiver, id) ON DELETE CASCADE
     )`,
   ],
+  [
+    // 2026-10-25: the globe and the signal chart. geo.json (where the image lies) and signal.json (the signal
+    // thinned for a chart) are in R2 next to the images; these say whether a pass has them.
+    `ALTER TABLE passes ADD COLUMN drape TEXT`,                       // the image geo.json places
+    `ALTER TABLE passes ADD COLUMN signal INTEGER NOT NULL DEFAULT 0`,
+  ],
 ]
 
 let ready: Promise<void> | null = null

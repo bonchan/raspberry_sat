@@ -1,17 +1,28 @@
 // Types mirror the Worker's answers (hub/src); keep the two in step.
 // A receiver is a Pi (it has the token); a station is one of its places (the Pi's Settings → Stations).
 
+import type { DrapeGeo } from '../../../frontend/src/cesium'
+
 export type Role = 'admin' | 'viewer' | 'pending'
 export interface Me { sub: string; email: string; name: string | null; picture: string | null; role: Role }
 
 export interface ReceiverName { id: string; name: string }
-export interface StationName { receiver: string; id: string; name: string }
+export interface StationName { receiver: string; id: string; name: string; lat: number | null; lon: number | null }
 /** a pass in the gallery; id is "<receiver>~<pass>", pass its folder name on the Pi */
 export interface PassCard {
   id: string; receiver: string; receiver_name: string; pass: string
   station_id: string | null; station_name: string | null      // where it was received, as it was then
   time: number; satellite: string; main: string | null
   coverage: number | null; max_el: number | null; peak_snr: number | null; images: number
+  drape: string | null              // the image the globe places (it has geo.json); null: can't be placed
+  signal: boolean                   // it has a signal chart (signal.json)
+}
+/** where a pass's image lies (geo.json, from the Pi's georef.py) */
+export interface PassGeo extends DrapeGeo { image: string }
+/** the Pi's signal thinned for a chart (signal.json); track is [az, el] spread evenly from start to end */
+export interface SignalThumb {
+  start: number; end: number; track: [number, number][] | null
+  samples: { t: number; el?: number; snr?: number; deframer_lock?: boolean }[]
 }
 export interface PassList { passes: PassCard[]; more: boolean; receivers: ReceiverName[]; stations: StationName[] }
 
@@ -26,6 +37,7 @@ export interface PassDetail {
   id: string; receiver: ReceiverName; pass: string
   station: { id: string; name: string | null; lat: number | null; lon: number | null } | null
   time: number; satellite: string; main: string | null; uploaded_at: number; meta: PassMeta; images: HubImage[]
+  drape: string | null; signal: boolean
 }
 
 export interface Receiver {
@@ -69,6 +81,8 @@ export const api = {
     return request<PassList>('GET', `/api/passes?${s}`)
   },
   pass: (id: string) => request<PassDetail>('GET', `/api/passes/${enc(id)}`),
+  geo: (id: string) => request<PassGeo>('GET', `/api/passes/${enc(id)}/geo`),
+  signal: (id: string) => request<SignalThumb>('GET', `/api/passes/${enc(id)}/signal`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/api/passes/${enc(id)}`),
   receivers: () => request<Receiver[]>('GET', '/api/receivers'),
   addReceiver: (name: string) => request<ReceiverLink>('POST', '/api/receivers', { name }),
