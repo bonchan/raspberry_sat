@@ -1,11 +1,13 @@
 """Sending passes to websites that collect them from several stations, such as the raspberry-sat hub
 (hub/ in this repo; any site that speaks the same protocol works). Protocol 1, docs/SYNC_PLAN.md: with
 "Authorization: Bearer <token>", PUT each image's thumbnail and large JPEG, then POST the pass.json; the
-answer is the pass's id and page there.
+answer is the pass's id and page there, and which receiver this Pi is there (the hub's id for it).
 
-One upload at a time. Where a pass went, or why the last try failed and when the next is, goes into its
-pass.json under "hubs", one entry per destination name. A destination set to delete after upload leaves
-only the main image (and the pass's data and thumbnails) on the Pi once the pass is there.
+One upload at a time. Where a pass went (and to which receiver), or why the last try failed and when the
+next is, goes into its pass.json under "hubs", one entry per destination name. A pass noted as sent to
+another receiver than the token is now (the Pi added to the hub again) goes again. A destination set to
+delete after upload leaves only the main image (and the pass's data and thumbnails) on the Pi once the
+pass is there.
 """
 
 import asyncio
@@ -20,7 +22,7 @@ import httpx
 from PIL import Image
 
 from app import discord, passes
-from app.config import Config, Destination
+from app.config import Config, Destination, station_id
 
 STATE = "hubs"                  # key in pass.json
 LOCAL_KEYS = ("id", "discord", STATE, "slimmed")    # this Pi's own notes, not sent
@@ -35,6 +37,9 @@ transport: httpx.AsyncBaseTransport | None = None   # tests put a mock here
 _sending = asyncio.Lock()       # one upload at a time; each rewrites pass.json
 # destinations that are down or refuse this station: name -> (next try, failures in a row)
 _down: dict[str, tuple[float, int]] = {}
+# which receiver a token is on its destination (the hub's id for this Pi), learned from its answers. A pass
+# noted as sent to another receiver (the Pi added to the hub again, a new token for another one) goes again.
+_receivers: dict[str, str] = {}
 
 
 class DestinationError(Exception):
@@ -134,12 +139,30 @@ async def call(c: httpx.AsyncClient, dest: Destination, method: str, url: str, *
     return data if isinstance(data, dict) else {}
 
 
+def token_key(dest: Destination) -> str:
+    return hashlib.sha256(f"{dest.url} {dest.token}".encode()).hexdigest()[:16]
+
+
+def receiver_of(dest: Destination) -> str | None:
+    """The hub's id for this Pi with this destination's URL and token, once known."""
+    return _receivers.get(token_key(dest))
+
+
+def remember_receiver(dest: Destination, receiver: object) -> None:
+    if isinstance(receiver, str) and receiver:
+        _receivers[token_key(dest)] = receiver
+
+
 async def hello(dest: Destination) -> dict:
-    """Which station this token is on the destination: {"station": {"id", "name"}, "protocol"} (Settings → Test)."""
+    """Which receiver this token is on the destination (Settings → Test): {"receiver": {"id", "name"},
+    "protocol"}; hubs from before receivers answer "station" instead."""
     if not dest.url or not dest.token:
         raise DestinationError("set the URL and the token first")
     async with client(dest) as c:
-        return await call(c, dest, "GET", f"{dest.url}/hello")
+        answer = await call(c, dest, "GET", f"{dest.url}/hello")
+    who = answer.get("receiver") or answer.get("station")
+    remember_receiver(dest, who.get("id") if isinstance(who, dict) else None)
+    return answer
 
 
 def save_note(folder: Path, name: str, note: dict) -> None:
@@ -152,11 +175,20 @@ def save_note(folder: Path, name: str, note: dict) -> None:
 
 def keep_station(folder: Path, config: Config) -> None:
     """A pass from before pass.json said which station received it: note the selected one, once, so what
-    is sent doesn't change when another station is selected later."""
+    is sent doesn't change when another station is selected later. One from before stations had ids: give
+    its copy the id that station got (made the same way from the same name and position)."""
     meta = passes.read_json(folder / passes.META)
-    if meta is not None and "station" not in meta:
+    if meta is None:
+        return
+    station = meta.get("station")
+    if not isinstance(station, dict):
         meta["station"] = config.station.model_dump()
-        passes.write_meta(folder, meta)
+    elif not station.get("id"):
+        station["id"] = station_id(str(station.get("name", "")), station.get("lat") or 0.0,
+                                   station.get("lon") or 0.0, station.get("alt") or 0.0)
+    else:
+        return
+    passes.write_meta(folder, meta)
 
 
 async def send_pass(folder: Path, config: Config, dest: Destination) -> dict:
@@ -181,28 +213,38 @@ async def send_pass(folder: Path, config: Config, dest: Destination) -> dict:
         except DestinationError as e:
             now = time.time()
             attempts = int(before.get("attempts") or 0) + 1
-            kept = {k: v for k, v in before.items() if k in ("id", "url", "uploaded_at", "images", "sent")}
+            kept = {k: v for k, v in before.items()
+                    if k in ("id", "url", "uploaded_at", "images", "sent", "receiver")}
             # an earlier successful upload stays noted next to the error
             save_note(folder, dest.name, {**kept, "error": str(e), "failed_at": now, "attempts": attempts,
                                           "next_try": now + retry_delay(attempts)})
             raise
+        remember_receiver(dest, answer.get("receiver"))
         note = {"id": answer.get("id"), "url": answer.get("url"), "uploaded_at": time.time(),
-                "images": len(files), "sent": fingerprint(data)}
+                "images": len(files), "sent": fingerprint(data), "receiver": answer.get("receiver")}
         save_note(folder, dest.name, note)
         return note
 
 
 # ---------- what is due (the background job in tasks.py) ----------
 
+def sent_to(note: dict, dest: Destination) -> bool:
+    """The note says the pass is on `dest`: uploaded, and to the receiver this token is (when known; a note
+    from before receivers counts as another receiver's)."""
+    current = receiver_of(dest)
+    return bool(note.get("uploaded_at")) and (current is None or note.get("receiver") == current)
+
+
 def due(meta: dict, dest: Destination, config: Config, now: float) -> bool:
     """Whether automatic sending should send this pass to `dest` now: finished since sending was switched on
-    (or "Send older passes"), and not there yet, changed since, or its last try failed and the next is due."""
+    (or "Send older passes"), and not there yet (or on another receiver), changed since, or its last try
+    failed and the next is due."""
     if dest.mode != "auto" or float(meta.get("finished_at") or 0) < dest.since:
         return False
     note = notes(meta).get(dest.name) or {}
     if note.get("error"):
         return now >= float(note.get("next_try") or 0)
-    if not note.get("uploaded_at"):
+    if not sent_to(note, dest):
         return True
     return note.get("sent") != fingerprint(outgoing(meta, config))
 
@@ -232,6 +274,20 @@ def came_back(name: str) -> bool:
     return _down.pop(name, None) is not None
 
 
+async def learn_receivers(config: Config, now: float) -> list[tuple[Destination, DestinationError]]:
+    """Ask each automatic destination, once per URL and token, which receiver this Pi is there (hello), so
+    passes noted as sent to another receiver go again. Returns the destinations that failed, with why."""
+    failed = []
+    for dest in config.destinations:
+        if dest.mode == "auto" and dest.url and dest.token and receiver_of(dest) is None \
+                and not waiting(dest.name, now):
+            try:
+                await hello(dest)
+            except DestinationError as e:
+                failed.append((dest, e))
+    return failed
+
+
 def next_upload(passes_dir: Path, config: Config, now: float) -> tuple[Path, Destination] | None:
     """The newest finished pass that a destination set to automatic should get now."""
     ready = [d for d in config.destinations if d.mode == "auto" and not waiting(d.name, now)]
@@ -246,7 +302,7 @@ def next_upload(passes_dir: Path, config: Config, now: float) -> tuple[Path, Des
 
 def queued(passes_dir: Path, dest: Destination) -> int:
     """Passes not on `dest` yet."""
-    return sum(1 for _, meta in newest_first(passes_dir) if not (notes(meta).get(dest.name) or {}).get("uploaded_at"))
+    return sum(1 for _, meta in newest_first(passes_dir) if not sent_to(notes(meta).get(dest.name) or {}, dest))
 
 
 # ---------- deleting after upload ----------
@@ -260,7 +316,8 @@ def slim_due(folder: Path, meta: dict, config: Config, now: float) -> tuple[Dest
     found = None
     for dest in config.destinations:
         note = notes(meta).get(dest.name) or {}
-        if dest.delete_after_upload and note.get("uploaded_at") and not note.get("error"):
+        # on the receiver this token is now: not just once on one deleted from the hub since
+        if dest.delete_after_upload and sent_to(note, dest) and not note.get("error"):
             found = dest, note
             break
     if found is None:

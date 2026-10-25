@@ -48,7 +48,8 @@ export default function Settings() {
   function addStation() {
     setConfig(c => c && {
       ...c,
-      stations: [...c.stations, { name: t('settings.newStation', { n: c.stations.length + 1 }), lat: 0, lon: 0, alt: 0 }],
+      // id '': the app gives it one when saved
+      stations: [...c.stations, { id: '', name: t('settings.newStation', { n: c.stations.length + 1 }), lat: 0, lon: 0, alt: 0 }],
     })
   }
   function removeStation(i: number) {

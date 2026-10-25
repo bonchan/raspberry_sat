@@ -2,8 +2,10 @@
 
 ## Context
 
-Several stations (each a Pi running this app, sometimes moved, sometimes on a phone hotspot) send their
-passes to one website, an **image gallery** of all stations, behind a Google sign-in. Free, no server to run.
+Several Pis running this app (receivers, sometimes moved, sometimes on a phone hotspot) send their passes to
+one website, an **image gallery** of all of them, behind a Google sign-in. Free, no server to run. Each Pi has
+one or more **stations**: the places it is set up at (Settings → Stations), and each pass says which one
+received it.
 
 ## Decisions (2026-10-24)
 
@@ -15,14 +17,20 @@ passes to one website, an **image gallery** of all stations, behind a Google sig
 4. **Sign-in with Google, done by the hub itself** (not Cloudflare Access, which would also lock out the
    stations). The first person to sign in becomes admin. Everyone after waits as *pending* until an admin
    makes them *viewer* or *admin* on the Users page.
-5. **Stations are added on the hub** (Stations page): each gets the upload URL and its own token, pasted into
-   the Pi's Settings → Destinations.
+5. **Receivers are added on the hub** (Receivers page), one per Pi: the hub makes its id, the name can change
+   anytime, and it gets the upload URL and its own token, pasted into the Pi's Settings → Destinations.
 6. **Not tied to Cloudflare:** a destination is a URL + token speaking the small protocol below; any website
    that follows it works. The Pi keeps a **list** of destinations.
 7. **What a pass sends:** pass.json, and for each chosen image a large JPEG and a thumbnail. The images are
    chosen like Discord's "Images to post" (empty: one per composite, main image first). No `.cadu` for now.
 8. **On the Pi, per destination:** off / automatic / by hand, and optionally **delete from the Pi once
    uploaded**, keeping only the main image; the pass page then links to the hub.
+9. (2026-10-25) **Receivers and stations:** a token belongs to a receiver (a Pi) whose id the hub makes; its
+   folder in R2 is that id, so renaming changes nothing there. The Pi's stations get a permanent id of their
+   own (stations from before get one made from their name and position, so their older passes match), and
+   each pass.json keeps a copy of its station as it was; stations stay editable. The hub filters by receiver
+   and by station. The hub started clean with this (its passes from before were dropped); a Pi notices a new
+   receiver id and sends its passes again by itself.
 
 Not chosen: Firebase (Storage needs the Blaze plan since 3 Feb 2026, 5K uploads a month on new buckets),
 Supabase (1 GB, projects paused after 7 idle days), Oracle Always Free (card, idle VMs reclaimed), a home
@@ -51,7 +59,7 @@ only. Beyond that ~$0.015 per GB and month.
 | D1 | 5 GB, 5M rows read and 100K written a day | a page of the gallery reads ~60 passes and their image counts |
 | Workers Builds | 3,000 build minutes a month | one build per push touching `hub/` or `frontend/` |
 
-## Protocol 1 (station → destination)
+## Protocol 1 (receiver → destination)
 
 The destination URL is the base, e.g. `https://raspberry-sat-hub.<subdomain>.workers.dev/ingest`. Every
 request carries `Authorization: Bearer <token>`. Errors answer `{"error": "..."}` with a status: 401 for an
@@ -59,10 +67,10 @@ unknown or revoked token, 400 with what is wrong.
 
 | Request | Body | Answer |
 |---|---|---|
-| `GET {url}/hello` | | `{"station": {"id", "name"}, "protocol": 1}` (the Test button) |
+| `GET {url}/hello` | | `{"receiver": {"id", "name"}, "protocol": 1}` (the Test button; the hub also answers the same as `"station"` for Pis from before receivers) |
 | `PUT {url}/passes/{pass}/files/thumb/{image}.jpg` | the thumbnail, JPEG, with `Content-Length` (≤ 25 MB) | `{"stored": ...}` |
 | `PUT {url}/passes/{pass}/files/large/{image}.jpg` | the image to show, JPEG | `{"stored": ...}` |
-| `POST {url}/passes/{pass}` | `{"pass": <pass.json>, "images": [<image path>, ...]}` | `{"id", "url"}`: the pass's id and page on the hub |
+| `POST {url}/passes/{pass}` | `{"pass": <pass.json>, "images": [<image path>, ...]}` | `{"id", "url", "receiver"}`: the pass's id and page on the hub, and the receiver's id |
 | `DELETE {url}/passes/{pass}` | | `{"deleted": ...}` |
 
 - `{pass}` is the pass's folder name (`2026-10-12_1310Z_meteor-m2-3`), `{image}` the image's path in it as in
@@ -70,7 +78,8 @@ unknown or revoked token, 400 with what is wrong.
 - Order: the files, then the `POST`, which fails with the list of missing files if any image lacks one. The
   pass shows only after the `POST`.
 - Everything can be repeated: a pass sent again replaces the one before (and images left out are removed).
-- `pass.json` is sent as the Pi has it, plus `station` (below), minus `discord` and `hubs`.
+- `pass.json` is sent as the Pi has it, minus `discord`, `hubs` and `slimmed`. Its `station` is the Pi's
+  station that received it, as it was then: `{"id", "name", "lat", "lon", "alt"}`.
 
 ## The hub (`hub/`, built)
 
@@ -82,23 +91,26 @@ hub/
     schema.ts           the tables, created and updated by the Worker itself
     auth.ts             Google sign-in, sessions (30 days), roles
     gallery.ts          passes, one pass, image files (viewers and admins)
-    stations.ts         add, new token, revoke, delete (admins)
+    receivers.ts        add, rename, new token, revoke, delete (admins)
     users.ts            roles, remove (admins; always at least one admin)
-    ingest.ts           protocol 1 (stations)
+    ingest.ts           protocol 1 (receivers)
   web/                  the pages (React), built into dist/; share frontend/src/styles.css with the Pi app
-    src/pages/          Passes, PassDetail, Stations, Users
+    public/privacy.html the privacy page Google asks for (public)
+    src/pages/          Passes, PassDetail, Receivers, Users
   CLOUDFLARE_SETUP.md   personal setup checklist, not in git
 ```
 
-- **Tables:** `users` (Google id, email, role), `sessions` (hashed cookie), `stations` (hashed token,
-  revoked, last heard from), `passes` (station, folder name, time, satellite, main image, coverage, highest
-  elevation, peak SNR, the pass.json), `images` (per pass: path, name, variants, size).
-- **R2:** `passes/<station>/<pass>/thumb/<image>.jpg` and `.../large/<image>.jpg`.
-- **Pass ids** on the hub: `<station>~<folder name>`, so two stations recording the same pass don't collide.
-- **Pages:** Passes (grid by day, station filter, older passes page by page), a pass (its images, facts,
-  delete for admins), Stations (admins: add with URL + token shown once, new token, revoke, delete with its
-  passes), Users (admins: roles, remove). Signed out: "Sign in with Google". Pending: "an admin has to let
-  you in".
+- **Tables:** `users` (Google id, email, role), `sessions` (hashed cookie), `receivers` (id made by the hub,
+  name, hashed token, revoked, last heard from), `stations` (per receiver, the places it has sent passes
+  from: the Pi's id, name and position as its latest pass has them), `passes` (receiver, folder name, time,
+  satellite, station id/name/position as they were then, main image, coverage, highest elevation, peak SNR,
+  the pass.json), `images` (per pass: path, name, variants, size).
+- **R2:** `passes/<receiver id>/<pass>/thumb/<image>.jpg` and `.../large/<image>.jpg`.
+- **Pass ids** on the hub: `<receiver id>~<folder name>`, so two Pis recording the same pass don't collide.
+- **Pages:** Passes (grid by day, filters by receiver and by station, older passes page by page), a pass
+  (its images, station, receiver, facts, delete for admins), Receivers (admins: add by name with URL + token
+  shown once, rename, new token, revoke, delete with its passes; the stations each has sent from), Users
+  (admins: roles, remove). Signed out: "Sign in with Google". Pending: "an admin has to let you in".
 - **Secrets:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Worker → Settings → Variables and Secrets).
   `NEW_USER_ROLE` in wrangler.jsonc: `pending` (default) or `viewer`.
 - English only for now.
@@ -107,16 +119,18 @@ hub/
 
 ### pass.json: where it was received
 
-Today pass.json doesn't say which station received it (`orbits.py` uses whatever station is selected).
-Stations move, so `passes.finalize` writes `"station": {name, lat, lon, alt}` from `config.station`; older
-passes get the current station when they are uploaded.
+`passes.finalize` writes `"station": {id, name, lat, lon, alt}` from the selected station (`config.station`).
+Each station in Settings has a permanent `id`: made when it is first saved, from its name and position
+(`config.station_id`), and kept whatever is edited later. Passes from before have a copy without an id: when
+uploaded, it gets the id made the same way, which is the id their station got; passes from before pass.json
+had a station get the selected one.
 
 ### Config
 
 ```python
 class Destination(BaseModel):
     name: str = "hub"                  # unique; shown on the pass page ("On hub")
-    url: str = ""                      # from the hub's Stations page
+    url: str = ""                      # from the hub's Receivers page
     token: str = ""
     mode: Literal["off", "auto", "manual"] = "off"   # auto: each finished pass; manual: a button on the pass page
     images: list[str] = []             # same syntax as discord.composites; empty = one per composite, main first
@@ -136,7 +150,9 @@ doesn't push them all over a hotspot; **Send older passes** queues those too.
 ### Uploader (`backend/app/destinations.py`)
 
 Built like `discord.py`, one upload at a time, the state in pass.json:
-- `pass.json["hubs"][<name>]`: `{id, url, uploaded_at, error, failed_at, attempts, next_try}`.
+- `pass.json["hubs"][<name>]`: `{id, url, uploaded_at, receiver, sent, error, failed_at, attempts, next_try}`.
+- Which receiver this Pi is on a destination comes from its answers (`hello` once per URL and token, and
+  each `POST`); a pass noted as sent to another receiver (or before receivers) is sent again.
 - Picking images: `discord.pick_images` with the destination's list. Files: `.thumbs/<image>.jpg` (exists)
   and `passes.large_version` (1600 px) or a full-size JPEG.
 - Loop in `tasks.py`, every 60 s: nothing while SatDump is receiving or within `passes.SETTLE` after LOS.

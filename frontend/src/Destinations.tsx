@@ -44,7 +44,7 @@ function DestinationForm({ d, dirty, onChange, onRemove }:
     setTesting(true); setResult(null)
     try {
       const r = await api.testDestination(d)
-      setResult({ ok: true, text: t('settings.destTestOk', { name: r.station.name, id: r.station.id }) })
+      setResult({ ok: true, text: t('settings.destTestOk', { name: (r.receiver ?? r.station)?.name ?? '?' }) })
     } catch (e) {
       setResult({ ok: false, text: errorText(e) })
     } finally {

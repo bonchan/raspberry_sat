@@ -1,5 +1,6 @@
 """Station configuration: one JSON file, edited from the web UI."""
 
+import hashlib
 import json
 import logging
 import time
@@ -11,11 +12,26 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 log = logging.getLogger(__name__)
 
 
+def station_id(name: str, lat: float, lon: float, alt: float) -> str:
+    """The id of a station that has none yet: from what it is when it gets one, so a station from before ids,
+    and the passes it received (pass.json keeps a copy of the station), get the same id."""
+    return hashlib.sha1(json.dumps([name, float(lat), float(lon), float(alt)]).encode()).hexdigest()[:10]
+
+
 class Station(BaseModel):
+    """A place the Pi receives from. Each pass's pass.json keeps a copy as it was then, id included, so
+    editing a station later changes no pass; the hub groups passes by the id."""
+    id: str = ""                           # permanent once saved; made from the station when it has none
     name: str = "home"
     lat: float = Field(0.0, ge=-90, le=90)
     lon: float = Field(0.0, ge=-180, le=180)
     alt: float = 0.0                       # meters above sea level
+
+    @model_validator(mode="after")
+    def give_id(self):
+        if not self.id.strip():
+            self.id = station_id(self.name, self.lat, self.lon, self.alt)
+        return self
 
 
 class Sdr(BaseModel):
@@ -183,6 +199,17 @@ class Config(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def station_ids_differ(self):
+        # a new station made from what an earlier one was (same name and place) would get its id: keep apart
+        seen: set[str] = set()
+        for s in self.stations:
+            base, n = s.id, 2
+            while s.id in seen:
+                s.id, n = f"{base}-{n}", n + 1
+            seen.add(s.id)
+        return self
+
+    @model_validator(mode="after")
     def destination_names_differ(self):
         names = [d.name.casefold() for d in self.destinations]
         if len(names) != len(set(names)):
@@ -207,12 +234,27 @@ def load_config(path: Path) -> Config:
     if not path.exists():
         return Config()
     try:
-        return Config.model_validate(json.loads(path.read_text(encoding="utf-8")))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        config = Config.model_validate(data)
     except (ValueError, ValidationError) as e:   # json.JSONDecodeError is a ValueError
         bad = path.with_name(f"{path.name}.bad-{int(time.time())}")
         path.replace(bad)
         log.error("config %s is invalid, moved to %s: %s", path, bad, e)
         return Config()
+    if not stations_have_ids(data):
+        # stations from before ids just got theirs: save them, so they stay whatever is edited later
+        try:
+            save_config(path, config)
+        except OSError:
+            log.exception("could not save the stations' new ids to %s", path)
+    return config
+
+
+def stations_have_ids(data) -> bool:
+    if not isinstance(data, dict):
+        return True
+    raw = data.get("stations", [data["station"]] if "station" in data else None)
+    return isinstance(raw, list) and all(isinstance(s, dict) and s.get("id") for s in raw)
 
 
 def save_config(path: Path, config: Config) -> None:

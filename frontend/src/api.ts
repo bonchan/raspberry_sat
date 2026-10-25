@@ -1,6 +1,7 @@
 // Types mirror backend/app/config.py; keep the two in step.
 
-export interface Station { name: string; lat: number; lon: number; alt: number }
+/** id: permanent, made by the app when the station is saved ('' for a new one); each pass keeps it */
+export interface Station { id: string; name: string; lat: number; lon: number; alt: number }
 export interface Sdr {
   source: string; source_id: string; samplerate: number; gain: number
   agc: boolean; bias: boolean; ppm_correction: number
@@ -250,7 +251,9 @@ export const api = {
   postPass: (id: string) => request<PassDiscord>('POST', `/passes/${encodeURIComponent(id)}/discord`),
   testDiscord: (discord: Discord) => request<DiscordSent>('POST', '/discord/test', discord),
   testDestination: (d: Destination) =>
-    request<{ station: { id: string; name: string }; protocol: number }>('POST', '/destinations/test', d),
+    // receiver: which Pi this token is on the hub; hubs from before receivers answer "station"
+    request<{ receiver?: { id: string; name: string }; station?: { id: string; name: string }; protocol: number }>(
+      'POST', '/destinations/test', d),
   sendOlder: (name: string) => request<{ queued: number }>('POST', `/destinations/${encodeURIComponent(name)}/older`),
   sendToDestination: (id: string, name: string) =>
     request<PassHub>('POST', `/passes/${encodeURIComponent(id)}/destinations/${encodeURIComponent(name)}`),

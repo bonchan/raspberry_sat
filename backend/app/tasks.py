@@ -456,6 +456,11 @@ async def send_to_destinations() -> None:
 async def destination_step(config) -> bool:
     """One upload, or else one deletion after upload, if any is due. Returns whether it did one."""
     now = time.time()
+    # which receiver this Pi is on each destination: passes sent to another one go again
+    for dest, e in await destinations.learn_receivers(config, now):
+        if e.whole and destinations.went_down(dest.name, time.time()) == 1:
+            supervisor.note("error", f"could not reach {dest.name}: {e}; trying again in a minute, then less "
+                                     "and less often")
     job = await asyncio.to_thread(destinations.next_upload, settings.PASSES_DIR, config, now)
     if job:
         folder, dest = job
