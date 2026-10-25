@@ -16,7 +16,7 @@
       "binding": "DB",
       "database_name": "raspberry-sat",
       // Storage & databases → D1 → raspberry-sat: its Database ID
-      "database_id": "PASTE-THE-D1-DATABASE-ID"
+      "database_id": "617c8487-9ecc-4d60-8c43-fd460d828055"
     }
   ],
   "r2_buckets": [

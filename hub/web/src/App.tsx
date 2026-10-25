@@ -26,6 +26,8 @@ function SignIn() {
         {result && <p className={result === 'cancelled' ? 'hint' : 'error'}>
           {result === 'cancelled' ? 'Sign-in was cancelled.' : `Sign-in failed: ${result}`}
         </p>}
+        {/* a plain link: the page is a static file (web/public), outside the app's routes */}
+        <a className="hint" href="/privacy.html">Privacy</a>
       </section>
     </main>
   )

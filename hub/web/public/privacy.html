@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy · raspberry_sat hub</title>
+    <!-- public on purpose (Google asks for a privacy policy link to let anyone sign in); served as a
+         static file, so it needs no sign-in -->
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #14161a; color: #e6e8eb; font: 15px/1.55 system-ui, sans-serif; }
+      main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #8b93a1; margin: 28px 0 8px; }
+      p, li { margin: 0 0 8px; }
+      ul { padding-left: 20px; }
+      a { color: #4da3ff; }
+      .hint { color: #8b93a1; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Privacy</h1>
+      <p class="hint">raspberry_sat hub · last changed 25 October 2026</p>
+
+      <p>
+        This site is a private gallery of weather satellite images (Meteor-M) received by a few amateur
+        ground stations: Raspberry Pis running the open-source
+        <a href="https://github.com/bonchan/raspberry_sat">raspberry_sat</a> app. Only people an admin lets in
+        can see them.
+      </p>
+
+      <h2>When you sign in with Google</h2>
+      <p>The hub keeps:</p>
+      <ul>
+        <li>your Google account's ID, email address, name and the address of your profile picture;</li>
+        <li>when you first and last signed in, and the role an admin gave you (pending, viewer or admin);</li>
+        <li>a session cookie that keeps you signed in for up to 30 days; the hub stores only a scrambled
+          (hashed) copy of it.</li>
+      </ul>
+      <p>It asks Google for nothing else: no contacts, files, mail or calendar.</p>
+
+      <h2>What it is used for</h2>
+      <p>
+        Only to let you in and to show the admins who has access. No ads, no tracking or analytics, and
+        nothing is sold or shared. Admins see the names, emails and sign-in times of the people who signed in.
+      </p>
+
+      <h2>What else is on the site</h2>
+      <p>
+        The stations upload their passes: the images, the time, the satellite, the signal, and where the
+        station was when it received the pass. Everyone let in can see these.
+      </p>
+
+      <h2>Where it is kept</h2>
+      <p>
+        On Cloudflare (Workers, D1 and R2), which runs the site. Google handles the sign-in itself. Their own
+        privacy policies apply to what they do.
+      </p>
+
+      <h2>Removing your data</h2>
+      <p>
+        Signing out deletes your session. To have your account removed, ask the person who runs the hub: an
+        admin removes it from the Users page, and it is deleted at once. Contact them at the support email
+        Google shows when you sign in to this site.
+      </p>
+
+      <p class="hint"><a href="/">Back to the hub</a></p>
+    </main>
+  </body>
+</html>
