@@ -24,7 +24,7 @@ Cloudflare builds and deploys this folder from GitHub on each push to `main` tha
 
 | Role | Can |
 |---|---|
-| admin | everything: the gallery, Stations (add, new token, revoke, delete), Users (roles), delete passes |
+| admin | everything: the gallery, Receivers (add, rename, new token, revoke, delete), Users (roles), delete passes |
 | viewer | the gallery |
 | pending | nothing yet: waits for an admin |
 

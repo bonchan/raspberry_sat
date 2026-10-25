@@ -3,7 +3,7 @@ import { NavLink, Outlet, Route, Routes } from 'react-router-dom'
 import { api, ApiError, type Me } from './api'
 import Passes from './pages/Passes'
 import PassDetail from './pages/PassDetail'
-import Stations from './pages/Stations'
+import Receivers from './pages/Receivers'
 import Users from './pages/Users'
 
 async function signOut() {
@@ -54,7 +54,7 @@ function Layout({ me }: { me: Me }) {
         <span className="brand">raspberry_sat hub</span>
         <nav>
           <NavLink to="/" end>Passes</NavLink>
-          {me.role === 'admin' && <NavLink to="/stations">Stations</NavLink>}
+          {me.role === 'admin' && <NavLink to="/receivers">Receivers</NavLink>}
           {me.role === 'admin' && <NavLink to="/users">Users</NavLink>}
         </nav>
         <div className="badges user">
@@ -92,7 +92,7 @@ export default function App() {
       <Route element={<Layout me={me} />}>
         <Route index element={<Passes admin={admin} />} />
         <Route path="passes/:id" element={<PassDetail admin={admin} />} />
-        {admin && <Route path="stations" element={<Stations />} />}
+        {admin && <Route path="receivers" element={<Receivers />} />}
         {admin && <Route path="users" element={<Users me={me} />} />}
         <Route path="*" element={<NotFound />} />
       </Route>

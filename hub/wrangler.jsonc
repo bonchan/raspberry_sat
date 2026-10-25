@@ -24,7 +24,7 @@
   ],
   "vars": {
     // role of everyone who signs in after the first (who becomes admin): "pending" or "viewer"
-    "NEW_USER_ROLE": "pending"
+    "NEW_USER_ROLE": "viewer"
   },
   "observability": { "enabled": true }
 }

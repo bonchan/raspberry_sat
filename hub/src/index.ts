@@ -6,11 +6,11 @@ import type { Env } from './env'
 import * as gallery from './gallery'
 import { HttpError, json } from './http'
 import * as ingest from './ingest'
+import * as receivers from './receivers'
 import { ensureSchema } from './schema'
-import * as stations from './stations'
 import * as users from './users'
 
-const routes = [auth.route, gallery.route, stations.route, users.route, ingest.route]
+const routes = [auth.route, gallery.route, receivers.route, users.route, ingest.route]
 
 /** Changes from the pages must come from the hub's own pages: the session cookie alone isn't enough. */
 function sameOrigin(request: Request, url: URL): void {

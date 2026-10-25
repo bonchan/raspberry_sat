@@ -56,6 +56,61 @@ const MIGRATIONS: string[][] = [
       FOREIGN KEY (station, pass) REFERENCES passes(station, id) ON DELETE CASCADE
     )`,
   ],
+  [
+    // 2026-10-25: a token belongs to a receiver (a Pi), whose id the hub makes; each pass says which of the
+    // Pi's stations (its places, Settings → Stations there) received it. Starts clean: the passes stored
+    // before go (delete their receiver first, so its files in R2 go too); users and sessions stay.
+    `DROP TABLE IF EXISTS images`,
+    `DROP TABLE IF EXISTS passes`,
+    `DROP TABLE IF EXISTS stations`,
+    `CREATE TABLE receivers (
+      id         TEXT PRIMARY KEY,          -- made by the hub, never changes; also its folder in R2
+      name       TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,      -- SHA-256 of the token; the token itself is shown once
+      created_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      last_seen  INTEGER
+    )`,
+    // the places a receiver has received from, as its passes last told them
+    `CREATE TABLE stations (
+      receiver  TEXT NOT NULL REFERENCES receivers(id) ON DELETE CASCADE,
+      id        TEXT NOT NULL,              -- the Pi's own id for it
+      name      TEXT NOT NULL,
+      lat REAL, lon REAL, alt REAL,
+      last_pass REAL,                       -- name and position are those of the latest pass
+      PRIMARY KEY (receiver, id)
+    )`,
+    `CREATE TABLE passes (
+      receiver     TEXT NOT NULL REFERENCES receivers(id),
+      id           TEXT NOT NULL,           -- the pass's folder name on the receiver
+      time         REAL NOT NULL,
+      satellite    TEXT NOT NULL,
+      station_id   TEXT,                    -- where it was received, as it was then
+      station_name TEXT,
+      lat REAL, lon REAL,
+      main         TEXT,                    -- path of the image shown on its card
+      coverage     REAL,
+      max_el       REAL,
+      peak_snr     REAL,
+      meta         TEXT NOT NULL,           -- the pass.json the receiver sent
+      uploaded_at  INTEGER NOT NULL,
+      PRIMARY KEY (receiver, id)
+    )`,
+    `CREATE INDEX passes_time ON passes(time DESC)`,
+    `CREATE INDEX passes_receiver_time ON passes(receiver, time DESC)`,
+    `CREATE INDEX passes_station_time ON passes(receiver, station_id, time DESC)`,
+    `CREATE TABLE images (
+      receiver TEXT NOT NULL,
+      pass     TEXT NOT NULL,
+      path     TEXT NOT NULL,              -- SatDump's file in the pass folder: MSU-MR/msu_mr_rgb_MCIR_corrected.png
+      name     TEXT,
+      variants TEXT,                       -- JSON list: ["corrected"]
+      width    INTEGER,
+      height   INTEGER,
+      PRIMARY KEY (receiver, pass, path),
+      FOREIGN KEY (receiver, pass) REFERENCES passes(receiver, id) ON DELETE CASCADE
+    )`,
+  ],
 ]
 
 let ready: Promise<void> | null = null

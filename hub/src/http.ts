@@ -1,4 +1,4 @@
-/** An answer with an HTTP status and a message the page (or the station) can show as it is. */
+/** An answer with an HTTP status and a message the page (or the Pi) can show as it is. */
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -35,7 +35,7 @@ export function fromBase64url(text: string): Uint8Array {
   return Uint8Array.from(s, c => c.charCodeAt(0))
 }
 
-/** Random, URL-safe: session cookies, station tokens, sign-in state. */
+/** Random, URL-safe: session cookies, receiver tokens, sign-in state. */
 export const randomToken = (bytes = 32) => base64url(crypto.getRandomValues(new Uint8Array(bytes)))
 
 /** Tokens and session cookies are stored only as this, so a copy of the database can't be used to sign in. */
