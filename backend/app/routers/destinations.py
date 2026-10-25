@@ -24,7 +24,7 @@ def send_older(name: str) -> dict:
     dest = config.destination(name)
     if dest is None:
         raise HTTPException(404, "no such destination; save the settings first")
-    if dest.mode != "auto":
+    if not dest.automatic:
         raise HTTPException(409, f"sending to {name} isn't automatic; save it as automatic first")
     dest.since = 0
     save_config(settings.CONFIG_FILE, config)

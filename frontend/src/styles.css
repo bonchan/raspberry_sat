@@ -345,9 +345,12 @@ a.card:hover, .pass-card:hover { border-color: var(--accent); }
 .card-link::after { content: ""; position: absolute; inset: 0; }     /* the whole card opens the pass */
 .discord-link { position: relative; z-index: 1; display: flex; color: #5865f2; }     /* Discord blurple */
 .discord-link:hover { color: #8c94f7; }
-.hub-link { position: relative; z-index: 1; }       /* a destination's page for the pass, over the card's link */
+/* a destination's page for the pass (HubIcon), over the card's link */
+.hub-link { position: relative; z-index: 1; display: inline-flex; vertical-align: middle; color: var(--accent); }
+.hub-link:hover { color: #8cc4ff; }
+.pass-links { display: flex; align-items: center; gap: 8px; }
 .title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.title-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.title-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }       /* buttons, then the link back */
 /* Settings → Destinations: one block per destination */
 .destination { padding: 12px 0; border-top: 1px solid var(--line); }
 .destination .caution { margin: 8px 0 0; }
@@ -397,7 +400,7 @@ html.page-wide main { max-width: none; }
 .pass-row-chart { flex: 1 1 200px; min-width: 0; display: flex; justify-content: center; }
 .pass-row-chart .chart { height: 56px; max-width: 420px; }
 .pass-row-chart .rebuild { position: relative; z-index: 1; align-self: center; }      /* over the row's link */
-.pass-row-discord { flex: 0 0 24px; display: flex; justify-content: flex-end; }   /* kept when empty: charts line up */
+.pass-row-discord { flex: 0 0 52px; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }   /* hub and Discord icons; kept when empty: charts line up */
 @media (max-width: 760px) {
   .pass-row { flex-wrap: wrap; }
   .pass-row-text { flex: 1 1 0; }

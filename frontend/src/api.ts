@@ -18,9 +18,13 @@ export interface Discord {
   mode: DiscordMode; application_id: string; bot_token: string; channel_id: string
   composites: string[]; post_failed: boolean
 }
+/** auto: each finished pass; manual: a button on the pass page; both: each pass, and the button to send it again */
+export type DestinationMode = 'off' | 'auto' | 'manual' | 'both'
+/** each finished pass goes by itself */
+export const automatic = (d: { mode: DestinationMode }) => d.mode === 'auto' || d.mode === 'both'
 /** a website collecting passes from several stations, such as the raspberry-sat hub (backend/app/destinations.py) */
 export interface Destination {
-  name: string; url: string; token: string; mode: DiscordMode
+  name: string; url: string; token: string; mode: DestinationMode
   images: string[]                  // like Discord's composites; empty: one per composite
   full_size: boolean; delete_after_upload: boolean
   since: number                     // set by the app: automatic sending takes passes finished after it
@@ -248,7 +252,9 @@ export const api = {
   getPassSignal: (id: string) => request<PassSignalThumb>('GET', `/passes/${encodeURIComponent(id)}/signal?points=150`),
   rebuildPassSignal: (id: string) => request<PassSignalThumb>('POST', `/passes/${encodeURIComponent(id)}/signal/rebuild`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/passes/${encodeURIComponent(id)}`),
-  postPass: (id: string) => request<PassDiscord>('POST', `/passes/${encodeURIComponent(id)}/discord`),
+  // both start in the background and answer at once; the topic "jobs" shows them running ({started: false}:
+  // running already), the pass's notes the result
+  postPass: (id: string) => request<{ started: boolean }>('POST', `/passes/${encodeURIComponent(id)}/discord`),
   testDiscord: (discord: Discord) => request<DiscordSent>('POST', '/discord/test', discord),
   testDestination: (d: Destination) =>
     // receiver: which Pi this token is on the hub; hubs from before receivers answer "station"
@@ -256,8 +262,11 @@ export const api = {
       'POST', '/destinations/test', d),
   sendOlder: (name: string) => request<{ queued: number }>('POST', `/destinations/${encodeURIComponent(name)}/older`),
   sendToDestination: (id: string, name: string) =>
-    request<PassHub>('POST', `/passes/${encodeURIComponent(id)}/destinations/${encodeURIComponent(name)}`),
+    request<{ started: boolean }>('POST', `/passes/${encodeURIComponent(id)}/destinations/${encodeURIComponent(name)}`),
 }
+
+/** the topic "jobs" (backend/app/jobs.py): posting and sending in progress; target "discord" or "hub:<name>" */
+export interface Jobs { running: { pass: string; target: string; started_at: number; by_hand: boolean }[] }
 
 // what the bot may do in the server it is added to: View Channels, Send Messages, Attach Files
 const BOT_PERMISSIONS = (1 << 10) | (1 << 11) | (1 << 15)

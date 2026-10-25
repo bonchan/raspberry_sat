@@ -111,11 +111,13 @@ class Discord(BaseModel):
 
 class Destination(BaseModel):
     """A website that collects passes from several stations, such as the raspberry-sat hub (hub/): its
-    Stations page gives the URL and this station's token. Sending: destinations.py."""
+    Receivers page gives the URL and this Pi's token. Sending: destinations.py."""
     name: str = "hub"                      # shown on the pass page; also the key of its notes in pass.json
     url: str = ""                          # https://raspberry-sat-hub.<subdomain>.workers.dev/ingest
     token: str = ""
-    mode: Literal["off", "auto", "manual"] = "off"   # auto: each finished pass; manual: a button on the pass page
+    # auto: each finished pass; manual: a button on the pass page; both: each finished pass, and the button
+    # always there to send one again
+    mode: Literal["off", "auto", "manual", "both"] = "off"
     images: list[str] = []                 # what to send, as Discord's composites; empty = one per composite
     full_size: bool = False                # the large JPEG at full size instead of 1600 px wide
     delete_after_upload: bool = False      # once sent, keep only the main image (and pass data) on the Pi
@@ -150,6 +152,11 @@ class Destination(BaseModel):
         if self.mode != "off" and not (self.url and self.token):
             raise ValueError(f"sending to {self.name} needs its URL and token")
         return self
+
+    @property
+    def automatic(self) -> bool:
+        """Each finished pass goes by itself (auto, or both)."""
+        return self.mode in ("auto", "both")
 
 
 class Storage(BaseModel):

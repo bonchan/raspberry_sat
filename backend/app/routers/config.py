@@ -28,7 +28,7 @@ def keep_since(old: Config, config: Config) -> None:
     now = time.time()
     for d in config.destinations:
         was = before.get(d.name)
-        if d.mode == "auto" and (was is None or was.mode != "auto"):
+        if d.automatic and (was is None or not was.automatic):
             d.since = now
         else:
             d.since = was.since if was else 0

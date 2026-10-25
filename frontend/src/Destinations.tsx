@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, ApiError, type Destination, type DiscordMode } from './api'
+import { api, ApiError, automatic, type Destination, type DestinationMode } from './api'
 import { CheckField, ListField, SelectField, TextField } from './fields'
 import { useT } from './i18n'
 
@@ -61,10 +61,11 @@ function DestinationForm({ d, dirty, onChange, onRemove }:
     }
   }
 
-  const modes: { value: DiscordMode; label: string }[] = [
+  const modes: { value: DestinationMode; label: string }[] = [
     { value: 'off', label: t('settings.destOff') },
     { value: 'auto', label: t('settings.destAuto') },
     { value: 'manual', label: t('settings.destManual') },
+    { value: 'both', label: t('settings.destBoth') },
   ]
   return (
     <div className="destination">
@@ -88,7 +89,7 @@ function DestinationForm({ d, dirty, onChange, onRemove }:
           {testing ? t('settings.destTesting') : t('settings.destTest')}
         </button>
         {/* works on the saved settings: the destination must be saved as automatic */}
-        <button disabled={dirty || d.mode !== 'auto'} title={dirty ? t('settings.destSaveFirst') : undefined} onClick={older}>
+        <button disabled={dirty || !automatic(d)} title={dirty ? t('settings.destSaveFirst') : undefined} onClick={older}>
           {t('settings.destOlder')}
         </button>
         <button onClick={onRemove}>{t('common.remove')}</button>

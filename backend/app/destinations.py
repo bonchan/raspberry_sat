@@ -263,7 +263,7 @@ def due(meta: dict, dest: Destination, config: Config, now: float) -> bool:
     """Whether automatic sending should send this pass to `dest` now: finished since sending was switched on
     (or "Send older passes"), and not there yet (or on another receiver), changed since, or its last try
     failed and the next is due."""
-    if dest.mode != "auto" or float(meta.get("finished_at") or 0) < dest.since:
+    if not dest.automatic or float(meta.get("finished_at") or 0) < dest.since:
         return False
     note = notes(meta).get(dest.name) or {}
     if note.get("error"):
@@ -305,7 +305,7 @@ async def learn_receivers(config: Config, now: float) -> list[tuple[Destination,
     passes noted as sent to another receiver go again. Returns the destinations that failed, with why."""
     failed = []
     for dest in config.destinations:
-        if dest.mode == "auto" and dest.url and dest.token and receiver_of(dest) is None \
+        if dest.automatic and dest.url and dest.token and receiver_of(dest) is None \
                 and not waiting(dest.name, now):
             try:
                 await hello(dest)
@@ -316,7 +316,7 @@ async def learn_receivers(config: Config, now: float) -> list[tuple[Destination,
 
 def next_upload(passes_dir: Path, config: Config, now: float) -> tuple[Path, Destination] | None:
     """The newest finished pass that a destination set to automatic should get now."""
-    ready = [d for d in config.destinations if d.mode == "auto" and not waiting(d.name, now)]
+    ready = [d for d in config.destinations if d.automatic and not waiting(d.name, now)]
     if not ready:
         return None
     for folder, meta in newest_first(passes_dir):

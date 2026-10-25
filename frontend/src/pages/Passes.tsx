@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, passFile, type PassSignalThumb, type PassSummary } from '../api'
 import { clock, longDate, longDay, percent, sameDay, size } from '../format'
 import DiscordIcon from '../DiscordIcon'
+import HubIcon from '../HubIcon'
 import SignalChart from '../SignalChart'
 import { useT } from '../i18n'
 import { useTopic } from '../stream'
@@ -102,7 +103,7 @@ function PassCard({ pass }: { pass: PassSummary }) {
       <div className="caption">
         <div className="title-row">
           <Link className="card-link" to={`/passes/${encodeURIComponent(pass.id)}`}><b>{pass.satellite}</b></Link>
-          <DiscordLink pass={pass} />
+          <div className="pass-links"><HubLinks pass={pass} /><DiscordLink pass={pass} /></div>
         </div>
         <span>{longDate(pass.time)}</span>
         <SignalLine pass={pass} />
@@ -145,7 +146,7 @@ function PassRow({ pass }: { pass: PassSummary }) {
         <ImagesLine pass={pass} />
       </div>
       <RowChart id={pass.id} />
-      <div className="pass-row-discord"><DiscordLink pass={pass} /></div>
+      <div className="pass-row-discord"><HubLinks pass={pass} /><DiscordLink pass={pass} /></div>
     </div>
   )
 }
@@ -189,6 +190,21 @@ function RowChart({ id }: { id: string }) {
   )
 }
 
+/** The pass on each destination it was sent to, as an icon (the name shows on hover); over the card's link. */
+function HubLinks({ pass }: { pass: PassSummary }) {
+  const t = useT()
+  return (
+    <>
+      {Object.entries(pass.hubs ?? {}).map(([name, url]) => (
+        <a key={name} className="hub-link" href={url} target="_blank" rel="noreferrer"
+          title={t('passes.onHub', { name })} aria-label={t('passes.onHub', { name })}>
+          <HubIcon size={18} />
+        </a>
+      ))}
+    </>
+  )
+}
+
 function DiscordLink({ pass }: { pass: PassSummary }) {
   const t = useT()
   if (!pass.discord_url) return null
@@ -225,11 +241,6 @@ function ImagesLine({ pass }: { pass: PassSummary }) {
     <span className="hint">
       {pass.coverage !== null && <>{t('passes.received', { p: percent(pass.coverage) })} · </>}
       {t('passes.images', { n: pass.image_count })} · {size(pass.size)}
-      {/* where it was sent (destinations); above the card's link so they can be clicked */}
-      {Object.entries(pass.hubs ?? {}).map(([name, url]) => (
-        <span key={name}> · <a className="hub-link" href={url} target="_blank" rel="noreferrer"
-          title={t('passes.onHub', { name })}>{name} ↗</a></span>
-      ))}
     </span>
   )
 }

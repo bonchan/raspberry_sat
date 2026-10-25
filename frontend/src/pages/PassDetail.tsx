@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  api, ApiError, passFile, type Destination, type DiscordMode, type PassDetail as Pass, type PassDiscord, type PassHub,
-  type PassImage,
+  api, ApiError, automatic, passFile, type Destination, type DiscordMode, type PassDetail as Pass, type PassDiscord,
+  type PassHub, type PassImage,
 } from '../api'
 import { useConfirm } from '../Dialog'
 import DiscordIcon from '../DiscordIcon'
+import HubIcon from '../HubIcon'
 import { clock, compass, duration, longDate, percent, size, utc } from '../format'
 import { translate, useLanguage, useT, type Key, type Lang } from '../i18n'
 import SignalChart, { syncEnds, syncPlace } from '../SignalChart'
 import SkyPlot, { SkyLegend } from '../SkyPlot'
+import { useTopic } from '../stream'
 import { elevationQuality } from '../UpcomingPasses'
 
 // which variant of a composite to show first
@@ -61,6 +63,18 @@ export default function PassDetail() {
     api.getConfig().then(c => { setDiscordMode(c.discord.mode); setDests(c.destinations ?? []) }, () => {})
   }, [])
 
+  // what is being posted or sent for this pass right now, in the background (the topic "jobs"): "discord",
+  // "hub:<name>". When one ends the pass is read again: its notes say where it went, or why not.
+  const jobs = useTopic('jobs')
+  const busyKey = (jobs?.running ?? []).filter(j => j.pass === id).map(j => j.target).sort().join('|')
+  const lastBusy = useRef('')
+  useEffect(() => {
+    const before = lastBusy.current.split('|').filter(Boolean), now = busyKey.split('|').filter(Boolean)
+    lastBusy.current = busyKey
+    if (before.some(target => !now.includes(target))) api.getPass(id).then(setPass, () => {})
+  }, [busyKey, id])
+  const busy = new Set(busyKey.split('|').filter(Boolean))
+
   const groups = useMemo(() => pass ? groupImages(pass.images, pass.main) : [], [pass])
 
   if (error) return <section><p className="error">{error}</p><Link to="/passes">{t('detail.back')}</Link></section>
@@ -92,18 +106,21 @@ export default function PassDetail() {
   return (
     <>
       <section>
-        <p><Link to="/passes">{t('detail.back')}</Link></p>
         <div className="title-row">
           <h2>{pass.satellite}</h2>
           <div className="title-actions">
-            <DiscordButton pass={pass} mode={discordMode} onChange={d => setPass({ ...pass, discord: d })} />
-            {dests.map(d => <HubButton key={d.name} pass={pass} dest={d} onChange={noteHub} />)}
+            <DiscordButton pass={pass} mode={discordMode} busy={busy.has('discord')}
+              onChange={d => setPass({ ...pass, discord: d })} />
+            {dests.map(d => (
+              <HubButton key={d.name} pass={pass} dest={d} busy={busy.has(`hub:${d.name}`)} onChange={noteHub} />
+            ))}
+            <Link to="/passes">{t('detail.back')}</Link>
           </div>
         </div>
         {slim && (
           <p className="hint">
             {t('detail.slimmed', { time: longDate(slim.at), name: slim.destination })}
-            {hub && <> <a href={hub.url} target="_blank" rel="noreferrer">{t('detail.slimmedOpen', { name: hub.name })}</a></>}
+            {hub && <> <HubLink name={hub.name} url={hub.url} /></>}
           </p>
         )}
         <div className="pass-top">
@@ -193,34 +210,37 @@ export default function PassDetail() {
   )
 }
 
-/** Next to the satellite name: posts the pass. Shows when posting is by hand, or when posting is
- *  automatic and it failed. */
-function DiscordButton({ pass, mode, onChange }: { pass: Pass; mode: DiscordMode; onChange: (d: PassDiscord) => void }) {
+/** Next to the satellite name: posts the pass, in the background (the Pi goes on if the page is left; `busy`
+ *  while it does, from the topic "jobs"). Shows when posting is by hand, when posting is automatic and it
+ *  failed, and while it is posting. */
+function DiscordButton({ pass, mode, busy, onChange }:
+  { pass: Pass; mode: DiscordMode; busy: boolean; onChange: (d: PassDiscord) => void }) {
   const t = useT()
   const ask = useConfirm()
-  const [posting, setPosting] = useState(false)
+  const [starting, setStarting] = useState(false)
   const d = pass.discord
-  if (!(mode === 'manual' || (mode === 'auto' && d?.error))) return null
+  if (!(busy || mode === 'manual' || (mode === 'auto' && d?.error))) return null
 
   async function post() {
     if (d?.posted_at && !(await ask({ title: t('detail.discordPostAgain'), message: t('detail.discordConfirmAgain'),
                                       confirmLabel: t('detail.discordPostAgain') }))) return
-    setPosting(true)
+    setStarting(true)
     try {
-      onChange(await api.postPass(pass.id))
+      await api.postPass(pass.id)       // answers at once; the result comes with the pass, read again after
     } catch (e) {
-      onChange({ ...d, error: e instanceof ApiError && e.details.length ? e.details.join(' ') : String(e) })
+      onChange({ ...d, error: errorText(e) })
     } finally {
-      setPosting(false)
+      setStarting(false)
     }
   }
 
-  const label = posting ? t('detail.discordPosting')
+  const working = busy || starting
+  const label = working ? t('detail.discordPosting')
     : d?.error ? t('detail.discordRetry')
     : d?.posted_at ? t('detail.discordPostAgain')
     : t('detail.discordPost')
   return (
-    <button className="with-icon" disabled={posting} onClick={post}><DiscordIcon />{label}</button>
+    <button className="with-icon" disabled={working} onClick={post}><DiscordIcon />{label}</button>
   )
 }
 
@@ -247,14 +267,28 @@ function DiscordFact({ pass, mode }: { pass: Pass; mode: DiscordMode }) {
 
 const errorText = (e: unknown) => e instanceof ApiError && e.details.length ? e.details.join(' ') : String(e)
 
-/** Next to the satellite name: sends the pass to a destination (Settings → Destinations). Shows when sending
- *  is by hand, or when it is automatic and the pass isn't there yet (an older pass) or the last try failed. */
-function HubButton({ pass, dest, onChange }: { pass: Pass; dest: Destination; onChange: (name: string, note: PassHub) => void }) {
+/** The pass on a destination: the hub icon, its name on hover. */
+function HubLink({ name, url }: { name: string; url: string }) {
+  const t = useT()
+  return (
+    <a className="hub-link" href={url} target="_blank" rel="noreferrer" title={t('passes.onHub', { name })}
+      aria-label={t('passes.onHub', { name })}>
+      <HubIcon size={18} />
+    </a>
+  )
+}
+
+/** Next to the satellite name: sends the pass to a destination (Settings → Destinations), in the background as
+ *  Discord's. Shows when sending is by hand (or both), when it is automatic and the pass isn't there yet (an
+ *  older pass) or the last try failed, and while it is sending. */
+function HubButton({ pass, dest, busy, onChange }:
+  { pass: Pass; dest: Destination; busy: boolean; onChange: (name: string, note: PassHub) => void }) {
   const t = useT()
   const ask = useConfirm()
-  const [sending, setSending] = useState(false)
+  const [starting, setStarting] = useState(false)
   const note = pass.hubs?.[dest.name]
-  if (dest.mode === 'off' || !(dest.mode === 'manual' || note?.error || !note?.uploaded_at)) return null
+  const byHand = dest.mode === 'manual' || dest.mode === 'both'
+  if (!busy && (dest.mode === 'off' || !(byHand || note?.error || !note?.uploaded_at))) return null
   const name = dest.name
 
   async function send() {
@@ -262,21 +296,22 @@ function HubButton({ pass, dest, onChange }: { pass: Pass; dest: Destination; on
       title: t('detail.hubSendAgain', { name }), message: t('detail.hubConfirmAgain', { name }),
       confirmLabel: t('detail.hubSendAgain', { name }),
     }))) return
-    setSending(true)
+    setStarting(true)
     try {
-      onChange(name, await api.sendToDestination(pass.id, name))
+      await api.sendToDestination(pass.id, name)      // answers at once, as Discord's
     } catch (e) {
       onChange(name, { ...note, error: errorText(e) })
     } finally {
-      setSending(false)
+      setStarting(false)
     }
   }
 
-  const label = sending ? t('detail.hubSending')
+  const working = busy || starting
+  const label = working ? t('detail.hubSending')
     : note?.error ? t('detail.hubRetry', { name })
     : note?.uploaded_at ? t('detail.hubSendAgain', { name })
     : t('detail.hubSend', { name })
-  return <button disabled={sending} onClick={send}>{label}</button>
+  return <button className="with-icon" disabled={working} onClick={send}><HubIcon />{label}</button>
 }
 
 /** Whether and where the pass is on a destination, and why the last try failed. */
@@ -291,13 +326,13 @@ function HubFact({ pass, dest }: { pass: Pass; dest: Destination }) {
         {note?.uploaded_at
           ? <>
               {t('detail.hubSent', { time: longDate(note.uploaded_at), n: note.images ?? 0 })}
-              {note.url && <> · <a href={note.url} target="_blank" rel="noreferrer">{t('detail.hubOpen')}</a></>}
+              {note.url && <> <HubLink name={dest.name} url={note.url} /></>}
             </>
           : t('detail.hubNotSent')}
         {note?.error && (
           <div className="error">
             {t('detail.hubFailed', { error: note.error })}
-            {note.next_try && dest.mode === 'auto' && <span className="hint"> · {t('detail.hubNextTry', { time: clock(note.next_try) })}</span>}
+            {note.next_try && automatic(dest) && <span className="hint"> · {t('detail.hubNextTry', { time: clock(note.next_try) })}</span>}
           </div>
         )}
       </dd>
@@ -349,7 +384,7 @@ function Lightbox({ passId, image, hub, onClose }:
         {image.gone
           ? <span className="hint">
               {t('detail.gone')}
-              {hub && <> <a href={hub.url} target="_blank" rel="noreferrer">{t('detail.slimmedOpen', { name: hub.name })}</a></>}
+              {hub && <> <HubLink name={hub.name} url={hub.url} /></>}
             </span>
           : <a href={passFile(passId, 'file', image.path)} target="_blank" rel="noreferrer">
               {t('detail.original', { w: image.width ?? '?', h: image.height ?? '?', size: size(image.bytes) })}

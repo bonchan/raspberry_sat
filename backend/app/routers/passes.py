@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from app import destinations, discord, passes, settings
+from app import destinations, discord, jobs, passes, settings
 from app.hub import hub
 from app.config import load_config
 
@@ -124,26 +124,24 @@ def get_file(pass_id: str, path: str) -> FileResponse:
     return FileResponse(f, filename=f.name, content_disposition_type=disposition)
 
 
-@router.post("/{pass_id}/discord")
+@router.post("/{pass_id}/discord", status_code=202)
 async def post_to_discord(pass_id: str) -> dict:
-    """Post the pass now (the button on the pass page). Returns where and when, as noted in pass.json."""
+    """Post the pass (the button on the pass page), in the background (jobs.py): answers at once. The topic
+    "jobs" shows it running; where it was posted, or why it failed, goes into pass.json.
+    {"started": false}: it is being posted already."""
     folder = folder_or_404(pass_id)
     if not passes.is_finished(folder):
         raise HTTPException(409, "this pass is still being received or decoded")
     config = load_config(settings.CONFIG_FILE)
     if config.discord.mode == "off":
         raise HTTPException(409, "posting to Discord is off in Settings")
-    try:
-        return await discord.post_pass(folder, config)
-    except discord.DiscordError as e:
-        raise HTTPException(502, str(e)) from e
-    finally:
-        hub.nudge("passes")                             # posted, or the error noted in pass.json
+    started = jobs.start(folder.name, "discord", lambda: discord.post_pass(folder, config), (discord.DiscordError,))
+    return {"started": started}
 
 
-@router.post("/{pass_id}/destinations/{name}")
+@router.post("/{pass_id}/destinations/{name}", status_code=202)
 async def send_to_destination(pass_id: str, name: str) -> dict:
-    """Send the pass to a destination now (the button on the pass page). Returns its note in pass.json.
+    """Send the pass to a destination (the button on the pass page), in the background as Discord's.
     Deleting after upload, when that is on, follows within a minute (tasks.send_to_destinations)."""
     folder = folder_or_404(pass_id)
     if not passes.is_finished(folder):
@@ -154,12 +152,9 @@ async def send_to_destination(pass_id: str, name: str) -> dict:
         raise HTTPException(404, "no such destination")
     if dest.mode == "off":
         raise HTTPException(409, f"sending to {name} is off in Settings")
-    try:
-        return await destinations.send_pass(folder, config, dest)
-    except destinations.DestinationError as e:
-        raise HTTPException(502, str(e)) from e
-    finally:
-        hub.nudge("passes")
+    started = jobs.start(folder.name, f"hub:{dest.name}", lambda: destinations.send_pass(folder, config, dest),
+                         (destinations.DestinationError,))
+    return {"started": started}
 
 
 @router.delete("/{pass_id}")

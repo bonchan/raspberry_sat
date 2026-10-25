@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from typing import Any
 
-from app import passes, processing, settings
+from app import jobs, passes, processing, settings
 from app.config import load_config
 from app.hub import hub
 from app.routers import schedule as schedule_api
@@ -51,6 +51,7 @@ TOPICS: dict[str, tuple[Callable[[], Any], float | None]] = {
     "processing": (processing.view, 2),
     "config": (lambda: load_config(settings.CONFIG_FILE).model_dump(), None),
     "logs": (logs_snapshot, None),
+    "jobs": (jobs.view, None),          # posting and sending in progress (jobs.py publishes the changes)
 }
 
 for name, (snapshot, _) in TOPICS.items():

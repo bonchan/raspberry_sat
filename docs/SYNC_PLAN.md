@@ -115,13 +115,13 @@ hub/
   `signal.json` when the Pi sent them (the `passes` row says so: `drape`, `signal`).
 - **Shared with the Pi's app**, without installing anything from `frontend/`: its stylesheet, its Cesium
   basics (`frontend/src/cesium.ts`: loading, the viewer, draping an image) and its chart's drawing
-  (`frontend/src/signalPlot.ts`). Plain TypeScript with no React in them: Cloudflare builds `hub/` with only
+  (`frontend/src/signalPlot.ts`) and sky plot (`frontend/src/skyGeometry.ts`). Plain TypeScript with no React in them: Cloudflare builds `hub/` with only
   its own packages, so a React file from `frontend/` couldn't find React there. CesiumJS itself is copied
   from `hub/node_modules` into `/cesium` at build, as on the Pi.
 - **Pass ids** on the hub: `<receiver id>~<folder name>`, so two Pis recording the same pass don't collide.
 - **Pages:** Passes as on the Pi: grid, list (with the signal over each pass) or globe (one pass's image
   draped, the stations as dots, the passes beside it), filters by receiver and by station, older passes page
-  by page; a pass (its images, station, receiver, facts, the signal chart, delete for admins), Receivers (admins: add by name with URL + token
+  by page; a pass (its images; the same facts, in the same words, as on the Pi, with the sky plot under them; station, receiver; the signal chart; delete for admins), Receivers (admins: add by name with URL + token
   shown once, rename, new token, revoke, delete with its passes; the stations each has sent from), Users
   (admins: roles, remove). Signed out: "Sign in with Google". Pending: "an admin has to let you in".
 - **Secrets:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Worker → Settings → Variables and Secrets).
@@ -145,7 +145,8 @@ class Destination(BaseModel):
     name: str = "hub"                  # unique; shown on the pass page ("On hub")
     url: str = ""                      # from the hub's Receivers page
     token: str = ""
-    mode: Literal["off", "auto", "manual"] = "off"   # auto: each finished pass; manual: a button on the pass page
+    # auto: each finished pass; manual: a button on the pass page; both: each pass, and the button to send again
+    mode: Literal["off", "auto", "manual", "both"] = "off"
     images: list[str] = []             # same syntax as discord.composites; empty = one per composite, main first
     full_size: bool = False            # large JPEG at full size (~1 MB) instead of 1600 px (~0.4 MB)
     delete_after_upload: bool = False  # once on this destination, keep only the main image on the Pi
@@ -180,6 +181,10 @@ Built like `discord.py`, one upload at a time, the state in pass.json:
 - Automatic order after a pass: Discord (if on), then destinations, then deleting (below), so Discord still
   has every image.
 - `passes.repair` renaming an uploaded pass: `DELETE` the old name on each destination, upload the new.
+- The pass page's buttons (Discord and each destination) start the work in the background (`jobs.py`) and
+  answer at once; it goes on if the page is left. The topic `jobs` (WebSocket) says what is running, the
+  automatic posting and sending included, so the page shows "Posting…" / "Sending…" and reads the pass again
+  when it ends (the result, or why it failed, is in pass.json).
 - No new Python dependencies (httpx).
 
 ### Delete after upload

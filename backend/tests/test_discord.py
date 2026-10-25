@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from pydantic import ValidationError
 
-from app import discord, passes, settings, tasks
+from app import discord, jobs, passes, settings, tasks
 from app.config import Config, Discord, save_config
 from app.main import app
 
@@ -235,17 +235,26 @@ def test_only_automatic_mode_posts_after_processing(config_file, fake, mode, pos
     assert ("discord" in passes.load_pass(folder)) == posts
 
 
-def test_post_button(config_file, fake):
+def test_post_button(config_file, fake, monkeypatch):
+    """The button starts posting in the background (jobs.py) and answers at once; the result is in pass.json."""
     folder = finished_pass(settings.PASSES_DIR)
+    started = []
+    monkeypatch.setattr(jobs, "start",
+                        lambda pass_id, target, work, expected=(): started.append((pass_id, target, work)) or True)
     client = TestClient(app)
     save_config(config_file, Config())
     assert client.post(f"/api/passes/{folder.name}/discord").status_code == 409     # posting is off
     save_config(config_file, Config(discord=bot()))
     fake()
     r = client.post(f"/api/passes/{folder.name}/discord")
-    assert r.status_code == 200 and r.json()["channel"] == "satellites"
+    assert r.status_code == 202 and r.json() == {"started": True}
+    pass_id, target, work = started[0]
+    assert (pass_id, target) == (folder.name, "discord")
+    note = asyncio.run(work())                      # what the job runs
     assert client.get(f"/api/passes/{folder.name}").json()["discord"]["images"] == 3
-    assert client.get("/api/passes").json()["passes"][0]["discord_url"] == r.json()["url"]
+    assert client.get("/api/passes").json()["passes"][0]["discord_url"] == note["url"]
     fake(fail=(404, {"code": 10003, "message": "Unknown Channel"}))
-    r = client.post(f"/api/passes/{folder.name}/discord")
-    assert r.status_code == 502 and "Copy Channel ID" in r.json()["detail"]
+    client.post(f"/api/passes/{folder.name}/discord")
+    with pytest.raises(discord.DiscordError, match="Copy Channel ID"):
+        asyncio.run(started[1][2]())
+    assert "Copy Channel ID" in client.get(f"/api/passes/{folder.name}").json()["discord"]["error"]

@@ -163,6 +163,14 @@ def test_a_refused_pass_is_not_the_whole_destination(tmp_path, hub):
     assert not e.value.whole
 
 
+def test_both_sends_by_itself_too(tmp_path):
+    folder = finished_pass(tmp_path)
+    config = Config(destinations=[dest(mode="both")])
+    d = config.destinations[0]
+    assert d.automatic and not dest(mode="manual").automatic
+    assert destinations.due(passes.read_json(folder / passes.META), d, config, time.time())
+
+
 def test_only_passes_since_it_was_switched_on(tmp_path, hub):
     folder = finished_pass(tmp_path)
     config = Config(destinations=[dest(since=time.time() + 60)])

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 
-from app import destinations, discord, orbits, passes, settings, spectrum, updater
+from app import destinations, discord, jobs, orbits, passes, settings, spectrum, updater
 from app.config import load_config
 from app.hub import hub
 from app.satdump_cfg import FFT_MAX, FFT_MIN
@@ -465,7 +465,8 @@ async def destination_step(config) -> bool:
     if job:
         folder, dest = job
         try:
-            note = await destinations.send_pass(folder, config, dest)
+            async with jobs.running_as(folder.name, f"hub:{dest.name}"):      # the pass page shows "Sending…"
+                note = await destinations.send_pass(folder, config, dest)
         except destinations.DestinationError as e:
             if e.whole:
                 # the destination is down or refuses this station: one line, not one per pass and try
@@ -578,7 +579,8 @@ async def pass_finished(folder) -> None:
     if config.discord.mode != "auto" or not discord.worth_posting(folder, config.discord):
         return
     try:
-        note = await discord.post_pass(folder, config)
+        async with jobs.running_as(folder.name, "discord"):        # the pass page shows "Posting…"
+            note = await discord.post_pass(folder, config)
         supervisor.note("info", f"posted pass {folder.name} to Discord with {note['images']} images")
     except discord.DiscordError as e:
         supervisor.note("error", f"could not post pass {folder.name} to Discord: {e}")

@@ -5,8 +5,8 @@
 
 import { useEffect, useState } from 'react'
 import type {
-  Config, LiveSample, LiveState, LogLine, PassList, Processing, SatdumpProcess, Schedule, Spectrum, Status, SystemInfo,
-  TleSet, UpdateState,
+  Config, Jobs, LiveSample, LiveState, LogLine, PassList, Processing, SatdumpProcess, Schedule, Spectrum, Status,
+  SystemInfo, TleSet, UpdateState,
 } from './api'
 
 /** the live signal: a snapshot first (and after every reconnect), then updates */
@@ -31,6 +31,7 @@ export interface Topics {
   config: Config
   tles: TleSet
   processing: Processing | null    // null while no pass is being worked on
+  jobs: Jobs                       // posting to Discord and sending to destinations, in the background
 }
 
 export type Connection = 'connecting' | 'up' | 'down'
