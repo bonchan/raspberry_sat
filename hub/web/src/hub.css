@@ -1,0 +1,18 @@
+/* what the hub adds to the station app's styles.css */
+
+.signin { margin: 12vh auto 0; text-align: center; display: grid; gap: 12px; justify-items: center; }
+.signin p { margin: 0; }
+
+.user { display: flex; align-items: center; gap: 10px; }
+.user img { width: 26px; height: 26px; border-radius: 50%; }
+
+.link-box { border-color: var(--accent); }
+.link-box dl { grid-template-columns: max-content minmax(0, 1fr) auto; align-items: center; }
+.link-box code { display: block; overflow-wrap: anywhere; padding: 6px 8px; font-size: 13px; }
+
+.add-station { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+@media (max-width: 600px) { .add-station { grid-template-columns: 1fr; } }
+
+.actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.actions button { padding: 4px 10px; }
+.stats-table select { width: auto; }

@@ -1,0 +1,30 @@
+// The hub: one Worker that serves the gallery (web/, built into dist/), its API (/api, /auth) and the
+// stations' uploads (/ingest). Deployed by Cloudflare from GitHub on each push (Workers Builds, root
+// directory hub/). Secrets (Worker → Settings → Variables and Secrets): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "raspberry-sat-hub",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/auth/*", "/ingest/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "raspberry-sat",
+      // Storage & databases → D1 → raspberry-sat: its Database ID
+      "database_id": "PASTE-THE-D1-DATABASE-ID"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "raspberry-sat-files" }
+  ],
+  "vars": {
+    // role of everyone who signs in after the first (who becomes admin): "pending" or "viewer"
+    "NEW_USER_ROLE": "pending"
+  },
+  "observability": { "enabled": true }
+}

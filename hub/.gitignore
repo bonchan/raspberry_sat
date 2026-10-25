@@ -1,0 +1,8 @@
+# personal setup checklist: account details and progress, kept out of git
+CLOUDFLARE_SETUP.md
+
+# Node and Wrangler
+node_modules/
+dist/
+.wrangler/
+.dev.vars*
