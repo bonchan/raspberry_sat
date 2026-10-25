@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import '../../../frontend/src/styles.css'      // the station app's look
+import '../../../frontend/src/styles.css'
 import './hub.css'
 import App from './App'
 
