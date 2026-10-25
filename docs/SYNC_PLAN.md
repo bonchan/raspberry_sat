@@ -70,7 +70,7 @@ unknown or revoked token, 400 with what is wrong.
 | `GET {url}/hello` | | `{"receiver": {"id", "name"}, "protocol": 1}` (the Test button; the hub also answers the same as `"station"` for Pis from before receivers) |
 | `PUT {url}/passes/{pass}/files/thumb/{image}.jpg` | the thumbnail, JPEG, with `Content-Length` (≤ 25 MB) | `{"stored": ...}` |
 | `PUT {url}/passes/{pass}/files/large/{image}.jpg` | the image to show, JPEG | `{"stored": ...}` |
-| `POST {url}/passes/{pass}` | `{"pass": <pass.json>, "images": [<image path>, ...]}` | `{"id", "url", "receiver"}`: the pass's id and page on the hub, and the receiver's id |
+| `POST {url}/passes/{pass}` | `{"pass": <pass.json>, "images": [<image path>, ...], "geo"?, "signal"?}` | `{"id", "url", "receiver"}`: the pass's id and page on the hub, and the receiver's id |
 | `DELETE {url}/passes/{pass}` | | `{"deleted": ...}` |
 
 - `{pass}` is the pass's folder name (`2026-10-12_1310Z_meteor-m2-3`), `{image}` the image's path in it as in
@@ -80,6 +80,12 @@ unknown or revoked token, 400 with what is wrong.
 - Everything can be repeated: a pass sent again replaces the one before (and images left out are removed).
 - `pass.json` is sent as the Pi has it, minus `discord`, `hubs` and `slimmed`. Its `station` is the Pi's
   station that received it, as it was then: `{"id", "name", "lat", "lon", "alt"}`.
+- `geo` (optional): where one of the images sent lies on Earth, for the globe: `{"image", "width", "height",
+  "rows", "cols", "points"}` as the Pi's `/api/passes/{id}/geo` answers (georef.py). The image is the raw
+  version of the main composite, sent with the others for this.
+- `signal` (optional): the signal thinned for a chart, as the Pi's `/api/passes/{id}/signal` answers:
+  `{"start", "end", "track", "samples": [{"t", "el", "snr", "deframer_lock"}, ...]}` (about 150 samples).
+- A pass sent again without them has none on the hub.
 
 ## The hub (`hub/`, built)
 
@@ -105,10 +111,17 @@ hub/
   from: the Pi's id, name and position as its latest pass has them), `passes` (receiver, folder name, time,
   satellite, station id/name/position as they were then, main image, coverage, highest elevation, peak SNR,
   the pass.json), `images` (per pass: path, name, variants, size).
-- **R2:** `passes/<receiver id>/<pass>/thumb/<image>.jpg` and `.../large/<image>.jpg`.
+- **R2:** `passes/<receiver id>/<pass>/thumb/<image>.jpg` and `.../large/<image>.jpg`, and `geo.json` and
+  `signal.json` when the Pi sent them (the `passes` row says so: `drape`, `signal`).
+- **Shared with the Pi's app**, without installing anything from `frontend/`: its stylesheet, its Cesium
+  basics (`frontend/src/cesium.ts`: loading, the viewer, draping an image) and its chart's drawing
+  (`frontend/src/signalPlot.ts`). Plain TypeScript with no React in them: Cloudflare builds `hub/` with only
+  its own packages, so a React file from `frontend/` couldn't find React there. CesiumJS itself is copied
+  from `hub/node_modules` into `/cesium` at build, as on the Pi.
 - **Pass ids** on the hub: `<receiver id>~<folder name>`, so two Pis recording the same pass don't collide.
-- **Pages:** Passes (grid by day, filters by receiver and by station, older passes page by page), a pass
-  (its images, station, receiver, facts, delete for admins), Receivers (admins: add by name with URL + token
+- **Pages:** Passes as on the Pi: grid, list (with the signal over each pass) or globe (one pass's image
+  draped, the stations as dots, the passes beside it), filters by receiver and by station, older passes page
+  by page; a pass (its images, station, receiver, facts, the signal chart, delete for admins), Receivers (admins: add by name with URL + token
   shown once, rename, new token, revoke, delete with its passes; the stations each has sent from), Users
   (admins: roles, remove). Signed out: "Sign in with Google". Pending: "an admin has to let you in".
 - **Secrets:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Worker → Settings → Variables and Secrets).
@@ -153,6 +166,10 @@ Built like `discord.py`, one upload at a time, the state in pass.json:
 - `pass.json["hubs"][<name>]`: `{id, url, uploaded_at, receiver, sent, error, failed_at, attempts, next_try}`.
 - Which receiver this Pi is on a destination comes from its answers (`hello` once per URL and token, and
   each `POST`); a pass noted as sent to another receiver (or before receivers) is sent again.
+- With each pass go `geo` (`passes.pass_geo`, with the raw image it places) and `signal`
+  (`passes.signal_thumb`). `SEND_VERSION` is part of what decides whether a pass changed: raising it (2 when
+  these were added) sends every pass again once. A pass already deleted after upload isn't sent again to the
+  same receiver: the hub would end up with less of it.
 - Picking images: `discord.pick_images` with the destination's list. Files: `.thumbs/<image>.jpg` (exists)
   and `passes.large_version` (1600 px) or a full-size JPEG.
 - Loop in `tasks.py`, every 60 s: nothing while SatDump is receiving or within `passes.SETTLE` after LOS.
@@ -176,7 +193,8 @@ be undone: the originals are gone, the hub has its JPEGs.
 ## Later (ideas, not scheduled)
 
 - Heartbeat from stations (version, disk, next pass, last error) and a status column on the Stations page.
-- Statistics and the globe on the hub (the globe needs the raw main composite and `geo.json` from the Pi).
+- Statistics on the hub (the rows already carry what the Pi's statistics use, but not its drops).
+- Several days at once on the hub's globe, as a mosaic.
 - Retention on the hub (drop large JPEGs after N days, keep thumbnails).
 - The `.cadu` as an archive, and "get all images" for a pass.
 - The same pass from two stations side by side; a public gallery (round station positions first).

@@ -1,11 +1,11 @@
 import asyncio
 import shutil
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from app import destinations, discord, georef, passes, settings
+from app import destinations, discord, passes, settings
 from app.hub import hub
 from app.config import load_config
 
@@ -62,15 +62,10 @@ def get_signal(pass_id: str, points: int = Query(150, ge=10, le=2000)) -> dict:
     """The pass's signal samples thinned to about `points`, with its span and elevation track:
     enough for a small chart in the pass list."""
     folder = folder_or_404(pass_id)
-    orbit = (passes.load_pass(folder) or {}).get("orbit") or {}
-    samples = passes.load_samples(folder)
-    return {
-        "start": orbit.get("aos") or (samples[0]["t"] if samples else None),
-        "end": orbit.get("los") or (samples[-1]["t"] if samples else None),
-        "track": orbit.get("track"),
-        "samples": passes.thin_samples(samples, points),
-        "can_rebuild": not samples and passes.product_file(folder) is not None and not passes.stuck_clock(folder),
-    }
+    thumb = passes.signal_thumb(folder, passes.load_pass(folder) or {}, points)
+    thumb["can_rebuild"] = not thumb["samples"] and passes.product_file(folder) is not None \
+        and not passes.stuck_clock(folder)
+    return thumb
 
 
 @router.post("/{pass_id}/signal/rebuild")
@@ -91,18 +86,14 @@ async def get_geo(pass_id: str) -> dict:
     folder = folder_or_404(pass_id)
     meta = passes.load_pass(folder) or {}
     image = passes.drape_image(meta)
-    product = folder / PurePosixPath(image["path"]).parent / "product.cbor" if image else None
-    if image is None or product is None or not product.is_file():
+    if image is None or not passes.drape_product(folder, image).is_file() or not (folder / image["path"]).is_file():
         raise HTTPException(404, "this pass has no image that can be placed on the map")
-    # when the satellite's clock was stuck, the line times are rebuilt from the first sync of the live signal
-    signal = meta.get("signal") or {}
-    anchor = None if signal.get("rebuilt") else (signal.get("first_sync") or {}).get("t")
-    grid = await asyncio.to_thread(georef.georeference, product, image["width"], image["height"], anchor=anchor)
-    if grid is None:
+    geo = await asyncio.to_thread(passes.pass_geo, folder, meta)
+    if geo is None:
         stuck = await asyncio.to_thread(passes.stuck_clock, folder)
         raise HTTPException(404, "the satellite's clock in this pass's data was stuck, and there is no signal "
                                  "to place it by" if stuck else "SatDump's georeferencing does not fit this pass's image")
-    return {"image": image["path"], **grid}
+    return geo
 
 
 @router.get("/{pass_id}/thumb/{path:path}")

@@ -170,6 +170,39 @@ def test_only_passes_since_it_was_switched_on(tmp_path, hub):
     assert destinations.next_upload(tmp_path, config, time.time()) is None
 
 
+def test_the_signal_goes_thinned_for_the_chart(tmp_path, hub):
+    folder = finished_pass(tmp_path)
+    passes.write_samples(folder, [{"t": STARTED + i, "snr": 5.0, "el": 30.0, "deframer_lock": True,
+                                   "viterbi_ber": 0.1, "freq": 137.9e6} for i in range(600)])
+    fake = hub()
+    config = Config(destinations=[dest()])
+    asyncio.run(destinations.send_pass(folder, config, config.destinations[0]))
+    signal = fake.commits[0]["signal"]
+    assert 100 <= len(signal["samples"]) <= 150 and signal["start"] == STARTED
+    assert set(signal["samples"][0]) <= {"t", "el", "snr", "deframer_lock"}       # what a chart needs, no more
+    assert "geo" not in fake.commits[0]          # no product.cbor in this pass: it can't be placed
+
+
+def test_the_globes_image_goes_too(tmp_path):
+    folder = finished_pass(tmp_path)
+    meta = passes.read_json(folder / passes.META)
+    sent = [rel for rel, _, _ in destinations.prepare(folder, meta, dest(), ("MSU-MR/msu_mr_rgb_MCIR.png",))]
+    assert sent[0] == "MSU-MR/msu_mr_rgb_MCIR_corrected.png" and "MSU-MR/msu_mr_rgb_MCIR.png" in sent
+
+
+def test_a_slimmed_pass_doesnt_go_again_to_the_same_receiver(tmp_path, hub):
+    folder = finished_pass(tmp_path)
+    hub()
+    config = Config(destinations=[dest()])
+    d = config.destinations[0]
+    asyncio.run(destinations.send_pass(folder, config, d))
+    meta = passes.read_json(folder / passes.META)
+    meta["slimmed"] = {"at": 1.0, "destination": "hub", "url": "x", "freed": 1}
+    meta["orbit"] = {"max_el": 45.0}             # changed since it was sent
+    passes.write_meta(folder, meta)
+    assert not destinations.due(passes.read_json(folder / passes.META), d, config, time.time())
+
+
 # ---------- stations ----------
 
 def test_an_older_pass_gets_the_id_of_its_station(tmp_path, hub):

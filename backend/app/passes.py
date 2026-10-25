@@ -194,6 +194,25 @@ def drape_image(meta: dict) -> dict | None:
                  and i["name"] == main["name"]), None)
 
 
+def drape_product(folder: Path, image: dict) -> Path:
+    """The product.cbor (georeferencing) next to the drape image."""
+    return folder / PurePosixPath(image["path"]).parent / "product.cbor"
+
+
+def pass_geo(folder: Path, meta: dict) -> dict | None:
+    """Where the pass's image lies on Earth (georef.py): {"image": the drape image's path, "width", "height",
+    "rows", "cols", "points"}, or None when it can't be placed (no raw image or product.cbor, deleted after
+    upload, or georeferencing that doesn't fit). For the globe on the Pi, and sent to destinations."""
+    image = drape_image(meta)
+    if image is None or not drape_product(folder, image).is_file() or not (folder / image["path"]).is_file():
+        return None
+    # when the satellite's clock was stuck, the line times are rebuilt from the first sync of the live signal
+    signal = meta.get("signal") or {}
+    anchor = None if signal.get("rebuilt") else (signal.get("first_sync") or {}).get("t")
+    grid = georef.georeference(drape_product(folder, image), image["width"], image["height"], anchor=anchor)
+    return {"image": image["path"], **grid} if grid else None
+
+
 def choose_main(images: list[dict]) -> dict | None:
     usable = [i for i in images if "error" not in i]
     by_stem = {PurePosixPath(i["path"]).stem: i for i in usable}
@@ -574,6 +593,22 @@ def thin_samples(samples: list[dict], points: int) -> list[dict]:
             thin["deframer_lock"] = 2 * sum(locks) >= len(locks)
         out.append(thin)
     return out
+
+
+CHART_KEYS = ("t", "el", "snr", "deframer_lock")
+
+
+def signal_thumb(folder: Path, meta: dict, points: int = 150) -> dict:
+    """The pass's signal thinned to about `points` samples (what a chart needs of each), with its span and
+    elevation track: the small chart in the pass list, here and on the hub."""
+    orbit = meta.get("orbit") or {}
+    samples = load_samples(folder)
+    return {
+        "start": orbit.get("aos") or (samples[0]["t"] if samples else None),
+        "end": orbit.get("los") or (samples[-1]["t"] if samples else None),
+        "track": orbit.get("track"),
+        "samples": [{k: s[k] for k in CHART_KEYS if k in s} for s in thin_samples(samples, points)],
+    }
 
 
 def finalize_ready(passes_dir: Path, guess: SatelliteGuess | None = None,

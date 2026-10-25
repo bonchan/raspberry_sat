@@ -14,6 +14,7 @@ import asyncio
 import hashlib
 import io
 import json
+import logging
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -25,6 +26,7 @@ from app import discord, passes
 from app.config import Config, Destination, station_id
 
 STATE = "hubs"                  # key in pass.json
+SEND_VERSION = 2                # what goes with a pass; 2: also its signal and where its image lies (the globe)
 LOCAL_KEYS = ("id", "discord", STATE, "slimmed")    # this Pi's own notes, not sent
 MAX_IMAGES = 50                 # what the hub takes per pass
 FULL_QUALITY = 85
@@ -33,6 +35,7 @@ RETRY_MAX = 3600
 DISCORD_WAIT = 3600             # a pass this fresh isn't slimmed before Discord has posted it
 USER_AGENT = "raspberry_sat (https://github.com/bonchan/raspberry_sat)"
 
+log = logging.getLogger(__name__)
 transport: httpx.AsyncBaseTransport | None = None   # tests put a mock here
 _sending = asyncio.Lock()       # one upload at a time; each rewrites pass.json
 # destinations that are down or refuse this station: name -> (next try, failures in a row)
@@ -73,9 +76,19 @@ def outgoing(meta: dict, config: Config) -> dict:
 
 def fingerprint(data: dict) -> str:
     """Changes when what would be sent changes (an orbit added later, ...), so the pass goes again. Not the
-    size on the Pi, which deleting after upload changes."""
+    size on the Pi, which deleting after upload changes. SEND_VERSION in it: passes go again when what is
+    sent with them grows."""
     data = {k: v for k, v in data.items() if k != "size"}
-    return hashlib.sha1(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()[:16]
+    return hashlib.sha1(json.dumps([SEND_VERSION, data], sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def geo_or_none(folder: Path, meta: dict) -> dict | None:
+    """passes.pass_geo, for the hub's globe; a georeferencing problem must not stop the upload."""
+    try:
+        return passes.pass_geo(folder, meta)
+    except Exception:
+        log.exception("could not work out where pass %s lies on Earth", folder.name)
+        return None
 
 
 def pick(folder: Path, meta: dict, dest: Destination) -> list[dict]:
@@ -93,16 +106,19 @@ def large_jpeg(folder: Path, rel: str, full_size: bool) -> bytes:
     return buf.getvalue()
 
 
-def prepare(folder: Path, meta: dict, dest: Destination) -> list[tuple[str, bytes, bytes]]:
-    """(image path, thumbnail, large JPEG) of each image to send."""
+def prepare(folder: Path, meta: dict, dest: Destination, extra: tuple[str, ...] = ()) -> list[tuple[str, bytes, bytes]]:
+    """(image path, thumbnail, large JPEG) of each image to send: those picked, and `extra` (the raw image the
+    hub's globe drapes)."""
+    paths = [i["path"] for i in pick(folder, meta, dest)]
+    paths += [rel for rel in extra if rel not in paths and passes.thumb_path(folder, rel).is_file()]
     out = []
-    for image in pick(folder, meta, dest):
+    for rel in paths:
         try:
-            thumb = passes.thumb_path(folder, image["path"]).read_bytes()
-            large = large_jpeg(folder, image["path"], dest.full_size)
+            thumb = passes.thumb_path(folder, rel).read_bytes()
+            large = large_jpeg(folder, rel, dest.full_size)
         except (OSError, ValueError, Image.DecompressionBombError):
             continue            # unreadable after all: the pass goes without it
-        out.append((image["path"], thumb, large))
+        out.append((rel, thumb, large))
     return out
 
 
@@ -202,14 +218,22 @@ async def send_pass(folder: Path, config: Config, dest: Destination) -> dict:
         before = notes(meta).get(dest.name) or {}
         data = outgoing(meta, config)
         try:
-            files = await asyncio.to_thread(prepare, folder, meta, dest)
+            # where the image lies (the hub's globe drapes its raw image, so that one goes too) and the signal
+            geo = await asyncio.to_thread(geo_or_none, folder, meta)
+            signal = await asyncio.to_thread(passes.signal_thumb, folder, meta)
+            files = await asyncio.to_thread(prepare, folder, meta, dest, (geo["image"],) if geo else ())
+            sent = [rel for rel, _, _ in files]
+            commit: dict = {"pass": data, "images": sent}
+            if geo and geo["image"] in sent:
+                commit["geo"] = geo
+            if signal["samples"] and signal["start"] is not None and signal["end"] is not None:
+                commit["signal"] = signal
             async with client(dest) as c:
                 for rel, thumb, large in files:
                     for kind, body in (("thumb", thumb), ("large", large)):
                         await call(c, dest, "PUT", file_url(dest, folder.name, kind, rel), content=body,
                                    headers={"Content-Type": "image/jpeg"})
-                answer = await call(c, dest, "POST", f"{dest.url}/passes/{quote(folder.name, safe='')}",
-                                    json={"pass": data, "images": [rel for rel, _, _ in files]})
+                answer = await call(c, dest, "POST", f"{dest.url}/passes/{quote(folder.name, safe='')}", json=commit)
         except DestinationError as e:
             now = time.time()
             attempts = int(before.get("attempts") or 0) + 1
@@ -246,6 +270,8 @@ def due(meta: dict, dest: Destination, config: Config, now: float) -> bool:
         return now >= float(note.get("next_try") or 0)
     if not sent_to(note, dest):
         return True
+    if meta.get("slimmed"):
+        return False            # deleted after upload: sending it again would leave the hub with less of it
     return note.get("sent") != fingerprint(outgoing(meta, config))
 
 
