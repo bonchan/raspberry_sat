@@ -167,7 +167,7 @@ def start(blocked: str | None = None) -> None:
     cmd = [
         "sudo", "-n", "systemd-run", f"--unit={UNIT}", "--collect", "--quiet",
         f"--uid={getpass.getuser()}", f"--working-directory={settings.REPO_DIR}",
-        f"--setenv=HOME={Path.home()}", f"--setenv=RSAT_DATA={settings.DATA_DIR}",
+        f"--setenv=HOME={Path.home()}", f"--setenv=RASPBERRY_SAT_DATA={settings.DATA_DIR}",
         "/bin/bash", str(settings.REPO_DIR / "scripts" / "self_update.sh"), str(log),
     ]
     try:

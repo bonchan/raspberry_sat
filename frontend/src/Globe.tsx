@@ -10,6 +10,7 @@ import { eciToEcf, gstime, propagate, twoline2satrec, type SatRec } from 'satell
 import { api, passFile, type PassGeo, type PassSummary, type TleSet } from './api'
 import { useT } from './i18n'
 import { scanLine, type Vec } from './scan'
+import { store, stored } from './storage'
 import { useTopic } from './stream'
 
 type CesiumNS = typeof import('cesium')
@@ -28,8 +29,8 @@ const ON_TOP = Number.POSITIVE_INFINITY      // labels and dots drawn over the i
 const BEHIND = 0.3              // opacity of a satellite on the far side of the Earth from the camera
 const FOLLOW_RANGE = 3_200_000  // follow mode to start with: metres from the camera to the satellite
 const FOLLOW_PITCH = -0.8       // ... looking this far down (radians, about 46°), the way it travels
-const MODE = 'rsat-globe-mode'  // this browser's choice of follow or static
-const CONE = 'rsat-globe-cone'  // ... and whether the camera's satellite shows what it sees
+const MODE = 'globe-mode'       // this browser's choice of follow or static (storage.ts)
+const CONE = 'globe-cone'       // ... and whether the camera's satellite shows what it sees
 const STATION_ID = 'station', SAT_ID = 'sat-'     // entity ids: a click on the globe tells what it hit
 
 let loading: Promise<CesiumNS> | null = null
@@ -263,15 +264,13 @@ interface Props {
 type CameraMode = 'follow' | 'static'
 type Target = { kind: 'station'; at: number } | { kind: 'sat'; norad: number; at: number }
 
-function storedMode(): CameraMode {
-  try { return localStorage.getItem(MODE) === 'static' ? 'static' : 'follow' } catch { return 'follow' }
-}
+const storedMode = (): CameraMode => (stored(MODE) === 'static' ? 'static' : 'follow')
 
 export default function Globe({ size, satellites = false, highlight, drapes = [], focus, note, startHeight = 15_000_000,
                                 order, cameraModes = false }: Props) {
   const t = useT()
   const [mode, setModeState] = useState<CameraMode>(storedMode)
-  const [cone, setConeState] = useState(() => { try { return localStorage.getItem(CONE) === '1' } catch { return false } })
+  const [cone, setConeState] = useState(() => stored(CONE) === '1')
   const [target, setTarget] = useState<Target | null>(null)       // the last thing clicked on the globe
   const orderKey = JSON.stringify(order ?? {})
   const box = useRef<HTMLDivElement>(null)
@@ -429,12 +428,12 @@ export default function Globe({ size, satellites = false, highlight, drapes = []
 
   function setCone(on: boolean) {
     setConeState(on)
-    try { localStorage.setItem(CONE, on ? '1' : '0') } catch { /* private mode */ }
+    store(CONE, on ? '1' : '0')
   }
 
   function setMode(next: CameraMode) {
     setModeState(next)
-    try { localStorage.setItem(MODE, next) } catch { /* private mode */ }
+    store(MODE, next)
   }
 
   // only the images that changed come and go, so the others don't flicker. Each picture is downloaded and

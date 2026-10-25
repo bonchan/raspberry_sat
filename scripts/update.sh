@@ -5,7 +5,8 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DATA_DIR="${RSAT_DATA:-$HOME/raspberry_sat_data}"
+# RSAT_DATA: the older name, still read (an update started by an app from before the rename passes it)
+DATA_DIR="${RASPBERRY_SAT_DATA:-${RSAT_DATA:-$HOME/raspberry_sat_data}}"
 SERVICE=raspberry_sat
 
 echo "== backend"

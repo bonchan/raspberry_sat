@@ -13,18 +13,11 @@ import PassDetail from './pages/PassDetail'
 import Settings from './pages/Settings'
 import Logs from './pages/Logs'
 import Networks from './pages/Networks'
+import { store, stored } from './storage'
 import './styles.css'
 
-const STORED_LANGUAGE = 'rsat-language'
-
 // the last language this browser used, so the page doesn't flash English while the settings load
-function storedLanguage(): Lang {
-  try {
-    return localStorage.getItem(STORED_LANGUAGE) === 'es' ? 'es' : 'en'
-  } catch {
-    return 'en'
-  }
-}
+const storedLanguage = (): Lang => (stored('language') === 'es' ? 'es' : 'en')
 
 function App() {
   const [lang, setLangState] = useState<Lang>(storedLanguage)
@@ -33,7 +26,7 @@ function App() {
   function setLang(next: Lang) {
     setCurrentLanguage(next)
     setLangState(next)
-    try { localStorage.setItem(STORED_LANGUAGE, next) } catch { /* private mode */ }
+    store('language', next)
   }
 
   useEffect(() => {

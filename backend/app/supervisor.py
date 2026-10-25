@@ -103,7 +103,7 @@ class Supervisor:
         handler = RotatingFileHandler(settings.LOGS_DIR / "satdump.log",
                                       maxBytes=5_000_000, backupCount=3, encoding="utf-8")
         handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
-        self._file = logging.getLogger("rsat.satdump_file")
+        self._file = logging.getLogger("raspberry_sat.satdump_file")
         self._file.propagate = False        # SatDump's chatter goes to the file, not the journal
         self._file.setLevel(logging.INFO)
         self._file.handlers = [handler]

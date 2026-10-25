@@ -42,7 +42,7 @@ scp -r "data/passes/20261012 meteor m2-3 001" bon@rpi4b.local:raspberry_sat_data
 | `docs/` | Plan and notes |
 
 Runtime data (config, passes) lives outside the checkout in `~/raspberry_sat_data`
-(override with the `RSAT_DATA` environment variable).
+(override with the `RASPBERRY_SAT_DATA` environment variable).
 
 ## Setting up the Pi
 

@@ -10,7 +10,7 @@ frontend/dist/
 frontend/public/cesium/
 .env.local
 
-# runtime data, if RSAT_DATA is pointed inside the repo
+# runtime data, if RASPBERRY_SAT_DATA is pointed inside the repo
 data/
 
 # arduino sketches: Wi-Fi passwords

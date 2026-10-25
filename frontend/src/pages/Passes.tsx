@@ -8,18 +8,15 @@ import { useT } from '../i18n'
 import { useTopic } from '../stream'
 import PassesGlobe from '../PassesGlobe'
 import { elevationQuality } from '../UpcomingPasses'
+import { store, stored } from '../storage'
 
 type Layout = 'grid' | 'list' | 'globe'
 const LAYOUTS: Layout[] = ['grid', 'list', 'globe']
-const LAYOUT = 'rsat-passes-layout'         // this browser's choice
+const LAYOUT = 'passes-layout'         // this browser's choice (storage.ts)
 
 function storedLayout(): Layout {
-  try {
-    const stored = localStorage.getItem(LAYOUT) as Layout
-    return LAYOUTS.includes(stored) ? stored : 'grid'
-  } catch {
-    return 'grid'
-  }
+  const saved = stored(LAYOUT) as Layout
+  return LAYOUTS.includes(saved) ? saved : 'grid'
 }
 
 /** "Today", "Yesterday", or the weekday and date, for the day headings */
@@ -38,7 +35,7 @@ export default function Passes() {
 
   function setLayout(next: Layout) {
     setLayoutState(next)
-    try { localStorage.setItem(LAYOUT, next) } catch { /* private mode */ }
+    store(LAYOUT, next)
   }
 
   return (

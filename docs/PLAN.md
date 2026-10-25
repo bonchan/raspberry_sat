@@ -28,7 +28,7 @@ raspberry_sat/
     pyproject.toml            deps + pytest config
     app/
       main.py                 FastAPI app, routers, serves frontend/dist, starts background tasks
-      settings.py             paths (data dir from env RSAT_DATA, default ~/raspberry_sat_data)
+      settings.py             paths (data dir from env RASPBERRY_SAT_DATA, default ~/raspberry_sat_data)
       config.py               pydantic Config model, load/save data/config.json, defaults
       satdump_cfg.py          Config -> autotrack.json (pure function, unit-tested)
       supervisor.py           start/stop/restart `satdump autotrack` child process, log ring buffer,
@@ -100,7 +100,7 @@ Saving config regenerates autotrack.json and restarts SatDump (only when no pass
   trick on the Networks page covers moving the Pi).
 
 ## Dev on Windows
-- Backend runs without SatDump (supervisor reports "satdump not installed"); point `RSAT_DATA` at a copy of a real pass folder to develop gallery/Discord.
+- Backend runs without SatDump (supervisor reports "satdump not installed"); point `RASPBERRY_SAT_DATA` at a copy of a real pass folder to develop gallery/Discord.
 - `pnpm dev` with Vite proxying `/api` to `uvicorn --reload` on :8000.
 
 ## Verification

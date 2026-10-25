@@ -9,6 +9,7 @@ import PassCards from '../PassCards'
 import SignalChart from '../SignalChart'
 import SpectrumPlot from '../SpectrumPlot'
 import SkyPlot, { SkyLegend } from '../SkyPlot'
+import { store, stored } from '../storage'
 import { subscribe, useTopic } from '../stream'
 
 const FRAME_BYTES = 1024            // one Meteor LRPT frame (CADU) in SatDump's .cadu file
@@ -261,22 +262,14 @@ function Spectrum() {
   )
 }
 
-const IDLE_SPECTRUM = 'rsat-idle-spectrum'      // this browser's choice, kept across visits
-
-function storedFlag(key: string): boolean {
-  try { return localStorage.getItem(key) === '1' } catch { return false }
-}
-
-function storeFlag(key: string, on: boolean) {
-  try { localStorage.setItem(key, on ? '1' : '0') } catch { /* private mode */ }
-}
+const IDLE_SPECTRUM = 'idle-spectrum'      // this browser's choice, kept across visits (storage.ts)
 
 /** Between passes: the band's spectrum on request, when SatDump keeps the receiver on. */
 function IdleReceiver({ stopsWhenIdle, frequency }: { stopsWhenIdle: boolean; frequency?: number }) {
   const t = useT()
-  const [on, setOn] = useState(() => storedFlag(IDLE_SPECTRUM))
+  const [on, setOn] = useState(() => stored(IDLE_SPECTRUM) === '1')
   function toggle() {
-    storeFlag(IDLE_SPECTRUM, !on)
+    store(IDLE_SPECTRUM, on ? '0' : '1')
     setOn(!on)
   }
   return (
