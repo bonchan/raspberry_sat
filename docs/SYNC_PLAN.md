@@ -17,6 +17,10 @@ received it.
 4. **Sign-in with Google, done by the hub itself** (not Cloudflare Access, which would also lock out the
    stations). The first person to sign in becomes admin. Everyone after waits as *pending* until an admin
    makes them *viewer* or *admin* on the Users page.
+   (2026-10-25) **Signing in is not required:** signed out (or pending) one sees one image per pass (its
+   MCIR corrected, else the main image), the facts without the sky plot or the signal (less traffic), the
+   globe, and the stations rounded to about 10 km. The Worker enforces it, not just the pages. Signing in
+   as viewer or admin shows everything. The sign-in page shows the newest pass with its sky plot and signal.
 5. **Receivers are added on the hub** (Receivers page), one per Pi: the hub makes its id, the name can change
    anytime, and it gets the upload URL and its own token, pasted into the Pi's Settings → Destinations.
 6. **Not tied to Cloudflare:** a destination is a URL + token speaking the small protocol below; any website
@@ -96,7 +100,7 @@ hub/
     index.ts            routing; same-origin check for changes from the pages
     schema.ts           the tables, created and updated by the Worker itself
     auth.ts             Google sign-in, sessions (30 days), roles
-    gallery.ts          passes, one pass, image files (viewers and admins)
+    gallery.ts          passes, one pass, image files: all for viewers and admins, the public part for anyone
     receivers.ts        add, rename, new token, revoke, delete (admins)
     users.ts            roles, remove (admins; always at least one admin)
     ingest.ts           protocol 1 (receivers)
@@ -123,8 +127,9 @@ hub/
   draped, the stations as dots, the passes beside it), filters by receiver and by station, older passes page
   by page; a pass (its images; the same facts, in the same words, as on the Pi, with the sky plot under them; station, receiver; the signal chart; delete for admins), Receivers (admins: add by name with URL + token
   shown once, rename, new token, revoke, delete with its passes; the stations each has sent from), Users
-  (admins: roles, remove). Signed out: "Sign in with Google". Pending: "an admin has to let you in".
-  The header's user menu holds the language and Sign out.
+  (admins: roles, remove). Signed out: the public gallery, with a Sign in button in the header leading to
+  the sign-in page ("Sign in with Google", and the newest pass in full). Pending: the public gallery and
+  "an admin has to let you in". Signed in, the header's user menu holds the language and Sign out.
 - **Secrets:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Worker → Settings → Variables and Secrets).
   `NEW_USER_ROLE` in wrangler.jsonc: `pending` (default) or `viewer`.
 - English and Spanish (`web/src/i18n.ts`, worded as on the Pi): each browser's choice, at first its own

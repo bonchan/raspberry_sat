@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { api, ApiError, type Me } from './api'
-import {
-  initialLanguage, LANGUAGES, LanguageContext, setCurrentLanguage, storeLanguage, useLanguage, useT, type Lang,
-} from './i18n'
+import { initialLanguage, LanguageContext, setCurrentLanguage, storeLanguage, useT, type Lang } from './i18n'
 import Passes from './pages/Passes'
 import PassDetail from './pages/PassDetail'
 import Receivers from './pages/Receivers'
+import SignIn, { LanguageChoice } from './pages/SignIn'
 import Users from './pages/Users'
 
 async function signOut() {
@@ -15,55 +14,6 @@ async function signOut() {
   } finally {
     location.href = '/'
   }
-}
-
-/** English / Español, as chips */
-function LanguageChoice() {
-  const { lang, setLang } = useLanguage()
-  return (
-    <div className="chips">
-      {LANGUAGES.map(l => (
-        <button key={l.code} className={lang === l.code ? 'chip on' : 'chip'} onClick={() => setLang(l.code)}>{l.name}</button>
-      ))}
-    </div>
-  )
-}
-
-/** Not signed in: the only way in is Google. */
-function SignIn() {
-  const t = useT()
-  const result = new URLSearchParams(location.search).get('signin')
-  return (
-    <main>
-      <section className="signin narrow">
-        <h2>raspberry_sat hub</h2>
-        <p>{t('signin.what')}</p>
-        <button className="primary" onClick={() => location.assign('/auth/login')}>{t('signin.google')}</button>
-        {result && <p className={result === 'cancelled' ? 'hint' : 'error'}>
-          {result === 'cancelled' ? t('signin.cancelled') : t('signin.failed', { error: result })}
-        </p>}
-        <LanguageChoice />
-        {/* a plain link: the page is a static file (web/public), outside the app's routes */}
-        <a className="hint" href="/privacy.html">{t('signin.privacy')}</a>
-      </section>
-    </main>
-  )
-}
-
-/** Signed in, but no admin has given them a role yet. */
-function Waiting({ me }: { me: Me }) {
-  const t = useT()
-  return (
-    <main>
-      <section className="signin narrow">
-        <h2>raspberry_sat hub</h2>
-        <p>{t('waiting.signedInAs')} <b>{me.email}</b>.</p>
-        <p className="hint">{t('waiting.ask')}</p>
-        <LanguageChoice />
-        <button onClick={signOut}>{t('menu.signOut')}</button>
-      </section>
-    </main>
-  )
 }
 
 /** In the header: who is signed in; opens a menu with the language and Sign out. */
@@ -98,6 +48,7 @@ function UserMenu({ me }: { me: Me }) {
       {open && (
         <div className="menu-panel" role="menu">
           <div className="hint">{me.email}</div>
+          {me.role === 'pending' && <div className="hint">{t('waiting.short')}</div>}
           <div className="menu-label">{t('menu.language')}</div>
           <LanguageChoice />
           <button onClick={signOut}>{t('menu.signOut')}</button>
@@ -107,20 +58,28 @@ function UserMenu({ me }: { me: Me }) {
   )
 }
 
-function Layout({ me }: { me: Me }) {
+/** The header and the page. Signed out: a Sign in button where the user menu would be. */
+function Layout({ me }: { me: Me | null }) {
   const t = useT()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
   return (
     <>
       <header className="topbar">
         <span className="brand">raspberry_sat hub</span>
         <nav>
           <NavLink to="/" end>{t('nav.passes')}</NavLink>
-          {me.role === 'admin' && <NavLink to="/receivers">{t('nav.receivers')}</NavLink>}
-          {me.role === 'admin' && <NavLink to="/users">{t('nav.users')}</NavLink>}
+          {me?.role === 'admin' && <NavLink to="/receivers">{t('nav.receivers')}</NavLink>}
+          {me?.role === 'admin' && <NavLink to="/users">{t('nav.users')}</NavLink>}
         </nav>
-        <UserMenu me={me} />
+        {me
+          ? <UserMenu me={me} />
+          : <div className="badges">
+              {pathname !== '/signin' && <button className="primary" onClick={() => navigate('/signin')}>{t('menu.signIn')}</button>}
+            </div>}
       </header>
       <main>
+        {me?.role === 'pending' && <p className="hint">{t('waiting.notice', { email: me.email })}</p>}
         <Outlet />
       </main>
     </>
@@ -132,6 +91,7 @@ function NotFound() {
   return <section><p>{t('app.notFound')} <NavLink to="/">{t('common.allPasses')}</NavLink></p></section>
 }
 
+/** Anyone can look; signing in (as viewer or admin) shows everything. */
 function Hub() {
   const t = useT()
   const [me, setMe] = useState<Me | null | undefined>(undefined)     // undefined: asking; null: signed out
@@ -143,14 +103,13 @@ function Hub() {
 
   if (error) return <main><p className="error">{t('app.notAnswering', { error })}</p></main>
   if (me === undefined) return <main><p className="hint">{t('common.loading')}</p></main>
-  if (me === null) return <SignIn />
-  if (me.role === 'pending') return <Waiting me={me} />
-  const admin = me.role === 'admin'
+  const admin = me?.role === 'admin'
   return (
     <Routes>
       <Route element={<Layout me={me} />}>
         <Route index element={<Passes admin={admin} />} />
-        <Route path="passes/:id" element={<PassDetail admin={admin} />} />
+        <Route path="passes/:id" element={<PassDetail me={me} />} />
+        <Route path="signin" element={me ? <Navigate to="/" replace /> : <SignIn />} />
         {admin && <Route path="receivers" element={<Receivers />} />}
         {admin && <Route path="users" element={<Users me={me} />} />}
         <Route path="*" element={<NotFound />} />

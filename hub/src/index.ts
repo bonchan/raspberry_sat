@@ -34,7 +34,7 @@ export default {
     } catch (e) {
       if (e instanceof HttpError) {
         // the sign-in page shows what went wrong, rather than a bare JSON answer
-        if (url.pathname === '/auth/callback') return auth.redirect(`/?signin=${encodeURIComponent(e.message)}`)
+        if (url.pathname === '/auth/callback') return auth.redirect(`/signin?signin=${encodeURIComponent(e.message)}`)
         return json({ error: e.message }, e.status)
       }
       console.error(e)

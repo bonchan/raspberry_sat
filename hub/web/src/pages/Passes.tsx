@@ -174,12 +174,12 @@ function SignalLine({ pass }: { pass: PassCard }) {
 
 function ImagesLine({ pass }: { pass: PassCard }) {
   const t = useT()
-  return (
-    <span className="hint">
-      {pass.coverage != null && <>{t('passes.received', { p: percent(pass.coverage) })} · </>}
-      {pass.images === 1 ? t('passes.oneImage') : t('passes.images', { n: pass.images })}
-    </span>
-  )
+  // signed out, the hub doesn't tell how many images there are
+  const parts = [
+    pass.coverage != null && t('passes.received', { p: percent(pass.coverage) }),
+    pass.images != null && (pass.images === 1 ? t('passes.oneImage') : t('passes.images', { n: pass.images })),
+  ].filter(Boolean)
+  return parts.length ? <span className="hint">{parts.join(' · ')}</span> : null
 }
 
 function Card({ pass, several }: { pass: PassCard; several: boolean }) {

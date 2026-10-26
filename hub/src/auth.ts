@@ -1,6 +1,6 @@
 // "Sign in with Google" (OpenID Connect, done by the Worker itself) and sessions. The first person to sign
 // in becomes admin; everyone after gets NEW_USER_ROLE ("pending" unless set to "viewer") until an admin
-// gives them another role on the Users page.
+// gives them another role on the Users page. Signed out (or pending) one sees what everyone sees (gallery.ts).
 
 import type { Env } from './env'
 import { HttpError, fromBase64url, json, now, randomToken, sha256 } from './http'
@@ -81,7 +81,7 @@ function idClaims(token: unknown, clientId: string): IdClaims {
 
 async function finishSignIn(request: Request, env: Env, url: URL): Promise<Response> {
   const clearState = cookie(STATE_COOKIE, '', 0, '/auth')
-  if (url.searchParams.get('error')) return redirect('/?signin=cancelled', [clearState])
+  if (url.searchParams.get('error')) return redirect('/signin?signin=cancelled', [clearState])
   const state = url.searchParams.get('state'), code = url.searchParams.get('code')
   if (!state || !code || state !== readCookie(request, STATE_COOKIE)) {
     throw new HttpError(400, 'the sign-in expired or did not start here; try again')
@@ -130,6 +130,13 @@ export async function currentUser(request: Request, env: Env): Promise<User | nu
     `SELECT u.sub, u.email, u.name, u.picture, u.role FROM sessions s JOIN users u ON u.sub = s.user_sub
      WHERE s.id = ? AND s.expires_at > ?`,
   ).bind(await sha256(token), now()).first<User>()
+}
+
+/** Whether the one asking sees everything (admins and viewers), or only what everyone sees (signed out,
+    or pending). */
+export async function seesAll(request: Request, env: Env): Promise<boolean> {
+  const user = await currentUser(request, env)
+  return user?.role === 'admin' || user?.role === 'viewer'
 }
 
 /** The signed-in user, when their role is one of `roles`. */

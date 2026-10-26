@@ -6,6 +6,9 @@ import type { DrapeGeo } from '../../../frontend/src/cesium'
 export type Role = 'admin' | 'viewer' | 'pending'
 export interface Me { sub: string; email: string; name: string | null; picture: string | null; role: Role }
 
+// Signed out (or pending), the hub answers what everyone sees (hub/src/gallery.ts): one image per pass (main),
+// no image count, no signal, no sky track, and the stations only roughly placed.
+
 export interface ReceiverName { id: string; name: string }
 export interface StationName { receiver: string; id: string; name: string; lat: number | null; lon: number | null }
 /** a pass in the gallery; id is "<receiver>~<pass>", pass its folder name on the Pi */
@@ -13,9 +16,10 @@ export interface PassCard {
   id: string; receiver: string; receiver_name: string; pass: string
   station_id: string | null; station_name: string | null      // where it was received, as it was then
   time: number; satellite: string; main: string | null
-  coverage: number | null; max_el: number | null; peak_snr: number | null; images: number
+  coverage: number | null; max_el: number | null; peak_snr: number | null
+  images: number | null             // null: not told (signed out)
   drape: string | null              // the image the globe places (it has geo.json); null: can't be placed
-  signal: boolean                   // it has a signal chart (signal.json)
+  signal: boolean                   // it has a signal chart (signal.json) and you may see it
 }
 /** where a pass's image lies (geo.json, from the Pi's georef.py) */
 export interface PassGeo extends DrapeGeo { image: string }
@@ -45,6 +49,7 @@ export interface PassDetail {
   station: { id: string; name: string | null; lat: number | null; lon: number | null } | null
   time: number; satellite: string; main: string | null; uploaded_at: number; meta: PassMeta; images: HubImage[]
   drape: string | null; signal: boolean
+  chart?: SignalThumb | null        // only in api.latest(): the sign-in page's chart
 }
 
 export interface Receiver {
@@ -88,6 +93,8 @@ export const api = {
     return request<PassList>('GET', `/api/passes?${s}`)
   },
   pass: (id: string) => request<PassDetail>('GET', `/api/passes/${enc(id)}`),
+  /** the newest pass, with its sky track and chart even when signed out (the sign-in page); null: none yet */
+  latest: () => request<PassDetail | null>('GET', '/api/latest'),
   geo: (id: string) => request<PassGeo>('GET', `/api/passes/${enc(id)}/geo`),
   signal: (id: string) => request<SignalThumb>('GET', `/api/passes/${enc(id)}/signal`),
   deletePass: (id: string) => request<{ deleted: string }>('DELETE', `/api/passes/${enc(id)}`),
