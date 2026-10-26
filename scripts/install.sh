@@ -11,7 +11,20 @@ SERVICE=raspberry_sat
 
 echo "== apt packages"
 sudo apt-get update
-sudo apt-get install -y git curl ca-certificates python3-venv python3-pip rtl-sdr
+sudo apt-get install -y git curl ca-certificates python3-venv python3-pip rtl-sdr avahi-daemon
+
+echo "== <hostname>.local: give the IPv4 address to computers that ask over IPv6 too"
+# Some PCs (Windows with two networks, for one) only get an answer over IPv6, and avahi then gives just
+# the Pi's link-local IPv6 address: SSH still works with it, the web page doesn't (it listens on IPv4).
+AVAHI_CONF=/etc/avahi/avahi-daemon.conf
+if [ -f "$AVAHI_CONF" ] && ! grep -q '^publish-a-on-ipv6=yes' "$AVAHI_CONF"; then
+  if grep -q '^#\?publish-a-on-ipv6=' "$AVAHI_CONF"; then
+    sudo sed -i 's/^#\?publish-a-on-ipv6=.*/publish-a-on-ipv6=yes/' "$AVAHI_CONF"
+  else
+    sudo sed -i '/^\[publish\]/a publish-a-on-ipv6=yes' "$AVAHI_CONF"
+  fi
+  sudo systemctl restart avahi-daemon
+fi
 
 echo "== RTL-SDR: keep the TV driver off the dongle"
 echo 'blacklist dvb_usb_rtl28xxu' | sudo tee /etc/modprobe.d/blacklist-rtlsdr.conf >/dev/null
