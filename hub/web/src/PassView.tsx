@@ -13,9 +13,10 @@ import SkyPlot from './SkyPlot'
 // pass.json comes from the Pi: show only what is there
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
-/** label: a line over the title; note: under the facts; onDelete: the Delete button (admins) */
-export default function PassView({ pass, chart, label, note, onDelete }: {
-  pass: Pass; chart: SignalThumb | null; label?: string; note?: ReactNode; onDelete?: () => void
+/** label: a line over the title; note: under the facts; onDelete: the Delete button (admins); aside: a
+    section on the right of the pass, as tall as it (the sign-in page's Sign in) */
+export default function PassView({ pass, chart, label, note, onDelete, aside }: {
+  pass: Pass; chart: SignalThumb | null; label?: string; note?: ReactNode; onDelete?: () => void; aside?: ReactNode
 }) {
   const t = useT()
   const [shown, setShown] = useState<string | null>(pass.main ?? pass.images[0]?.path ?? null)
@@ -39,8 +40,7 @@ export default function PassView({ pass, chart, label, note, onDelete }: {
   const { orbit, signal } = pass.meta
   const coverage = pass.meta.coverage
   const where = pass.station
-  return (
-    <>
+  const main = (
       <section>
         {label && <div className="overline">{label}</div>}
         <div className="title-row">
@@ -112,6 +112,10 @@ export default function PassView({ pass, chart, label, note, onDelete }: {
           </div>
         )}
       </section>
+  )
+  return (
+    <>
+      {aside ? <div className="pass-aside">{main}{aside}</div> : main}
       {chart && chart.samples.length > 0 && (
         <section>
           <h2>{t('detail.signalChart')}</h2>

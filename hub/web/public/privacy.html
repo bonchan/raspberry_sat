@@ -5,75 +5,183 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Privacy · raspberry_sat hub</title>
     <!-- public on purpose (Google asks for a privacy policy link to let anyone sign in); served as a
-         static file, so it needs no sign-in -->
+         static file, so it needs no sign-in. English and Spanish: the script shows the hub's language
+         (the same saved choice as web/src/i18n.ts); without it, English. -->
     <style>
       :root { color-scheme: dark; }
       body { margin: 0; background: #14161a; color: #e6e8eb; font: 15px/1.55 system-ui, sans-serif; }
-      main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+      main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
       h1 { font-size: 22px; margin: 0 0 4px; }
       h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #8b93a1; margin: 28px 0 8px; }
       p, li { margin: 0 0 8px; }
       ul { padding-left: 20px; }
       a { color: #4da3ff; }
       .hint { color: #8b93a1; font-size: 13px; }
+      /* the language, as the hub's chips */
+      .chips { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 8px; }
+      .chips[hidden] { display: none; }
+      .chip {
+        background: #2a2f38; color: #e6e8eb; border: 1px solid #2e333c; border-radius: 10px;
+        padding: 2px 8px; font: 12px system-ui, sans-serif; cursor: pointer;
+      }
+      .chip:hover { border-color: #4da3ff; }
+      .chip.on { background: #4da3ff; border-color: #4da3ff; color: #06121f; }
     </style>
   </head>
   <body>
     <main>
-      <h1>Privacy</h1>
-      <p class="hint">raspberry_sat hub · last changed 25 October 2026</p>
+      <div class="chips" id="language" role="group" aria-label="Language / Idioma" hidden>
+        <button class="chip" data-set="en">English</button>
+        <button class="chip" data-set="es">Español</button>
+      </div>
 
-      <p>
-        This site is a gallery of weather satellite images (Meteor-M) received by a few amateur ground
-        stations: Raspberry Pis running the open-source
-        <a href="https://github.com/bonchan/raspberry_sat">raspberry_sat</a> app. Anyone can look at the basic
-        gallery; signing in shows everything.
-      </p>
+      <div data-lang="en">
+        <h1>Privacy</h1>
+        <p class="hint">raspberry_sat hub · last changed 25 October 2026</p>
 
-      <h2>When you just look</h2>
-      <p>
-        Nothing is asked and no cookie is set. Your browser itself remembers your language and how you like
-        the passes laid out; that stays on your device.
-      </p>
+        <p>
+          This site is a gallery of weather satellite images (Meteor-M) received by a few amateur ground
+          stations: Raspberry Pis running the open-source
+          <a href="https://github.com/bonchan/raspberry_sat">raspberry_sat</a> app. Anyone can look at the basic
+          gallery; signing in shows everything.
+        </p>
 
-      <h2>When you sign in with Google</h2>
-      <p>The hub keeps:</p>
-      <ul>
-        <li>your Google account's ID, email address, name and the address of your profile picture;</li>
-        <li>when you first and last signed in, and the role an admin gave you (pending, viewer or admin);</li>
-        <li>a session cookie that keeps you signed in for up to 30 days; the hub stores only a scrambled
-          (hashed) copy of it.</li>
-      </ul>
-      <p>It asks Google for nothing else: no contacts, files, mail or calendar.</p>
+        <h2>When you just look</h2>
+        <p>
+          Nothing is asked and no cookie is set. Your browser itself remembers your language and how you like
+          the passes laid out; that stays on your device.
+        </p>
 
-      <h2>What it is used for</h2>
-      <p>
-        Only to let you in and to show the admins who has access. No ads, no tracking or analytics, and
-        nothing is sold or shared. Admins see the names, emails and sign-in times of the people who signed in.
-      </p>
+        <h2>When you sign in with Google</h2>
+        <p>The hub keeps:</p>
+        <ul>
+          <li>your Google account's ID, email address, name and the address of your profile picture;</li>
+          <li>when you first and last signed in, and the role an admin gave you (pending, viewer or admin);</li>
+          <li>a session cookie that keeps you signed in for up to 30 days; the hub stores only a scrambled
+            (hashed) copy of it.</li>
+        </ul>
+        <p>It asks Google for nothing else: no contacts, files, mail or calendar.</p>
 
-      <h2>What else is on the site</h2>
-      <p>
-        The stations upload their passes: the images, the time, the satellite, the signal, and where the
-        station was when it received the pass. Anyone sees one image of each pass, its facts, the globe, and
-        each station's name and position rounded to about 10 km; the latest pass also with its signal. People
-        an admin lets in see everything, exact positions included.
-      </p>
+        <h2>What it is used for</h2>
+        <p>
+          Only to let you in and to show the admins who has access. No ads, no tracking or analytics, and
+          nothing is sold or shared. Admins see the names, emails and sign-in times of the people who signed in.
+        </p>
 
-      <h2>Where it is kept</h2>
-      <p>
-        On Cloudflare (Workers, D1 and R2), which runs the site. Google handles the sign-in itself. Their own
-        privacy policies apply to what they do.
-      </p>
+        <h2>What else is on the site</h2>
+        <p>
+          The stations upload their passes: the images, the time, the satellite, the signal, and where the
+          station was when it received the pass. Anyone sees one image of each pass, its facts, the globe, and
+          each station's name and position rounded to about 10 km; the latest pass also with its signal.
+          Signed-in viewers and admins see everything, exact positions included.
+        </p>
 
-      <h2>Removing your data</h2>
-      <p>
-        Signing out deletes your session. To have your account removed, ask the person who runs the hub: an
-        admin removes it from the Users page, and it is deleted at once. Contact them at the support email
-        Google shows when you sign in to this site.
-      </p>
+        <h2>Where it is kept</h2>
+        <p>
+          On Cloudflare (Workers, D1 and R2), which runs the site. Google handles the sign-in itself. Their own
+          privacy policies apply to what they do.
+        </p>
 
-      <p class="hint"><a href="/">Back to the hub</a></p>
+        <h2>Removing your data</h2>
+        <p>
+          Signing out deletes your session. To have your account removed, ask the person who runs the hub: an
+          admin removes it from the Users page, and it is deleted at once. Contact them at the support email
+          Google shows when you sign in to this site.
+        </p>
+
+        <p class="hint"><a href="/">Back to the hub</a></p>
+      </div>
+
+      <div data-lang="es" lang="es" hidden>
+        <h1>Privacidad</h1>
+        <p class="hint">raspberry_sat hub · último cambio: 25 de octubre de 2026</p>
+
+        <p>
+          Este sitio es una galería de imágenes de satélites meteorológicos (Meteor-M) recibidas por algunas
+          estaciones terrenas amateur: Raspberry Pis con la app de código abierto
+          <a href="https://github.com/bonchan/raspberry_sat">raspberry_sat</a>. Cualquiera puede ver la galería
+          básica; con tu cuenta ves todo.
+        </p>
+
+        <h2>Cuando solo mirás</h2>
+        <p>
+          No se pide nada y no se guarda ninguna cookie. Tu navegador recuerda tu idioma y cómo te gusta ver las
+          pasadas; eso queda en tu dispositivo.
+        </p>
+
+        <h2>Cuando entrás con Google</h2>
+        <p>El hub guarda:</p>
+        <ul>
+          <li>el ID de tu cuenta de Google, tu email, tu nombre y la dirección de tu foto de perfil;</li>
+          <li>cuándo entraste por primera y por última vez, y el rol que te dio un administrador (pendiente,
+            espectador o admin);</li>
+          <li>una cookie de sesión que te mantiene adentro hasta 30 días; el hub guarda solo una copia
+            irreversible (hash) de ella.</li>
+        </ul>
+        <p>No le pide nada más a Google: ni contactos, ni archivos, ni correo, ni calendario.</p>
+
+        <h2>Para qué se usa</h2>
+        <p>
+          Solo para dejarte entrar y para mostrarles a los administradores quién tiene acceso. Sin publicidad,
+          sin rastreo ni estadísticas, y no se vende ni se comparte nada. Los administradores ven los nombres,
+          emails y horarios de ingreso de quienes entraron.
+        </p>
+
+        <h2>Qué más hay en el sitio</h2>
+        <p>
+          Las estaciones suben sus pasadas: las imágenes, la hora, el satélite, la señal y dónde estaba la
+          estación cuando la recibió. Cualquiera ve una imagen de cada pasada, sus datos, el globo, y el nombre y
+          la posición de cada estación redondeada a unos 10 km; la última pasada, también con su señal. Los
+          espectadores y administradores que entran ven todo, posiciones exactas incluidas.
+        </p>
+
+        <h2>Dónde se guarda</h2>
+        <p>
+          En Cloudflare (Workers, D1 y R2), que corre el sitio. Google se encarga del ingreso. Sus propias
+          políticas de privacidad se aplican a lo que hacen ellos.
+        </p>
+
+        <h2>Borrar tus datos</h2>
+        <p>
+          Salir borra tu sesión. Para que borren tu cuenta, pedíselo a quien administra el hub: un administrador
+          la quita desde la página Usuarios y se borra en el momento. Escribile al email de soporte que Google
+          muestra cuando entrás a este sitio.
+        </p>
+
+        <p class="hint"><a href="/">Volver al hub</a></p>
+      </div>
     </main>
+    <script>
+      // the hub's saved language (web/src/i18n.ts: the same key), else the browser's; choosing here saves it
+      // for the hub too
+      (function () {
+        var KEY = 'raspberry-sat-hub-language'
+        var TITLES = { en: 'Privacy · raspberry_sat hub', es: 'Privacidad · raspberry_sat hub' }
+        function saved() {
+          try {
+            var s = localStorage.getItem(KEY)
+            if (s === 'en' || s === 'es') return s
+          } catch (e) { /* private mode */ }
+          return null
+        }
+        function show(lang) {
+          document.documentElement.lang = lang
+          document.title = TITLES[lang]
+          document.querySelectorAll('[data-lang]').forEach(function (el) { el.hidden = el.getAttribute('data-lang') !== lang })
+          document.querySelectorAll('[data-set]').forEach(function (b) {
+            b.className = b.getAttribute('data-set') === lang ? 'chip on' : 'chip'
+          })
+        }
+        var chips = document.getElementById('language')
+        chips.hidden = false
+        chips.addEventListener('click', function (e) {
+          var lang = e.target.getAttribute && e.target.getAttribute('data-set')
+          if (!lang) return
+          try { localStorage.setItem(KEY, lang) } catch (err) { /* private mode */ }
+          show(lang)
+        })
+        show(saved() || (navigator.language.toLowerCase().indexOf('es') === 0 ? 'es' : 'en'))
+      })()
+    </script>
   </body>
 </html>

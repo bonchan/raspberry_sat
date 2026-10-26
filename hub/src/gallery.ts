@@ -11,8 +11,9 @@ import { RECEIVER_ID, imagePath, passId, passName, splitPassId } from './names'
 
 const PAGE = 60
 
-/** SQL: the image of pass `p` everyone may see: its MCIR corrected (as the Pi names it), else its main image. */
-const PUBLIC_IMAGE = `COALESCE((SELECT i.path FROM images i WHERE i.receiver = p.receiver AND i.pass = p.id
+/** SQL: the image of pass `p` everyone may see: its MCIR corrected (as the Pi names it), else its main image.
+    Also the link preview's image (preview.ts). */
+export const PUBLIC_IMAGE =`COALESCE((SELECT i.path FROM images i WHERE i.receiver = p.receiver AND i.pass = p.id
   AND i.name = 'MCIR' AND i.variants = '["corrected"]' LIMIT 1), p.main)`
 
 /** about 10 km: enough for a dot on the globe, not a street address */

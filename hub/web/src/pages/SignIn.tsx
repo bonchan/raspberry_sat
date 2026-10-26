@@ -15,33 +15,34 @@ export function LanguageChoice() {
   )
 }
 
-/** "Sign in with Google" (the only way in), and the newest pass with all its data: what signing in shows. */
+/** The newest pass with all its data (what signing in shows) and, on its right, "Sign in with Google": the
+    only way in. */
 export default function SignIn() {
   const t = useT()
   const result = new URLSearchParams(location.search).get('signin')
-  const [latest, setLatest] = useState<Pass | null>(null)
+  const [latest, setLatest] = useState<Pass | null | undefined>(undefined)     // undefined: asking
 
   useEffect(() => {
     let alive = true
-    api.latest().then(p => alive && setLatest(p), () => {})
+    api.latest().then(p => alive && setLatest(p), () => alive && setLatest(null))
     return () => { alive = false }
   }, [])
 
-  return (
-    <>
-      <section className="signin narrow">
-        <h2>raspberry_sat hub</h2>
-        <p>{t('signin.what')}</p>
-        <p className="hint">{t('signin.more')}</p>
-        <button className="primary" onClick={() => location.assign('/auth/login')}>{t('signin.google')}</button>
-        {result && <p className={result === 'cancelled' ? 'hint' : 'error'}>
-          {result === 'cancelled' ? t('signin.cancelled') : t('signin.failed', { error: result })}
-        </p>}
-        <LanguageChoice />
-        {/* a plain link: the page is a static file (web/public), outside the app's routes */}
-        <a className="hint" href="/privacy.html">{t('signin.privacy')}</a>
-      </section>
-      {latest && <PassView pass={latest} chart={latest.chart ?? null} label={t('signin.latest')} />}
-    </>
+  if (latest === undefined) return <p className="hint">{t('common.loading')}</p>
+  const box = (
+    <section className={latest ? 'signin' : 'signin narrow alone'}>
+      <h2>raspberry_sat hub</h2>
+      <p>{t('signin.what')}</p>
+      <p className="hint">{t('signin.more')}</p>
+      <button className="primary" onClick={() => location.assign('/auth/login')}>{t('signin.google')}</button>
+      {result && <p className={result === 'cancelled' ? 'hint' : 'error'}>
+        {result === 'cancelled' ? t('signin.cancelled') : t('signin.failed', { error: result })}
+      </p>}
+      <LanguageChoice />
+      {/* a plain link: the page is a static file (web/public), outside the app's routes */}
+      <a className="hint" href="/privacy.html">{t('signin.privacy')}</a>
+    </section>
   )
+  // no pass yet (a new hub): only the box
+  return latest ? <PassView pass={latest} chart={latest.chart ?? null} label={t('signin.latest')} aside={box} /> : box
 }

@@ -1,11 +1,12 @@
 // The hub's Worker. Requests for the pages themselves never get here: Cloudflare serves them from dist/
-// (wrangler.jsonc: run_worker_first only for /api, /auth and /ingest).
+// (wrangler.jsonc: run_worker_first only for /api, /auth, /ingest, and /passes for its link previews).
 
 import * as auth from './auth'
 import type { Env } from './env'
 import * as gallery from './gallery'
 import { HttpError, json } from './http'
 import * as ingest from './ingest'
+import * as preview from './preview'
 import * as receivers from './receivers'
 import { ensureSchema } from './schema'
 import * as users from './users'
@@ -23,6 +24,9 @@ function sameOrigin(request: Request, url: URL): void {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
+    // a pass page, with its link preview: the page itself whatever else fails
+    const page = preview.route(request, env, url)
+    if (page) return page
     try {
       if (url.pathname.startsWith('/api/')) sameOrigin(request, url)
       await ensureSchema(env.DB)

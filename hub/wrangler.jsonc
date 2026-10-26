@@ -8,8 +8,10 @@
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*", "/ingest/*"]
+    // /passes/*: the pass pages, which get their link preview tags from the Worker (src/preview.ts)
+    "run_worker_first": ["/api/*", "/auth/*", "/ingest/*", "/passes/*"]
   },
   "d1_databases": [
     {

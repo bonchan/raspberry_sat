@@ -104,8 +104,10 @@ hub/
     receivers.ts        add, rename, new token, revoke, delete (admins)
     users.ts            roles, remove (admins; always at least one admin)
     ingest.ts           protocol 1 (receivers)
+    preview.ts          link previews: a pass page's HTML gets Open Graph tags (public image, satellite,
+                        station, UTC time), so a shared link shows a card in WhatsApp, Telegram, Discord
   web/                  the pages (React), built into dist/; share frontend/src/styles.css with the Pi app
-    public/privacy.html the privacy page Google asks for (public)
+    public/privacy.html the privacy page Google asks for (public; English and Spanish)
     src/pages/          Passes, PassDetail, Receivers, Users
   CLOUDFLARE_SETUP.md   personal setup checklist, not in git
 ```
