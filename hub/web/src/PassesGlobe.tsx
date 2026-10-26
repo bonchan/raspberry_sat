@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { api, fileUrl, type PassCard, type PassGeo, type StationName } from './api'
 import { dayLabel, longDate } from './format'
 import Globe, { type Drape, type Place } from './Globe'
+import { useT } from './i18n'
 
 const geoCache = new Map<string, Promise<PassGeo | null>>()     // per page load; null: can't be placed
 
@@ -24,6 +25,7 @@ function geoOf(id: string): Promise<PassGeo | null> {
 export default function PassesGlobe({ passes, stations, several }: {
   passes: PassCard[]; stations: StationName[]; several: boolean
 }) {
+  const t = useT()
   const box = useRef<HTMLDivElement>(null)
   const placeable = passes.filter(p => p.main && p.drape)
   const [selected, setSelected] = useState<string>()
@@ -71,10 +73,7 @@ export default function PassesGlobe({ passes, stations, several }: {
   if (!chosen) {
     return (
       <section ref={box}>
-        <p className="hint">
-          None of these passes can be placed on the globe. A Pi sends where its images lie with each pass once it
-          has the update with the globe; passes it sent before go again by themselves.
-        </p>
+        <p className="hint">{t('globe.none')}</p>
       </section>
     )
   }
@@ -99,7 +98,7 @@ export default function PassesGlobe({ passes, stations, several }: {
           <Link to={`/passes/${encodeURIComponent(p.id)}`} onClick={e => e.stopPropagation()}><b>{p.satellite}</b></Link>
           <span>{longDate(p.time)}</span>
           <span className="hint">{several && p.station_name ? `${where} · ${p.receiver_name}` : where}</span>
-          {on && failed === p.id && <span className="hint">can't be placed</span>}
+          {on && failed === p.id && <span className="hint">{t('globe.cantPlace')}</span>}
         </div>
       </div>,
     )

@@ -4,9 +4,11 @@
 import { PLOT, signalPlot } from '../../../frontend/src/signalPlot'
 import type { SignalThumb } from './api'
 import { utc } from './format'
+import { useT } from './i18n'
 
 /** bare: the chart alone (the pass list); otherwise with its legend (the pass page) */
 export default function SignalChart({ signal, bare = false }: { signal: SignalThumb; bare?: boolean }) {
+  const t = useT()
   const plot = signalPlot(signal.samples, signal.start, signal.end, signal.track ?? undefined)
   return (
     <>
@@ -21,8 +23,8 @@ export default function SignalChart({ signal, bare = false }: { signal: SignalTh
       </svg>
       {!bare && (
         <p className="hint chart-legend">
-          <span className="key snr" /> SNR (0–{plot.ymax} dB) <span className="key el" /> elevation (0–90°)
-          <span className="key sync" /> frames sync <span className="key nosync" /> no sync
+          <span className="key snr" /> {t('chart.snr', { max: plot.ymax })} <span className="key el" /> {t('chart.el')}
+          <span className="key sync" /> {t('chart.sync')} <span className="key nosync" /> {t('chart.noSync')}
           <span className="chart-times">{utc(signal.start)} – {utc(signal.end).slice(11)}</span>
         </p>
       )}

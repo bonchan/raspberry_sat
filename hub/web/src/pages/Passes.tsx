@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, fileUrl, type PassCard, type ReceiverName, type SignalThumb, type StationName } from '../api'
 import { clock, dayLabel, elevationQuality, longDate, percent } from '../format'
+import { useT, type Key } from '../i18n'
 import PassesGlobe from '../PassesGlobe'
 import SignalChart from '../SignalChart'
 
 type Layout = 'grid' | 'list' | 'globe'
-const LAYOUTS: { value: Layout; label: string }[] = [
-  { value: 'grid', label: 'Grid' }, { value: 'list', label: 'List' }, { value: 'globe', label: 'Globe' },
+const LAYOUTS: { value: Layout; label: Key }[] = [
+  { value: 'grid', label: 'passes.grid' }, { value: 'list', label: 'passes.list' }, { value: 'globe', label: 'passes.globe' },
 ]
 const LAYOUT_KEY = 'raspberry-sat-hub-layout'     // this browser's choice
 
@@ -23,6 +24,7 @@ function storedLayout(): Layout {
 /** Every receiver's passes, newest first, as a grid, a list (with the signal over each pass) or on a globe,
     as on the Pi. Filters by receiver (Pi) and by station (one of its places) when there is a choice. */
 export default function Passes({ admin }: { admin: boolean }) {
+  const t = useT()
   const [params, setParams] = useSearchParams()
   const receiver = params.get('receiver') ?? ''
   const station = params.get('station') ?? ''
@@ -81,11 +83,11 @@ export default function Passes({ admin }: { admin: boolean }) {
   return (
     <>
       <div className="title-row">
-        <h2>Passes</h2>
+        <h2>{t('passes.title')}</h2>
         <div className="chips layout-switch">
           {LAYOUTS.map(l => (
             <button key={l.value} className={layout === l.value ? 'chip on' : 'chip'} onClick={() => setLayout(l.value)}>
-              {l.label}
+              {t(l.label)}
             </button>
           ))}
         </div>
@@ -94,7 +96,7 @@ export default function Passes({ admin }: { admin: boolean }) {
         <div className="filters">
           {several && (
             <div className="chips">
-              <button className={receiver === '' ? 'chip on' : 'chip'} onClick={() => chooseReceiver('')}>All receivers</button>
+              <button className={receiver === '' ? 'chip on' : 'chip'} onClick={() => chooseReceiver('')}>{t('passes.allReceivers')}</button>
               {receivers.map(r => (
                 <button key={r.id} className={receiver === r.id ? 'chip on' : 'chip'} onClick={() => chooseReceiver(r.id)}>{r.name}</button>
               ))}
@@ -102,7 +104,7 @@ export default function Passes({ admin }: { admin: boolean }) {
           )}
           {shown.length > 1 && (
             <div className="chips">
-              <button className={station === '' ? 'chip on' : 'chip'} onClick={() => chooseStation(null)}>All stations</button>
+              <button className={station === '' ? 'chip on' : 'chip'} onClick={() => chooseStation(null)}>{t('passes.allStations')}</button>
               {shown.map(s => (
                 <button key={`${s.receiver}/${s.id}`} className={station === s.id && receiver === s.receiver ? 'chip on' : 'chip'}
                   onClick={() => chooseStation(s)}>
@@ -117,7 +119,7 @@ export default function Passes({ admin }: { admin: boolean }) {
       {!loading && !error && passes.length === 0 && (
         <section>
           <p className="hint">
-            No passes yet.{admin && ' Add a receiver on the Receivers page, then paste its URL and token into the Pi\'s settings.'}
+            {t('passes.none')}{admin && <> {t('passes.noneAdmin')}</>}
           </p>
         </section>
       )}
@@ -125,9 +127,9 @@ export default function Passes({ admin }: { admin: boolean }) {
       {passes.length > 0 && layout === 'list' && <List passes={passes} several={several} />}
       {passes.length > 0 && layout === 'globe' && <PassesGlobe passes={passes} stations={shown} several={several} />}
       {more && layout !== 'globe' && (
-        <div className="row"><button disabled={loading} onClick={older}>Older passes</button></div>
+        <div className="row"><button disabled={loading} onClick={older}>{t('passes.older')}</button></div>
       )}
-      {loading && <p className="hint">Loading…</p>}
+      {loading && <p className="hint">{t('common.loading')}</p>}
     </>
   )
 }
@@ -159,31 +161,34 @@ const where = (p: PassCard, several: boolean) =>
   several && p.station_name ? `${p.station_name} · ${p.receiver_name}` : p.station_name ?? p.receiver_name
 
 function SignalLine({ pass }: { pass: PassCard }) {
+  const t = useT()
   if (pass.max_el == null && pass.peak_snr == null) return null
   return (
     <span>
-      {pass.max_el != null && <span className={`el q-${elevationQuality(pass.max_el)}`}>max {Math.round(pass.max_el)}°</span>}
+      {pass.max_el != null && <span className={`el q-${elevationQuality(pass.max_el)}`}>{t('passes.maxEl', { el: Math.round(pass.max_el) })}</span>}
       {pass.max_el != null && pass.peak_snr != null && ' · '}
-      {pass.peak_snr != null && `SNR ${pass.peak_snr.toFixed(1)} dB`}
+      {pass.peak_snr != null && t('passes.snr', { snr: pass.peak_snr.toFixed(1) })}
     </span>
   )
 }
 
 function ImagesLine({ pass }: { pass: PassCard }) {
+  const t = useT()
   return (
     <span className="hint">
-      {pass.coverage != null && <>{percent(pass.coverage)} received · </>}
-      {pass.images === 1 ? '1 image' : `${pass.images} images`}
+      {pass.coverage != null && <>{t('passes.received', { p: percent(pass.coverage) })} · </>}
+      {pass.images === 1 ? t('passes.oneImage') : t('passes.images', { n: pass.images })}
     </span>
   )
 }
 
 function Card({ pass, several }: { pass: PassCard; several: boolean }) {
+  const t = useT()
   return (
     <div className="card pass-card">
       {pass.main
         ? <img src={fileUrl(pass.receiver, pass.pass, 'thumb', pass.main)} alt="" loading="lazy" />
-        : <div className="noimage">No images</div>}
+        : <div className="noimage">{t('passes.noImages')}</div>}
       <div className="caption">
         <div className="title-row">
           <Link className="card-link" to={`/passes/${encodeURIComponent(pass.id)}`}><b>{pass.satellite}</b></Link>

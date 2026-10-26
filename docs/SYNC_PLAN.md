@@ -124,9 +124,11 @@ hub/
   by page; a pass (its images; the same facts, in the same words, as on the Pi, with the sky plot under them; station, receiver; the signal chart; delete for admins), Receivers (admins: add by name with URL + token
   shown once, rename, new token, revoke, delete with its passes; the stations each has sent from), Users
   (admins: roles, remove). Signed out: "Sign in with Google". Pending: "an admin has to let you in".
+  The header's user menu holds the language and Sign out.
 - **Secrets:** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (Worker → Settings → Variables and Secrets).
   `NEW_USER_ROLE` in wrangler.jsonc: `pending` (default) or `viewer`.
-- English only for now.
+- English and Spanish (`web/src/i18n.ts`, worded as on the Pi): each browser's choice, at first its own
+  language; also on the sign-in page.
 
 ## Station side (built; backend/app/destinations.py, Settings → Destinations)
 
@@ -203,7 +205,6 @@ be undone: the originals are gone, the hub has its JPEGs.
 - Retention on the hub (drop large JPEGs after N days, keep thumbnails).
 - The `.cadu` as an archive, and "get all images" for a pass.
 - The same pass from two stations side by side; a public gallery (round station positions first).
-- Spanish on the hub.
 
 ## Verification
 

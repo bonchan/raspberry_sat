@@ -3,8 +3,20 @@
 .signin { margin: 12vh auto 0; text-align: center; display: grid; gap: 12px; justify-items: center; }
 .signin p { margin: 0; }
 
-.user { display: flex; align-items: center; gap: 10px; }
-.user img { width: 26px; height: 26px; border-radius: 50%; }
+/* the header's user menu: language and Sign out */
+.user-menu { position: relative; }
+.user-button { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; background: transparent; }
+.user-button img, .user-button .avatar { width: 26px; height: 26px; border-radius: 50%; }
+.user-button .avatar { display: grid; place-items: center; background: var(--line); font-weight: 600; font-size: 13px; }
+.user-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; min-width: 220px;
+  display: grid; gap: 10px; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .4);
+}
+.menu-panel .chips { margin-top: 0; }
+.menu-label { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.signin .chips { justify-content: center; }
 
 .link-box { border-color: var(--accent); }
 .link-box dl { grid-template-columns: max-content minmax(0, 1fr) auto; align-items: center; }

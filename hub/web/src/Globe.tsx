@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { BoundingSphere, Primitive, Viewer } from 'cesium'
 import { createViewer, loadCesium, passImage, type CesiumNS } from '../../../frontend/src/cesium'
 import type { PassGeo } from './api'
+import { useT } from './i18n'
 
 const IMAGE_HEIGHT = 5000       // metres above the ground for a draped image: clear of the globe's surface
 const IMAGE_STEP = 1000         // each further image a little higher, so overlapping ones don't flicker
@@ -22,6 +23,7 @@ export default function Globe({ drapes, focus, places }: {
   focus?: { id: string; at: number; instant?: boolean }   // fly to this drape; `at` changes when asked again
   places: Place[]
 }) {
+  const t = useT()
   const box = useRef<HTMLDivElement>(null)
   const viewer = useRef<Viewer | null>(null)
   const placed = useRef(new Map<string, { primitive: Primitive; sphere: BoundingSphere }>())    // by drape id
@@ -116,7 +118,7 @@ export default function Globe({ drapes, focus, places }: {
   return (
     <div className="globe">
       <div ref={box} className="globe-canvas" />
-      {!cesium && <p className="globe-wait hint">{failed ? `The globe could not load: ${failed}` : 'Loading the globe…'}</p>}
+      {!cesium && <p className="globe-wait hint">{failed ? t('globe.failed', { error: failed }) : t('globe.loading')}</p>}
     </div>
   )
 }

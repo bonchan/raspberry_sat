@@ -1,15 +1,15 @@
-// Dates in the viewer's time zone, on a 24-hour clock, as on the stations.
+// Dates in the viewer's time zone and language, on a 24-hour clock, as on the stations.
 
-const LOCALE = 'en-GB'
+import { currentLanguage, locale, tr } from './i18n'
 
 export const longDate = (unix: number) =>
-  new Date(unix * 1000).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short', hour12: false })
+  new Date(unix * 1000).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short', hour12: false })
 
 export const utc = (unix: number) => new Date(unix * 1000).toISOString().slice(0, 16).replace('T', ' ') + ' UTC'
 
 /** "13:10" */
 export const clock = (unix: number) =>
-  new Date(unix * 1000).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', hour12: false })
+  new Date(unix * 1000).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit', hour12: false })
 
 /** "14 min 03 s", as on the Pi */
 export function duration(seconds: number): string {
@@ -21,8 +21,11 @@ export function duration(seconds: number): string {
   return `${r} s`
 }
 
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-export const compass = (az: number) => COMPASS[Math.round(az / 45) % 8]
+const COMPASS = {
+  en: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'],
+  es: ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'],
+}
+export const compass = (az: number) => COMPASS[currentLanguage()][Math.round(az / 45) % 8]
 
 export const percent = (share: number) => Math.round(share * 100) + '%'
 
@@ -31,9 +34,9 @@ export function dayLabel(unix: number): string {
   const d = new Date(unix * 1000)
   const today = new Date()
   const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return d.toLocaleDateString(LOCALE, {
+  if (d.toDateString() === today.toDateString()) return tr('day.today')
+  if (d.toDateString() === yesterday.toDateString()) return tr('day.yesterday')
+  return d.toLocaleDateString(locale(), {
     weekday: 'long', day: 'numeric', month: 'long',
     ...(d.getFullYear() !== today.getFullYear() && { year: 'numeric' }),
   })
@@ -41,12 +44,12 @@ export function dayLabel(unix: number): string {
 
 /** "3 min ago", "2 h ago", "5 d ago" */
 export function ago(unix: number | null): string {
-  if (!unix) return 'never'
+  if (!unix) return tr('ago.never')
   const s = Date.now() / 1000 - unix
-  if (s < 90) return 'just now'
-  if (s < 3600) return `${Math.round(s / 60)} min ago`
-  if (s < 86400 * 2) return `${Math.round(s / 3600)} h ago`
-  return `${Math.round(s / 86400)} d ago`
+  if (s < 90) return tr('ago.now')
+  if (s < 3600) return tr('ago.min', { n: Math.round(s / 60) })
+  if (s < 86400 * 2) return tr('ago.h', { n: Math.round(s / 3600) })
+  return tr('ago.d', { n: Math.round(s / 86400) })
 }
 
 /** the colour of a highest elevation, as on the stations (30° good, 60° excellent) */
